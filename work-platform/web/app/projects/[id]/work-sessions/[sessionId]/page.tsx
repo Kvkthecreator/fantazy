@@ -154,13 +154,108 @@ export default async function WorkSessionDetailPage({ params }: PageProps) {
         <p className="text-foreground/90 whitespace-pre-wrap">{session.task_description}</p>
       </Card>
 
-      {/* Context (if any) */}
+      {/* Recipe Configuration (if any) */}
       {session.context && Object.keys(session.context).length > 0 && (
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-foreground mb-4">Additional Context</h2>
-          <pre className="text-sm text-muted-foreground bg-muted p-4 rounded-lg overflow-x-auto border border-border/60">
-            {JSON.stringify(session.context, null, 2)}
-          </pre>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Recipe Configuration</h2>
+
+          {/* Reporting Agent Recipe */}
+          {session.context.report_spec && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoItem
+                  label="Report Type"
+                  value={session.context.report_spec.report_type?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Executive Summary'}
+                />
+                {session.context.report_spec.time_period_start && session.context.report_spec.time_period_end && (
+                  <InfoItem
+                    label="Time Period"
+                    value={`${session.context.report_spec.time_period_start} to ${session.context.report_spec.time_period_end}`}
+                  />
+                )}
+              </div>
+
+              {session.context.report_spec.sections_required && session.context.report_spec.sections_required.length > 0 && (
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Required Sections</div>
+                  <div className="flex flex-wrap gap-2">
+                    {session.context.report_spec.sections_required.map((section: string, i: number) => (
+                      <Badge key={i} variant="outline">{section}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {session.context.audience && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <InfoItem
+                    label="Target Audience"
+                    value={session.context.audience.stakeholder_level?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Executive'}
+                  />
+                  <InfoItem
+                    label="Depth Level"
+                    value={session.context.audience.depth?.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'High Level'}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Research Agent Recipe */}
+          {session.context.research_scope && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoItem
+                  label="Depth"
+                  value={session.context.research_scope.depth?.replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Detailed'}
+                />
+                {session.context.output_preferences?.format && (
+                  <InfoItem
+                    label="Output Format"
+                    value={session.context.output_preferences.format.replace(/_/g, ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
+                  />
+                )}
+              </div>
+
+              {session.context.research_scope.domains && session.context.research_scope.domains.length > 0 && (
+                <div>
+                  <div className="text-sm text-muted-foreground mb-2">Domains</div>
+                  <div className="flex flex-wrap gap-2">
+                    {session.context.research_scope.domains.map((domain: string, i: number) => (
+                      <Badge key={i} variant="outline">{domain}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Content Creator Recipe */}
+          {session.context.content_spec && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <InfoItem
+                  label="Platform"
+                  value={session.context.content_spec.platform?.replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'General'}
+                />
+                <InfoItem
+                  label="Tone"
+                  value={session.context.content_spec.tone?.replace(/\b\w/g, (l: string) => l.toUpperCase()) || 'Professional'}
+                />
+              </div>
+              <InfoItem
+                label="Target Audience"
+                value={session.context.content_spec.target_audience || 'General Audience'}
+              />
+            </div>
+          )}
+
+          {/* Fallback: Show raw JSON if no known recipe structure */}
+          {!session.context.report_spec && !session.context.research_scope && !session.context.content_spec && (
+            <pre className="text-sm text-muted-foreground bg-muted p-4 rounded-lg overflow-x-auto border border-border/60">
+              {JSON.stringify(session.context, null, 2)}
+            </pre>
+          )}
         </Card>
       )}
 

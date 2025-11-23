@@ -50,8 +50,9 @@ export default function WorkSessionExecutor({
   const [polling, setPolling] = useState(false);
 
   // Poll for status updates when executing
+  // Note: DB uses 'running', frontend displays as 'in_progress'
   useEffect(() => {
-    if (status === "in_progress" || status === "initialized" && polling) {
+    if (status === "running" || status === "in_progress" || status === "initialized" && polling) {
       const interval = setInterval(async () => {
         try {
           const response = await fetch(
@@ -131,8 +132,9 @@ export default function WorkSessionExecutor({
     }
   };
 
-  // Show execute button only for initialized status
-  if (status === "initialized") {
+  // Show execute button for pending or initialized status
+  // Note: DB uses 'pending', legacy code may use 'initialized'
+  if (status === "pending" || status === "initialized") {
     return (
       <Card className="p-6 border border-surface-primary-border bg-surface-primary">
         <div className="flex items-center justify-between">
@@ -174,8 +176,9 @@ export default function WorkSessionExecutor({
     );
   }
 
-  // Show execution status for in_progress
-  if (status === "in_progress") {
+  // Show execution status for running/in_progress
+  // Note: DB uses 'running', legacy code may use 'in_progress'
+  if (status === "running" || status === "in_progress") {
     return (
       <Card className="p-6 border border-surface-primary-border bg-surface-primary">
         <div className="flex items-center gap-3">
