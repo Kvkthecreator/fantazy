@@ -414,7 +414,7 @@ async def execute_work_ticket(
     Returns:
         Execution result with status and outputs
     """
-    from services.work_ticket_executor import WorkTicketExecutor
+    from services.work_session_executor import WorkTicketExecutor
 
     user_id = user.get("sub") or user.get("user_id")
     if not user_id:
@@ -426,20 +426,41 @@ async def execute_work_ticket(
     )
 
     try:
-        # Verify session belongs to project and user has access
+        # Verify work ticket exists and belongs to project via basket_id
         supabase = create_client(
             os.getenv("SUPABASE_URL"),
             os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         )
 
-        session_response = supabase.table("work_tickets").select(
-            "id, project_id, status"
-        ).eq("id", ticket_id).eq("project_id", project_id).single().execute()
+        # First get project's basket_id
+        project_response = supabase.table("projects").select(
+            "id, basket_id, user_id"
+        ).eq("id", project_id).single().execute()
 
-        if not session_response.data:
+        if not project_response.data:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        project = project_response.data
+
+        # Verify user owns project
+        if project["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        # Get work ticket and verify it belongs to project's basket
+        ticket_response = supabase.table("work_tickets").select(
+            "id, basket_id, status"
+        ).eq("id", ticket_id).single().execute()
+
+        if not ticket_response.data:
+            raise HTTPException(status_code=404, detail="Work ticket not found")
+
+        ticket = ticket_response.data
+
+        # Verify work ticket belongs to this project's basket
+        if ticket["basket_id"] != project["basket_id"]:
             raise HTTPException(
                 status_code=404,
-                detail="Work session not found or does not belong to this project"
+                detail="Work ticket not found in this project"
             )
 
         # Execute work session
