@@ -36,7 +36,7 @@ from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, AgentDefinitio
 
 from adapters.memory_adapter import SubstrateMemoryAdapter
 from agents_sdk.shared_tools_mcp import create_shared_tools_server
-from yarnnn_agents.session import AgentSession
+from shared.session import AgentSession
 
 logger = logging.getLogger(__name__)
 
@@ -526,7 +526,7 @@ Please create compelling {content_type} content for {platform} about {topic}."""
                                                 output_data = result_content
 
                                             # Convert to WorkOutput object if needed
-                                            from yarnnn_agents.tools import WorkOutput
+                                            from shared.work_output_tools import WorkOutput
                                             if isinstance(output_data, dict):
                                                 work_output = WorkOutput(**output_data)
                                             else:

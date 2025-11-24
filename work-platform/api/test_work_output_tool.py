@@ -30,8 +30,8 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 
 async def main():
     # Import after path setup
-    from yarnnn_agents.archetypes import ResearchAgent
-    from yarnnn_agents.interfaces import Context
+    # LEGACY: from yarnnn_agents.archetypes import ResearchAgent
+    from shared.interfaces import Context
 
     # Configuration from database
     agent_config = {

@@ -15,7 +15,7 @@ import sys
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from yarnnn_agents.session import AgentSession
+from shared.session import AgentSession
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

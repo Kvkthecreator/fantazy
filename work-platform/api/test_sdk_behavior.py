@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
-from yarnnn_agents.tools import EMIT_WORK_OUTPUT_TOOL
+from shared.work_output_tools import EMIT_WORK_OUTPUT_TOOL
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -20,7 +20,7 @@ from app.utils.jwt import verify_jwt
 from app.utils.supabase_client import supabase_admin_client as supabase
 from agents_sdk.research_agent_sdk import ResearchAgentSDK
 from agents_sdk.work_bundle import WorkBundle
-from yarnnn_agents.session import AgentSession
+from shared.session import AgentSession
 import logging
 
 router = APIRouter(prefix="/work/research", tags=["workflows"])

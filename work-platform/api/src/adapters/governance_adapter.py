@@ -16,7 +16,7 @@ from uuid import UUID
 
 # Import YARNNN agent interfaces (internalized SDK)
 try:
-    from yarnnn_agents.interfaces import GovernanceProvider
+    from shared.interfaces import GovernanceProvider
 except ImportError:
     # Fallback if interfaces not available yet
     class GovernanceProvider:

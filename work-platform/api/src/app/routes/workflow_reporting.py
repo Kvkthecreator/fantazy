@@ -25,7 +25,7 @@ from app.utils.supabase_client import supabase_admin_client as supabase
 from agents_sdk.reporting_agent_sdk import ReportingAgentSDK
 from agents_sdk.work_bundle import WorkBundle
 from services.recipe_loader import RecipeLoader, RecipeValidationError
-from yarnnn_agents.session import AgentSession
+from shared.session import AgentSession
 import logging
 
 router = APIRouter(prefix="/work/reporting", tags=["workflows"])

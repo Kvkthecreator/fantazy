@@ -9,7 +9,7 @@ WORKSPACE_ID = "99e6bf7d-513c-45ff-9b96-9362bd914d12"
 USER_ID = "aa94fbd9-13cc-4dbc-a9fb-2114ad0928f2"
 
 async def test():
-    from yarnnn_agents.session import AgentSession
+    from shared.session import AgentSession
     
     print("\n=== Testing TP Session Creation ===\n")
     

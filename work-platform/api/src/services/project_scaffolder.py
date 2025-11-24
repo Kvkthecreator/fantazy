@@ -263,7 +263,7 @@ async def scaffold_new_project(
             )
 
             # Import AgentSession for session management
-            from yarnnn_agents.session import AgentSession
+            from shared.session import AgentSession
 
             # Step 5.1: Create TP session (root of hierarchy, parent_session_id=NULL)
             tp_session = await AgentSession.get_or_create(

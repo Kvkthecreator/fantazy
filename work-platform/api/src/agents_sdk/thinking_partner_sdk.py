@@ -39,8 +39,8 @@ from uuid import uuid4
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, AgentDefinition
 
 from adapters.memory_adapter import SubstrateMemoryAdapter
-from yarnnn_agents.tools import EMIT_WORK_OUTPUT_TOOL, parse_work_outputs_from_response
-from yarnnn_agents.session import AgentSession
+from shared.work_output_tools import EMIT_WORK_OUTPUT_TOOL, parse_work_outputs_from_response
+from shared.session import AgentSession
 
 logger = logging.getLogger(__name__)
 
