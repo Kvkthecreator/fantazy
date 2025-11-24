@@ -73,6 +73,12 @@ export default function RecipeConfigureClient({
       const topic = formValues.topic || "Work request";
       const taskDescription = `${topic}\n\nRecipe: ${recipe.name}\nParameters: ${JSON.stringify(formValues, null, 2)}`;
 
+      // Map frontend recipe IDs to backend recipe slugs
+      const recipeSlugMap: Record<string, string> = {
+        "powerpoint-report": "executive-summary-deck",
+        // Future mappings will go here as more recipes are added to DB
+      };
+
       // Call appropriate specialist endpoint based on agent type
       let endpoint = "";
       let requestBody: any = {
@@ -80,6 +86,8 @@ export default function RecipeConfigureClient({
         task_description: taskDescription,
         output_format: recipe.output_format,
         priority: 5,
+        recipe_id: recipeSlugMap[recipe.id] || recipe.id, // Map to backend slug or use ID
+        recipe_parameters: formValues, // Pass validated parameters
       };
 
       switch (recipe.agent_type) {

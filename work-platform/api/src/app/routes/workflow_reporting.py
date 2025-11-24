@@ -286,9 +286,11 @@ async def execute_reporting_workflow(
         else:
             # Standard reporting execution (free-form)
             logger.info(f"[REPORTING WORKFLOW] Executing standard reporting")
-            result = await reporting_sdk.execute_deep_dive(
-                task_description=request.task_description,
-                output_format=request.output_format,
+            result = await reporting_sdk.generate(
+                report_type=request.task_description or "custom_report",
+                format=request.output_format or "pdf",
+                topic=request.task_description or "Report",
+                requirements=request.task_description,
                 claude_session_id=reporting_session.claude_session_id,
             )
 
