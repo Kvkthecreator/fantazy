@@ -7,13 +7,14 @@ All endpoints are user-facing with workspace-scoped access control.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Union
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..utils.jwt import verify_jwt
 from ..utils.service_auth import verify_user_or_service
@@ -49,6 +50,28 @@ class WorkOutputCreate(BaseModel):
     mime_type: Optional[str] = None
     generation_method: str = "text"
     skill_metadata: Optional[dict] = None
+
+    @field_validator('source_context_ids', mode='before')
+    @classmethod
+    def parse_source_context_ids(cls, v: Union[str, List[str]]) -> List[str]:
+        """Parse source_context_ids from string to list if needed."""
+        if isinstance(v, str):
+            # Handle empty string
+            if not v or v.strip() == "":
+                return []
+            # Handle JSON string like "[]" or '["id1", "id2"]'
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+                return []
+            except (json.JSONDecodeError, ValueError):
+                # Not valid JSON, return empty list
+                return []
+        elif isinstance(v, list):
+            return v
+        else:
+            return []
 
 
 class WorkOutputStatusUpdate(BaseModel):
