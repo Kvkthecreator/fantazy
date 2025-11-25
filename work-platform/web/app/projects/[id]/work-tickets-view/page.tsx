@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ArrowLeft, Clock, CheckCircle, XCircle, Loader2, Repeat } from 'lucide-react';
 import { cn } from "@/lib/utils";
-import { WorkTicketCard } from "@/components/WorkTicketCard";
+import { TicketListClient } from "./TicketListClient";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -202,11 +202,11 @@ export default async function WorkSessionsPage({ params, searchParams }: PagePro
           )}
         </Card>
       ) : (
-        <div className="space-y-3">
-          {tickets.map((ticket) => (
-            <WorkTicketCard key={ticket.id} ticket={ticket} projectId={projectId} />
-          ))}
-        </div>
+        <TicketListClient
+          initialTickets={tickets}
+          basketId={project.basket_id || ''}
+          projectId={projectId}
+        />
       )}
     </div>
   );

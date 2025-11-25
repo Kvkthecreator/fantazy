@@ -33,7 +33,7 @@ export function WorkTicketCard({ ticket, projectId }: WorkTicketCardProps) {
   const isRunning = ticket.status === "running";
 
   return (
-    <Link key={ticket.id} href={`/projects/${projectId}/outputs`}>
+    <Link key={ticket.id} href={`/projects/${projectId}/work-tickets/${ticket.id}/track`}>
       <Card className="p-4 cursor-pointer transition hover:border-ring">
         <div className="flex items-start justify-between">
           <div className="flex-1">

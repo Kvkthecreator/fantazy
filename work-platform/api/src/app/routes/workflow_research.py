@@ -244,6 +244,10 @@ async def execute_research_workflow(
 
         execution_time_ms = int((time.time() - start_time) * 1000)
 
+        # Get final TodoWrite state from task_streaming
+        from app.work.task_streaming import TASK_UPDATES
+        final_todos = TASK_UPDATES.get(work_ticket_id, [])
+
         # Step 8: Update work_ticket status to completed
         supabase.table("work_tickets").update({
             "status": "completed",
@@ -252,8 +256,12 @@ async def execute_research_workflow(
                 "execution_time_ms": execution_time_ms,
                 "output_count": result["output_count"],
                 "claude_session_id": result.get("claude_session_id"),
+                "final_todos": final_todos,  # Store historical TodoWrite data
             },
         }).eq("id", work_ticket_id).execute()
+
+        # Clean up TodoWrite data
+        TASK_UPDATES.pop(work_ticket_id, None)
 
         logger.info(
             f"[RESEARCH WORKFLOW] Execution complete: {result['output_count']} outputs "

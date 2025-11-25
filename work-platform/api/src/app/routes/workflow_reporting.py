@@ -296,6 +296,10 @@ async def execute_reporting_workflow(
 
         execution_time_ms = int((time.time() - start_time) * 1000)
 
+        # Get final TodoWrite state from task_streaming
+        from app.work.task_streaming import TASK_UPDATES
+        final_todos = TASK_UPDATES.get(work_ticket_id, [])
+
         # Step 9: Update work_ticket to completed
         supabase.table("work_tickets").update({
             "status": "completed",
@@ -305,8 +309,12 @@ async def execute_reporting_workflow(
                 "execution_time_ms": execution_time_ms,
                 "output_count": result.get("output_count", 0),
                 "recipe_slug": recipe.slug if recipe else None,
+                "final_todos": final_todos,  # Store historical TodoWrite data
             },
         }).eq("id", work_ticket_id).execute()
+
+        # Clean up TodoWrite data
+        TASK_UPDATES.pop(work_ticket_id, None)
 
         logger.info(
             f"[REPORTING WORKFLOW] Execution complete: {result.get('output_count', 0)} outputs "
