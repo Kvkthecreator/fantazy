@@ -82,6 +82,7 @@ export default function RecipeConfigureClient({
         priority: 5,
         recipe_id: recipe.id, // Use slug directly from database
         recipe_parameters: formValues, // Pass validated parameters
+        async_execution: true, // Enable async mode for immediate redirect
       };
 
       switch (recipe.agent_type) {

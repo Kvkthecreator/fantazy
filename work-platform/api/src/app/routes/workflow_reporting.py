@@ -44,6 +44,9 @@ class ReportingWorkflowRequest(BaseModel):
     recipe_parameters: Optional[Dict[str, Any]] = None  # User-customized parameters
     reference_asset_ids: Optional[list[str]] = None  # User-uploaded assets
 
+    # Async execution mode
+    async_execution: Optional[bool] = False  # If True, return ticket_id immediately
+
 
 class ReportingWorkflowResponse(BaseModel):
     """Reporting workflow execution result."""
@@ -220,6 +223,133 @@ async def execute_reporting_workflow(
             f"[REPORTING WORKFLOW] Created: work_request={work_request_id}, "
             f"work_ticket={work_ticket_id}"
         )
+
+        # ASYNC MODE: Return immediately with ticket_id (frontend will poll/stream for updates)
+        if request.async_execution:
+            logger.info(f"[REPORTING WORKFLOW] Async mode: returning ticket_id immediately")
+
+            # Start execution in background thread
+            import threading
+            import asyncio
+
+            def execute_in_background():
+                try:
+                    # Re-import inside thread to avoid context issues
+                    from app.utils.supabase_client import supabase_admin_client as bg_supabase
+                    from agents_sdk.reporting_agent_sdk import ReportingAgentSDK
+                    from agents_sdk.work_bundle import WorkBundle
+                    import time
+
+                    # Update status to running
+                    bg_supabase.table("work_tickets").update({
+                        "status": "running",
+                        "started_at": "now()",
+                    }).eq("id", work_ticket_id).execute()
+
+                    # Load context
+                    blocks_response = bg_supabase.table("blocks").select(
+                        "id, content, semantic_type, state, created_at, metadata"
+                    ).eq("basket_id", request.basket_id).in_(
+                        "state", ["ACCEPTED", "LOCKED", "CONSTANT"]
+                    ).order("created_at", desc=True).limit(50).execute()
+
+                    substrate_blocks = blocks_response.data or []
+
+                    # Load reference assets if provided
+                    reference_assets = []
+                    if request.reference_asset_ids:
+                        assets_response = bg_supabase.table("documents").select(
+                            "id, title, document_type, metadata, file_url"
+                        ).in_("id", request.reference_asset_ids).execute()
+                        reference_assets = assets_response.data or []
+
+                    # Create WorkBundle
+                    context_bundle = WorkBundle(
+                        work_request_id=work_request_id,
+                        work_ticket_id=work_ticket_id,
+                        basket_id=request.basket_id,
+                        workspace_id=workspace_id,
+                        user_id=user_id,
+                        task=execution_context["deliverable_intent"].get("purpose") if execution_context else request.task_description,
+                        agent_type="reporting",
+                        priority=f"p{request.priority}",
+                        substrate_blocks=substrate_blocks,
+                        reference_assets=reference_assets,
+                        agent_config=execution_context if execution_context else {},
+                    )
+
+                    # Execute reporting agent
+                    reporting_sdk = ReportingAgentSDK(
+                        basket_id=request.basket_id,
+                        workspace_id=workspace_id,
+                        work_ticket_id=work_ticket_id,
+                        session=reporting_session,
+                        bundle=context_bundle,
+                    )
+
+                    start_time = time.time()
+
+                    if recipe:
+                        result = asyncio.run(reporting_sdk.execute_recipe(
+                            recipe_context=execution_context,
+                            claude_session_id=reporting_session.claude_session_id,
+                        ))
+                    else:
+                        result = asyncio.run(reporting_sdk.generate(
+                            report_type=request.task_description or "custom_report",
+                            format=request.output_format or "pdf",
+                            topic=request.task_description or "Report",
+                            requirements=request.task_description,
+                            claude_session_id=reporting_session.claude_session_id,
+                        ))
+
+                    execution_time_ms = int((time.time() - start_time) * 1000)
+
+                    # Get final TodoWrite state
+                    from app.work.task_streaming import TASK_UPDATES
+                    final_todos = TASK_UPDATES.get(work_ticket_id, [])
+
+                    # Update to completed
+                    bg_supabase.table("work_tickets").update({
+                        "status": "completed",
+                        "completed_at": "now()",
+                        "metadata": {
+                            "workflow": "recipe_reporting" if recipe else "deterministic_reporting",
+                            "execution_time_ms": execution_time_ms,
+                            "output_count": result.get("output_count", 0),
+                            "recipe_slug": recipe.slug if recipe else None,
+                            "final_todos": final_todos,
+                        },
+                    }).eq("id", work_ticket_id).execute()
+
+                    TASK_UPDATES.pop(work_ticket_id, None)
+
+                    logger.info(f"[REPORTING WORKFLOW] Background execution complete: {result.get('output_count', 0)} outputs")
+
+                except Exception as e:
+                    logger.exception(f"[REPORTING WORKFLOW] Background execution failed: {e}")
+                    try:
+                        bg_supabase.table("work_tickets").update({
+                            "status": "failed",
+                            "completed_at": "now()",
+                            "error_message": str(e),
+                        }).eq("id", work_ticket_id).execute()
+                    except:
+                        pass
+
+            thread = threading.Thread(target=execute_in_background, daemon=True)
+            thread.start()
+
+            return ReportingWorkflowResponse(
+                work_request_id=work_request_id,
+                work_ticket_id=work_ticket_id,
+                agent_session_id=reporting_session.id,
+                status="pending",
+                outputs=[],
+                execution_time_ms=0,
+                message="Execution started in background. Use SSE or Realtime to track progress.",
+                recipe_used=recipe.slug if recipe else None,
+            )
 
         # Step 6: Load context (WorkBundle pattern)
         blocks_response = supabase.table("blocks").select(
