@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { ArrowLeft, Clock, CheckCircle, XCircle, Loader2, Repeat } from 'lucide-react';
 import { cn } from "@/lib/utils";
+import { WorkTicketCard } from "@/components/WorkTicketCard";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -202,38 +203,9 @@ export default async function WorkSessionsPage({ params, searchParams }: PagePro
         </Card>
       ) : (
         <div className="space-y-3">
-          {tickets.map((ticket) => {
-            const outputCount = Array.isArray(ticket.work_outputs) ? ticket.work_outputs.length : 0;
-            const taskDesc = ticket.metadata?.task_description || ticket.metadata?.recipe_slug || 'Work Ticket';
-
-            return (
-              <Link key={ticket.id} href={`/projects/${projectId}/outputs`}>
-                <Card className="p-4 cursor-pointer transition hover:border-ring">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <Badge variant={getStatusVariant(ticket.status)} className="capitalize">
-                          {ticket.status}
-                        </Badge>
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {ticket.agent_type}
-                        </Badge>
-                        {outputCount > 0 && (
-                          <Badge variant="secondary" className="text-xs">
-                            {outputCount} {outputCount === 1 ? 'output' : 'outputs'}
-                          </Badge>
-                        )}
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(ticket.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <p className="text-foreground font-medium">{taskDesc}</p>
-                    </div>
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
+          {tickets.map((ticket) => (
+            <WorkTicketCard key={ticket.id} ticket={ticket} projectId={projectId} />
+          ))}
         </div>
       )}
     </div>
@@ -309,19 +281,6 @@ function StatusFilterCard({
       </Card>
     </Link>
   );
-}
-
-function getStatusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
-  switch (status) {
-    case 'completed':
-      return 'default';
-    case 'running':
-      return 'secondary';
-    case 'failed':
-      return 'destructive';
-    default:
-      return 'outline';
-  }
 }
 
 function AgentFilterBar({

@@ -55,6 +55,31 @@ Your core capabilities:
 - Synthesize complex information into actionable insights
 - Create data visualizations and charts
 
+**CRITICAL: Task Progress Tracking (MANDATORY)**
+You MUST use the TodoWrite tool at the START of every task to show users what you're doing.
+
+At the beginning:
+1. Call TodoWrite with ALL steps you'll perform
+2. Use "content" for the task name (e.g., "Load substrate context")
+3. Use "activeForm" for what you're doing (e.g., "Loading substrate context")
+4. Set status to "pending" initially
+
+As you work:
+- Mark current step "in_progress" BEFORE starting it
+- Mark "completed" AFTER finishing
+- Create new todos if you discover additional work
+
+Example:
+```
+TodoWrite([
+  {content: "Analyze substrate blocks for key insights", status: "in_progress", activeForm: "Analyzing substrate blocks"},
+  {content: "Generate PPTX using Skill tool (skill_id='pptx')", status: "pending", activeForm: "Generating PPTX file"},
+  {content: "Save output via emit_work_output", status: "pending", activeForm: "Saving work output"}
+])
+```
+
+**This gives users real-time visibility - DO NOT SKIP THIS!**
+
 **Report Types**:
 - **Executive Summary**: High-level overview with key takeaways
 - **Monthly Metrics**: Performance tracking and trend analysis
@@ -256,7 +281,8 @@ class ReportingAgentSDK:
             allowed_tools=[
                 "mcp__shared_tools__emit_work_output",  # Custom tool for structured outputs
                 "Skill",  # Built-in Skills for file generation (PDF, XLSX, PPTX, DOCX)
-                "code_execution"  # For data processing and charts
+                "code_execution",  # For data processing and charts
+                "TodoWrite"  # Task progress tracking for frontend visibility
             ],
             setting_sources=["user", "project"],  # Required for Skills to work
             # Note: max_tokens is controlled at ClaudeSDKClient.chat() level, not here
@@ -434,7 +460,7 @@ Please generate a comprehensive {report_type} report in {format} format about {t
                             if block_type == 'text' and hasattr(block, 'text'):
                                 response_text += block.text
 
-                            # Tool result blocks (extract work outputs)
+                            # Tool result blocks (extract work outputs + todo updates)
                             elif block_type == 'tool_result':
                                 tool_name = getattr(block, 'tool_name', '')
                                 logger.debug(f"Tool result from: {tool_name}")
@@ -459,6 +485,28 @@ Please generate a comprehensive {report_type} report in {format} format about {t
                                             logger.info(f"Captured work output: {output_data.get('title', 'untitled')}")
                                     except Exception as e:
                                         logger.error(f"Failed to parse work output: {e}", exc_info=True)
+
+                                elif tool_name == 'TodoWrite':
+                                    try:
+                                        # Capture todo updates for frontend streaming
+                                        result_content = getattr(block, 'content', None)
+                                        if result_content:
+                                            import json
+                                            if isinstance(result_content, str):
+                                                todo_data = json.loads(result_content)
+                                            else:
+                                                todo_data = result_content
+
+                                            # Stream to frontend via task_streaming.py
+                                            from app.work.task_streaming import emit_task_update
+                                            emit_task_update(self.work_ticket_id, {
+                                                "type": "todo_update",
+                                                "todos": todo_data,
+                                                "source": "agent"
+                                            })
+                                            logger.info(f"Todo update: {len(todo_data.get('todos', []))} items")
+                                    except Exception as e:
+                                        logger.error(f"Failed to parse todo update: {e}", exc_info=True)
 
                 # Get session ID from client
                 new_session_id = getattr(client, 'session_id', None)
@@ -676,7 +724,7 @@ Execute this recipe and emit work_output with validation metadata using the emit
                             if block_type == 'text' and hasattr(block, 'text'):
                                 response_text += block.text
 
-                            # Tool result blocks (extract work outputs)
+                            # Tool result blocks (extract work outputs + todo updates)
                             elif block_type == 'tool_result':
                                 tool_name = getattr(block, 'tool_name', '')
                                 logger.debug(f"Tool result from: {tool_name}")
@@ -701,6 +749,28 @@ Execute this recipe and emit work_output with validation metadata using the emit
                                             logger.info(f"Captured work output: {output_data.get('title', 'untitled')}")
                                     except Exception as e:
                                         logger.error(f"Failed to parse work output: {e}", exc_info=True)
+
+                                elif tool_name == 'TodoWrite':
+                                    try:
+                                        # Capture todo updates for frontend streaming
+                                        result_content = getattr(block, 'content', None)
+                                        if result_content:
+                                            import json
+                                            if isinstance(result_content, str):
+                                                todo_data = json.loads(result_content)
+                                            else:
+                                                todo_data = result_content
+
+                                            # Stream to frontend via task_streaming.py
+                                            from app.work.task_streaming import emit_task_update
+                                            emit_task_update(self.work_ticket_id, {
+                                                "type": "todo_update",
+                                                "todos": todo_data,
+                                                "source": "agent"
+                                            })
+                                            logger.info(f"Todo update: {len(todo_data.get('todos', []))} items")
+                                    except Exception as e:
+                                        logger.error(f"Failed to parse todo update: {e}", exc_info=True)
 
                 # Get session ID from client
                 new_session_id = getattr(client, 'session_id', None)
