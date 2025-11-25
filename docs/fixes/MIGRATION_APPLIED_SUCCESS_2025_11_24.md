@@ -310,3 +310,52 @@ WHERE work_ticket_id = '<new_ticket_id>';
 ```
 
 **Status**: ⏳ Code committed, awaiting deployment and testing
+
+---
+
+## UPDATE 2: Timeout Fixed, Skills Still Not Invoked (Nov 25, 00:54)
+
+### Issue 1 Resolved: Vercel Timeout ✅
+- Added `maxDuration=300` to vercel.json for all work execution routes
+- Latest execution completed in 302 seconds (no timeout)
+
+### Issue 2 Persists: Agent Not Calling Skill Tool ❌
+
+**Latest execution** (cc004714):
+- Status: completed
+- Duration: 302 seconds
+- Output count: 1 (agent DID call emit_work_output!)
+- **BUT**: `generation_method="text"`, `file_id=NULL`
+- Agent generated markdown description OF a PPTX instead of creating one
+
+**Evidence from output**:
+```
+# Executive Summary Deck - YARNNN Work Platform Integration
+## Format
+**PPTX Presentation** (5 slides, 16:9 format)
+...
+```
+
+Agent understood it should create PPTX but generated text description instead.
+
+### Root Cause Investigation
+
+**Hypothesis**: Skills not being invoked despite correct configuration because:
+1. ✅ `.claude/skills/` directory exists and tracked in git
+2. ✅ PPTX SKILL.md exists (`work-platform/api/.claude/skills/pptx/SKILL.md`)
+3. ✅ Agent configuration correct (`allowed_tools=["Skill"]`, `setting_sources=["user", "project"]`)
+4. ✅ System prompt has clear instructions
+5. ❓ **Working directory mismatch?** (Render might run from different cwd)
+6. ❓ **Claude SDK not finding Skills at runtime?**
+
+### Next Steps
+
+Need to verify Skills are actually loaded by Claude SDK in production:
+1. Add debug logging to confirm Skills directory found
+2. Check if Skill tool appears in available tools list
+3. Verify working directory matches expected path
+4. Consider if Render deployment needs special configuration
+
+**Alternative approach** if Skills continue failing:
+- Use code_execution tool to generate PPTX via python-pptx library
+- Less elegant but guaranteed to work
