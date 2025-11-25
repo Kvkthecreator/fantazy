@@ -2,6 +2,15 @@
   "functions": {
     "app/api/projects/new/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/work/reporting/execute/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/work/research/execute/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/work/content/execute/route.ts": {
+      "maxDuration": 300
     }
   }
 }

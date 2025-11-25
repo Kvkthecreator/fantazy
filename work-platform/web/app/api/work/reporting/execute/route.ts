@@ -3,6 +3,9 @@
  *
  * Proxies reporting execution requests to backend API.
  * Forwards JWT token for authentication.
+ *
+ * NOTE: Recipe execution with Skills can take 60-120 seconds.
+ * maxDuration set to 300 seconds (5 min) to accommodate long-running agent tasks.
  */
 
 import { cookies } from "next/headers";
@@ -10,6 +13,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@/lib/supabase/clients";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || "https://yarnnn-app-fullstack.onrender.com";
+
+// Vercel: Allow up to 5 minutes for agent execution (requires Pro plan for >60s)
+// Free tier: 10s, Hobby: 10s, Pro: 300s max
+export const maxDuration = 300; // 5 minutes
 
 export async function POST(request: NextRequest) {
   try {
