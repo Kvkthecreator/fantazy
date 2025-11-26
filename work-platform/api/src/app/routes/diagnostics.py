@@ -912,14 +912,19 @@ async def test_inter_agent_flow():
             }
             substrate_blocks.append(block)
 
-        # Use production basket_id for emit_work_output to work
-        # (emit tool needs valid UUID for basket_id)
-        import uuid
-        test_work_ticket_id = str(uuid.uuid4())
+        # Use an existing work_ticket_id from production to avoid foreign key constraint
+        # (emit_work_output requires work_ticket_id to exist in work_tickets table)
+        existing_work_ticket_id = work_outputs[0]["work_ticket_id"] if work_outputs else None
+
+        if not existing_work_ticket_id:
+            return {
+                "status": "error",
+                "message": "No work_outputs found with valid work_ticket_id"
+            }
 
         bundle = WorkBundle(
             work_request_id="test-request-inter-agent",
-            work_ticket_id=test_work_ticket_id,
+            work_ticket_id=existing_work_ticket_id,  # Use existing work_ticket_id to avoid FK constraint
             basket_id=production_basket_id,  # Use production basket so emit_work_output succeeds
             workspace_id="test-workspace",
             user_id="test-user",
@@ -933,6 +938,7 @@ async def test_inter_agent_flow():
         )
 
         print(f"[STEP 2] ✅ WorkBundle created:", flush=True)
+        print(f"  - Work ticket ID (existing): {existing_work_ticket_id}", flush=True)
         print(f"  - Substrate blocks: {len(bundle.substrate_blocks)}", flush=True)
         print(f"  - Task: {bundle.task[:60]}...", flush=True)
 
