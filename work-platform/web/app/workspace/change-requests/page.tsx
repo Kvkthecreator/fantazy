@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createServerComponentClient } from '@/lib/supabase/clients';
 import type { Database } from '@/lib/dbTypes';
 import { ensureSingleWorkspace } from '@/lib/canon/WorkspaceResolver';
 import { listBasketsByWorkspace } from '@/lib/substrate/baskets';
@@ -22,7 +22,7 @@ export const revalidate = 0;
  * - Type 1c: Workspace mutations (future)
  */
 export default async function WorkspaceChangeRequestsPage() {
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = createServerComponentClient({ cookies });
   const {
     data: { user },
   } = await supabase.auth.getUser();
