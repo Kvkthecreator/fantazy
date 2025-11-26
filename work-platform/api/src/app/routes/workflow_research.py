@@ -237,7 +237,7 @@ async def execute_research_workflow(
             "id, title, output_type, body, confidence, created_at"
         ).eq("basket_id", request.basket_id).eq(
             "agent_type", "research"
-        ).eq("status", "approved").order(
+        ).eq("supervision_status", "approved").order(
             "created_at", desc=True
         ).limit(50).execute()
 
