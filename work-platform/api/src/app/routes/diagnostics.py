@@ -956,24 +956,23 @@ async def test_inter_agent_flow():
         query = f"""Based on the research findings provided in the substrate context, create engaging social media content for two platforms:
 
 1. TWITTER POST: Create a concise, engaging Twitter thread (3-4 tweets) about Claude Agent SDK and AI development trends
-   - INVOKE the twitter_specialist subagent directly (DO NOT use Task tool)
+   - Use the Task tool to delegate to twitter_specialist
    - Follow platform best practices (280 chars per tweet, hooks, engagement)
    - Use emit_work_output with output_type="content_draft" and metadata.platform="twitter"
 
 2. LINKEDIN POST: Create a professional LinkedIn post about the same topic
-   - INVOKE the linkedin_specialist subagent directly (DO NOT use Task tool)
+   - Use the Task tool to delegate to linkedin_specialist
    - Professional thought leadership tone
    - Include insights from the research findings
    - Use emit_work_output with output_type="content_draft" and metadata.platform="linkedin"
 
 CRITICAL INSTRUCTIONS:
-- You MUST invoke your native subagents (twitter_specialist, linkedin_specialist) directly
-- DO NOT use the Task tool - use native SDK subagent delegation
-- The SDK will automatically handle delegation with shared context
-- Each subagent will create platform-optimized content
-- Emit each piece of content as a separate work_output with platform metadata
+- Use the Task tool to delegate to platform specialists (twitter_specialist, linkedin_specialist)
+- Each specialist will create platform-optimized content with shared substrate context
+- Call emit_work_output for EACH piece of content with appropriate platform metadata
+- You MUST emit at least 2 work outputs (one for Twitter, one for LinkedIn)
 
-Review the substrate context first to understand the research findings, then invoke the appropriate specialists."""
+Review the substrate context first to understand the research findings, then delegate to the appropriate specialists."""
 
         # Track execution
         tool_calls = []
@@ -1009,7 +1008,7 @@ Review the substrate context first to understand the research findings, then inv
                             print(f"[STEP 4] 🔧 Tool invoked: {tool_name}", flush=True)
 
                             # Track specific patterns
-                            if "specialist" in tool_name.lower() or "subagent" in tool_name.lower():
+                            if "specialist" in tool_name.lower() or "subagent" in tool_name.lower() or tool_name == "Task":
                                 subagent_used = True
                                 print(f"[STEP 4]   → Sub-agent delegation detected!", flush=True)
 
