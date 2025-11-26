@@ -476,3 +476,109 @@ async def test_minimal_sdk():
             "error": str(e),
             "traceback": traceback.format_exc()
         }
+
+
+@router.post("/test-todowrite")
+async def test_todowrite():
+    """
+    Phase 2: TodoWrite Tool Validation
+
+    Tests if the TodoWrite tool can be invoked by the Claude SDK.
+
+    This will confirm:
+    1. SDK accepts TodoWrite in allowed_tools
+    2. Agent attempts to use TodoWrite
+    3. Tool is invoked with correct structure
+
+    Returns:
+        - tool_calls: List of tools invoked (should include TodoWrite)
+        - todowrite_invoked: Whether TodoWrite was called
+        - tool_inputs: The actual data passed to TodoWrite
+        - response_text: Agent's text response
+    """
+    from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+
+    print("[TODOWRITE TEST] Starting...", flush=True)
+
+    try:
+        options = ClaudeAgentOptions(
+            model="claude-sonnet-4-5",
+            system_prompt="""You are a task planner. When given a task, you MUST use the TodoWrite tool to create a task list.
+
+**CRITICAL**: You MUST use TodoWrite to track tasks. Each todo needs:
+- content: imperative form (e.g., "Run tests")
+- activeForm: present continuous form (e.g., "Running tests")
+- status: "pending", "in_progress", or "completed"
+
+Example:
+User: "Build a login feature"
+You: [Use TodoWrite tool with todos=[
+    {"content": "Create login form", "status": "pending", "activeForm": "Creating login form"},
+    {"content": "Add authentication", "status": "pending", "activeForm": "Adding authentication"}
+]]""",
+            allowed_tools=["TodoWrite"],
+        )
+
+        tool_calls = []
+        todowrite_invoked = False
+        response_text = ""
+
+        async with ClaudeSDKClient(options=options) as client:
+            print("[TODOWRITE TEST] Connecting...", flush=True)
+            await client.connect()
+
+            test_prompt = "Create a task list for implementing user authentication with 3 steps."
+            print(f"[TODOWRITE TEST] Sending prompt: {test_prompt}", flush=True)
+            await client.query(test_prompt)
+
+            print("[TODOWRITE TEST] Iterating responses...", flush=True)
+            async for message in client.receive_response():
+                print(f"[TODOWRITE TEST] Message type: {type(message).__name__}", flush=True)
+
+                if hasattr(message, 'content') and isinstance(message.content, list):
+                    for block in message.content:
+                        # Extract text
+                        if hasattr(block, 'text'):
+                            response_text += block.text
+                            print(f"[TODOWRITE TEST] Text: {block.text[:100]}...", flush=True)
+
+                        # Track tool use
+                        if hasattr(block, 'name'):  # ToolUseBlock
+                            tool_name = block.name
+                            tool_input = block.input if hasattr(block, 'input') else {}
+
+                            tool_calls.append({
+                                "tool": tool_name,
+                                "input": tool_input
+                            })
+
+                            print(f"[TODOWRITE TEST] Tool invoked: {tool_name}", flush=True)
+
+                            if tool_name == "TodoWrite":
+                                todowrite_invoked = True
+                                print(f"[TODOWRITE TEST] ✅ TodoWrite invoked with {len(tool_input.get('todos', []))} todos", flush=True)
+
+        result = {
+            "status": "success",
+            "test_prompt": test_prompt,
+            "tool_calls": tool_calls,
+            "todowrite_invoked": todowrite_invoked,
+            "response_text": response_text[:500] if response_text else "(no text)",
+            "response_length": len(response_text),
+        }
+
+        if todowrite_invoked:
+            print("[TODOWRITE TEST] ✅ SUCCESS: TodoWrite tool was invoked", flush=True)
+        else:
+            print(f"[TODOWRITE TEST] ⚠️ WARNING: TodoWrite NOT invoked. Tools called: {[tc['tool'] for tc in tool_calls]}", flush=True)
+
+        return result
+
+    except Exception as e:
+        print(f"[TODOWRITE TEST] ❌ FAILED: {e}", flush=True)
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
