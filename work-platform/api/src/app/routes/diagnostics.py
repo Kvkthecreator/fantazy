@@ -65,23 +65,25 @@ async def check_skills_availability():
         "USER": os.getenv("USER"),
     }
 
-    # Check if Claude Code CLI is installed/accessible
+    # Check if Claude CLI is installed/accessible (binary name is 'claude')
     import subprocess
     try:
         claude_cli_check = subprocess.run(
-            ["which", "claude-code"],
+            ["which", "claude"],
             capture_output=True,
             text=True,
             timeout=5
         )
         result["claude_cli"] = {
             "found": claude_cli_check.returncode == 0,
-            "path": claude_cli_check.stdout.strip() if claude_cli_check.returncode == 0 else None
+            "path": claude_cli_check.stdout.strip() if claude_cli_check.returncode == 0 else None,
+            "binary_name": "claude"
         }
     except Exception as e:
         result["claude_cli"] = {
             "found": False,
-            "error": str(e)
+            "error": str(e),
+            "binary_name": "claude"
         }
 
     logger.info(f"Skills diagnostic: {len(result['available_skills'])} skills found")
