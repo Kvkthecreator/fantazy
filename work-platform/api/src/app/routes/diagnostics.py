@@ -405,3 +405,74 @@ async def test_basic_sdk():
             "error": str(e),
             "traceback": traceback.format_exc()
         }
+
+
+@router.post("/test-minimal-sdk")
+async def test_minimal_sdk():
+    """
+    ABSOLUTE MINIMAL SDK TEST (Phase 1 - Core Hardening)
+
+    Goal: Understand exact message structure from SDK
+    - No tools
+    - No MCP servers
+    - No setting_sources
+    - Just: query → receive_response → inspect structure
+
+    This is the foundation for all other SDK functionality.
+    """
+    from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+
+    print("[MINIMAL SDK] Starting...", flush=True)
+
+    try:
+        options = ClaudeAgentOptions(
+            model="claude-sonnet-4-5",
+            system_prompt="You are a helpful assistant.",
+        )
+
+        messages_received = []
+
+        async with ClaudeSDKClient(options=options) as client:
+            await client.connect()
+            await client.query("Say hello and count to 3.")
+
+            async for message in client.receive_response():
+                msg_index = len(messages_received)
+                msg_info = {
+                    "index": msg_index,
+                    "type": type(message).__name__,
+                    "has_content": hasattr(message, 'content'),
+                    "content_type": type(message.content).__name__ if hasattr(message, 'content') else None,
+                }
+
+                if hasattr(message, 'content'):
+                    content = message.content
+                    if isinstance(content, list):
+                        msg_info["blocks"] = []
+                        for idx, block in enumerate(content):
+                            block_info = {
+                                "type": type(block).__name__,
+                                "has_type": hasattr(block, 'type'),
+                                "has_text": hasattr(block, 'text'),
+                            }
+                            if hasattr(block, 'type'):
+                                block_info["block_type"] = block.type
+                            if hasattr(block, 'text'):
+                                block_info["text"] = block.text
+                            msg_info["blocks"].append(block_info)
+
+                messages_received.append(msg_info)
+
+        return {
+            "status": "success",
+            "message_count": len(messages_received),
+            "messages": messages_received
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
