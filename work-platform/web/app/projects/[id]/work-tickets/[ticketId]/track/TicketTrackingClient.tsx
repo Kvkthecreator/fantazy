@@ -240,57 +240,37 @@ export default function TicketTrackingClient({
             </div>
           </Card>
 
-          {/* Real-time Task Progress (for running/pending) */}
+          {/* Agent Activity - For running tickets: show live progress */}
           {isRunning && (
             <Card className="p-6">
-              <h2 className="text-lg font-semibold mb-4">Live Execution Progress</h2>
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                Agent Activity
+              </h2>
               <TaskProgressList workTicketId={ticket.id} enabled={true} />
             </Card>
           )}
 
-          {/* Execution Trace (for completed/failed) */}
-          {!isRunning && (
+          {/* Agent Activity - For completed tickets: show execution history */}
+          {!isRunning && hasExecutionSteps && (
             <Card className="p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Execution Trace
+                <CheckCircle2 className="h-5 w-5 text-success" />
+                Agent Activity
               </h2>
-
-              {hasExecutionSteps ? (
-                <div className="space-y-2">
-                  {ticket.metadata.final_todos.map((todo: any, index: number) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
-                      <span className="text-muted-foreground">
-                        {todo.content || todo.activeForm || `Step ${index + 1}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-sm text-warning-foreground bg-surface-warning border border-surface-warning-border rounded-lg p-3">
-                    <p className="font-medium mb-1">No execution steps recorded</p>
-                    <p className="text-xs text-warning-foreground/80">
-                      The agent {isFailed ? 'failed' : 'completed'} but did not log detailed steps via TodoWrite.
-                      {executionTimeMs && ` Execution took ${(executionTimeMs / 1000).toFixed(1)}s.`}
-                    </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                Steps completed by the agent during execution:
+              </p>
+              <div className="space-y-2">
+                {ticket.metadata.final_todos.map((todo: any, index: number) => (
+                  <div key={index} className="flex items-center gap-2 text-sm">
+                    <CheckCircle2 className="h-4 w-4 text-success flex-shrink-0" />
+                    <span className="text-foreground">
+                      {todo.content || todo.activeForm || `Step ${index + 1}`}
+                    </span>
                   </div>
-
-                  {/* Basic execution metadata */}
-                  {ticket.metadata && (
-                    <div className="text-xs text-muted-foreground space-y-1 bg-muted rounded-lg p-3">
-                      <p className="font-medium text-foreground mb-2">Execution Metadata:</p>
-                      {ticket.metadata.workflow && <p>• Workflow: {ticket.metadata.workflow}</p>}
-                      {ticket.metadata.recipe_slug && <p>• Recipe: {ticket.metadata.recipe_slug}</p>}
-                      {executionTimeMs && <p>• Execution time: {(executionTimeMs / 1000).toFixed(1)}s</p>}
-                      {ticket.metadata.output_count !== undefined && (
-                        <p>• Outputs generated: {ticket.metadata.output_count}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+                ))}
+              </div>
             </Card>
           )}
 

@@ -41,7 +41,7 @@ export function TaskProgressList({
       {isConnected && (
         <div className="text-xs text-gray-500 mb-2 flex items-center gap-2">
           <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          Live task updates
+          Connected
         </div>
       )}
 
@@ -72,7 +72,7 @@ export function TaskProgressList({
       {/* Empty state (while connected but no tasks yet) */}
       {isConnected && tasks.length === 0 && !completionStatus && (
         <div className="text-xs text-gray-400 italic">
-          Waiting for agent to start...
+          Agent is working...
         </div>
       )}
     </div>
