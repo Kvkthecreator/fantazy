@@ -123,3 +123,122 @@ async def check_agent_configuration():
             "error": str(e),
             "traceback": traceback.format_exc()
         }
+
+
+@router.post("/test-skill-invocation")
+async def test_skill_invocation():
+    """
+    Test if Skill tool can actually be invoked by the Claude SDK.
+
+    Creates a minimal agent and asks it to generate a simple PPTX file.
+    This will tell us if Skills work at all or if there's a deeper issue.
+
+    Returns:
+        - status: success/error
+        - tool_calls: List of tools the agent actually called
+        - response_text: Agent's response
+        - skill_invoked: Whether Skill tool was used
+        - error: Error message if failed
+    """
+    from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+    import asyncio
+
+    logger.info("[SKILL TEST] Starting minimal Skill tool test")
+
+    try:
+        # Create minimal options with ONLY Skill tool
+        options = ClaudeAgentOptions(
+            model="claude-sonnet-4-5",
+            system_prompt="""You are a presentation creator.
+
+**CRITICAL INSTRUCTION**: When asked to create a PPTX presentation, you MUST use the Skill tool.
+
+To create a PowerPoint presentation:
+1. Use the Skill tool with skill_id="pptx"
+2. Provide clear slide content
+3. The Skill will return a file_id
+
+Example:
+User: "Create a 2-slide presentation about AI"
+You: [Use Skill tool with skill_id="pptx" to generate the presentation]
+
+DO NOT just describe what you would create - actually USE the Skill tool to create it.""",
+            allowed_tools=["Skill"],
+            setting_sources=["user", "project"],
+        )
+
+        tool_calls = []
+        response_text = ""
+        skill_invoked = False
+
+        # Create SDK client and test
+        async with ClaudeSDKClient(options=options) as client:
+            await client.connect()
+
+            # Simple test prompt
+            test_prompt = "Create a simple 2-slide PowerPoint presentation about testing. Slide 1: Title 'Test Presentation'. Slide 2: Content 'This is a test'."
+
+            logger.info(f"[SKILL TEST] Sending prompt: {test_prompt}")
+            await client.query(test_prompt)
+
+            # Collect responses
+            async for message in client.receive_response():
+                logger.info(f"[SKILL TEST] Message type: {type(message).__name__}")
+
+                if hasattr(message, 'content') and isinstance(message.content, list):
+                    for block in message.content:
+                        if not hasattr(block, 'type'):
+                            continue
+
+                        block_type = block.type
+                        logger.info(f"[SKILL TEST] Block type: {block_type}")
+
+                        # Track text
+                        if block_type == 'text' and hasattr(block, 'text'):
+                            response_text += block.text
+                            logger.info(f"[SKILL TEST] Text block: {block.text[:100]}")
+
+                        # Track tool uses
+                        elif block_type == 'tool_use':
+                            tool_name = getattr(block, 'name', 'unknown')
+                            tool_input = getattr(block, 'input', {})
+                            tool_calls.append({
+                                "tool": tool_name,
+                                "input": str(tool_input)[:200]  # Truncate for safety
+                            })
+                            logger.info(f"[SKILL TEST] Tool use: {tool_name}")
+
+                            if tool_name == "Skill":
+                                skill_invoked = True
+                                logger.info(f"[SKILL TEST] ✅ Skill tool was invoked!")
+
+                        # Track tool results
+                        elif block_type == 'tool_result':
+                            tool_name = getattr(block, 'tool_name', 'unknown')
+                            logger.info(f"[SKILL TEST] Tool result from: {tool_name}")
+
+        result = {
+            "status": "success",
+            "test_prompt": test_prompt,
+            "tool_calls": tool_calls,
+            "tool_count": len(tool_calls),
+            "skill_invoked": skill_invoked,
+            "response_text": response_text[:500] if response_text else "(no text response)",
+            "response_length": len(response_text),
+        }
+
+        if skill_invoked:
+            logger.info("[SKILL TEST] ✅ SUCCESS: Skill tool was invoked")
+        else:
+            logger.warning(f"[SKILL TEST] ⚠️ WARNING: Skill tool was NOT invoked. Agent called: {tool_calls}")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"[SKILL TEST] Failed: {e}", exc_info=True)
+        import traceback
+        return {
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
