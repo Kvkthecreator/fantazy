@@ -125,6 +125,7 @@ app.add_middleware(
         "/api/diagnostics/skills",  # Skills diagnostic endpoint (no auth for debugging)
         "/api/diagnostics/agent-config",  # Agent config diagnostic (no auth for debugging)
         "/api/diagnostics/test-skill-invocation",  # Skill test endpoint (no auth for debugging)
+        "/api/diagnostics/test-basic-sdk",  # Basic SDK test endpoint (no auth for debugging)
     },
     exempt_prefixes={
         "/health",
