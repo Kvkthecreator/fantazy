@@ -141,22 +141,14 @@ async def test_research_workflow(
             f"work_ticket={work_ticket_id}"
         )
 
-        # Step 5: Load context (WorkBundle pattern)
-        blocks_response = supabase.table("blocks").select(
-            "id, content, semantic_type, state, created_at, metadata"
-        ).eq("basket_id", request.basket_id).in_(
-            "state", ["ACCEPTED", "LOCKED", "CONSTANT"]
-        ).order("created_at", desc=True).limit(50).execute()
-
-        substrate_blocks = blocks_response.data or []
-
+        # Step 5: Load context (WorkBundle pattern - metadata only, substrate queried on-demand)
         assets_response = supabase.table("documents").select(
             "id, title, document_type, metadata"
         ).eq("basket_id", request.basket_id).execute()
 
         reference_assets = assets_response.data or []
 
-        # Create WorkBundle (agent_config optional - using defaults)
+        # Create WorkBundle (metadata only - substrate queried on-demand via adapter)
         context_bundle = WorkBundle(
             work_request_id=work_request_id,
             work_ticket_id=work_ticket_id,
@@ -166,14 +158,21 @@ async def test_research_workflow(
             task=request.task_description,
             agent_type="research",
             priority="medium",
-            substrate_blocks=substrate_blocks,
             reference_assets=reference_assets,
             agent_config={},  # Use defaults for testing
         )
 
+        # Create SubstrateQueryAdapter for on-demand substrate access
+        from adapters.substrate_adapter import SubstrateQueryAdapter
+        substrate_adapter = SubstrateQueryAdapter(
+            basket_id=request.basket_id,
+            workspace_id=workspace_id,
+            agent_type="research",
+            work_ticket_id=work_ticket_id,
+        )
+
         logger.info(
-            f"[TEST] WorkBundle: {len(substrate_blocks)} blocks, "
-            f"{len(reference_assets)} assets"
+            f"[TEST] WorkBundle: {len(reference_assets)} assets (substrate queried on-demand)"
         )
 
         # Step 6: Update work_ticket to running
@@ -190,6 +189,7 @@ async def test_research_workflow(
             workspace_id=workspace_id,
             work_ticket_id=work_ticket_id,
             session=research_session,
+            substrate=substrate_adapter,
             bundle=context_bundle,
         )
 

@@ -13,25 +13,25 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../src"))
 
-from adapters.memory_adapter import SubstrateMemoryAdapter
+from adapters.substrate_adapter import SubstrateQueryAdapter
 from adapters.governance_adapter import SubstrateGovernanceAdapter
 from adapters.auth_adapter import AuthAdapter
 
 
-class TestSubstrateMemoryAdapter:
-    """Test memory adapter bridges SDK → substrate_client."""
+class TestSubstrateQueryAdapter:
+    """Test substrate query adapter bridges SDK → substrate_client."""
 
     @pytest.fixture
     def mock_substrate_client(self):
         """Mock substrate_client for testing."""
-        with patch('adapters.memory_adapter.get_substrate_client') as mock:
+        with patch('adapters.substrate_adapter.get_substrate_client') as mock:
             yield mock.return_value
 
     def test_initialization(self, mock_substrate_client):
         """Test adapter can be initialized."""
         basket_id = str(uuid4())
         workspace_id = "ws_test_123"
-        adapter = SubstrateMemoryAdapter(basket_id=basket_id, workspace_id=workspace_id)
+        adapter = SubstrateQueryAdapter(basket_id=basket_id, workspace_id=workspace_id)
 
         assert adapter.basket_id == basket_id
         assert adapter.workspace_id == workspace_id
@@ -42,7 +42,7 @@ class TestSubstrateMemoryAdapter:
         """Test query() calls substrate_client.get_basket_blocks()."""
         basket_id = str(uuid4())
         workspace_id = "ws_test_123"
-        adapter = SubstrateMemoryAdapter(basket_id=basket_id, workspace_id=workspace_id)
+        adapter = SubstrateQueryAdapter(basket_id=basket_id, workspace_id=workspace_id)
 
         # Mock substrate client response
         mock_substrate_client.get_basket_blocks.return_value = [
@@ -79,13 +79,13 @@ class TestSubstrateMemoryAdapter:
         """Test store() calls substrate_client.create_dump()."""
         basket_id = str(uuid4())
         workspace_id = "ws_test_123"
-        adapter = SubstrateMemoryAdapter(basket_id=basket_id, workspace_id=workspace_id)
+        adapter = SubstrateQueryAdapter(basket_id=basket_id, workspace_id=workspace_id)
 
         # Mock substrate client response
         mock_substrate_client.create_dump.return_value = {"id": "dump_123"}
 
         # Create mock Context
-        from adapters.memory_adapter import Context
+        from adapters.substrate_adapter import Context
         context = Context(
             content="Test content",
             metadata={"type": "test"}
@@ -108,7 +108,7 @@ class TestSubstrateMemoryAdapter:
         """Test get_all() calls query() with large limit."""
         basket_id = str(uuid4())
         workspace_id = "ws_test_123"
-        adapter = SubstrateMemoryAdapter(basket_id=basket_id, workspace_id=workspace_id)
+        adapter = SubstrateQueryAdapter(basket_id=basket_id, workspace_id=workspace_id)
 
         # Mock substrate client response
         mock_substrate_client.get_basket_blocks.return_value = []

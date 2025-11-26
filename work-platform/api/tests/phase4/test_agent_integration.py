@@ -53,14 +53,14 @@ class TestAgentFactory:
             load_agent_config("nonexistent")
 
     @patch('agents.factory.SDK_AVAILABLE', True)
-    @patch('agents.factory.SubstrateMemoryAdapter')
+    @patch('agents.factory.SubstrateQueryAdapter')
     @patch('agents.factory.SubstrateGovernanceAdapter')
     @patch('claude_agent_sdk.archetypes.ResearchAgent')
     def test_create_research_agent_with_adapters(
         self,
         mock_agent_class,
         mock_governance,
-        mock_memory,
+        mock_substrate,
     ):
         """Test research agent is created with substrate adapters."""
         # Need to reload module to pick up mocked SDK_AVAILABLE
@@ -76,25 +76,25 @@ class TestAgentFactory:
         agent = create_research_agent(basket_id=basket_id, workspace_id=workspace_id, user_id="user_123")
 
         # Verify adapters were created
-        mock_memory.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id)
+        mock_substrate.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id)
         mock_governance.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id, user_id="user_123")
 
         # Verify agent was created with adapters
         mock_agent_class.assert_called_once()
         call_args = mock_agent_class.call_args[1]
-        assert call_args["memory"] is not None
+        assert call_args["substrate"] is not None
         assert call_args["governance"] is not None
         assert call_args["anthropic_api_key"] == "test_key"
 
     @patch('agents.factory.SDK_AVAILABLE', True)
-    @patch('agents.factory.SubstrateMemoryAdapter')
+    @patch('agents.factory.SubstrateQueryAdapter')
     @patch('agents.factory.SubstrateGovernanceAdapter')
     @patch('agents.factory.ContentCreatorAgent')
     def test_create_content_agent_with_adapters(
         self,
         mock_agent_class,
         mock_governance,
-        mock_memory,
+        mock_substrate,
     ):
         """Test content agent is created with substrate adapters."""
         from agents.factory import create_content_agent
@@ -106,21 +106,21 @@ class TestAgentFactory:
         agent = create_content_agent(basket_id=basket_id, workspace_id=workspace_id, user_id="user_123")
 
         # Verify adapters were created
-        mock_memory.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id)
+        mock_substrate.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id)
         mock_governance.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id, user_id="user_123")
 
         # Verify agent was created with adapters
         mock_agent_class.assert_called_once()
 
     @patch('agents.factory.SDK_AVAILABLE', True)
-    @patch('agents.factory.SubstrateMemoryAdapter')
+    @patch('agents.factory.SubstrateQueryAdapter')
     @patch('agents.factory.SubstrateGovernanceAdapter')
     @patch('agents.factory.ReportingAgent')
     def test_create_reporting_agent_with_adapters(
         self,
         mock_agent_class,
         mock_governance,
-        mock_memory,
+        mock_substrate,
     ):
         """Test reporting agent is created with substrate adapters."""
         from agents.factory import create_reporting_agent
@@ -132,7 +132,7 @@ class TestAgentFactory:
         agent = create_reporting_agent(basket_id=basket_id, workspace_id=workspace_id, user_id="user_123")
 
         # Verify adapters were created
-        mock_memory.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id)
+        mock_substrate.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id)
         mock_governance.assert_called_once_with(basket_id=basket_id, workspace_id=workspace_id, user_id="user_123")
 
         # Verify agent was created with adapters
@@ -161,7 +161,7 @@ class TestPhase4Architecture:
 
     def test_adapters_use_substrate_client(self):
         """Test adapters import and use substrate_client."""
-        from adapters.memory_adapter import SubstrateMemoryAdapter
+        from adapters.substrate_adapter import SubstrateQueryAdapter
         from adapters.governance_adapter import SubstrateGovernanceAdapter
 
         # Both adapters should use get_substrate_client
@@ -169,9 +169,9 @@ class TestPhase4Architecture:
         basket_id = str(uuid4())
         workspace_id = "ws_test_123"
 
-        with patch('adapters.memory_adapter.get_substrate_client') as mock_mem:
-            SubstrateMemoryAdapter(basket_id=basket_id, workspace_id=workspace_id)
-            mock_mem.assert_called_once()
+        with patch('adapters.substrate_adapter.get_substrate_client') as mock_sub:
+            SubstrateQueryAdapter(basket_id=basket_id, workspace_id=workspace_id)
+            mock_sub.assert_called_once()
 
         with patch('adapters.governance_adapter.get_substrate_client') as mock_gov:
             SubstrateGovernanceAdapter(basket_id=basket_id, workspace_id=workspace_id)
@@ -189,15 +189,15 @@ class TestPhase4Architecture:
 
     def test_no_direct_db_access_in_adapters(self):
         """Test adapters don't import supabase_client directly."""
-        import adapters.memory_adapter as mem_adapter
+        import adapters.substrate_adapter as sub_adapter
         import adapters.governance_adapter as gov_adapter
 
         # Adapters should NOT import supabase_client
         # They should only use substrate_client (HTTP)
-        mem_source = open(mem_adapter.__file__).read()
+        sub_source = open(sub_adapter.__file__).read()
         gov_source = open(gov_adapter.__file__).read()
 
-        assert "supabase_client" not in mem_source
+        assert "supabase_client" not in sub_source
         assert "supabase_client" not in gov_source
-        assert "substrate_client" in mem_source
+        assert "substrate_client" in sub_source
         assert "substrate_client" in gov_source
