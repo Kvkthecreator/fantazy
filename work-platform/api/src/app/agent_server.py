@@ -79,6 +79,7 @@ from .routes.workflow_research import router as workflow_research_router
 from .routes.workflow_reporting import router as workflow_reporting_router
 from .routes.test_workflows import router as test_workflows_router
 from .routes.work_recipes import router as work_recipes_router
+from .routes.diagnostics import router as diagnostics_router
 
 
 def _assert_env():
@@ -121,6 +122,8 @@ app.add_middleware(
         "/api/agents/p4-composition",
         "/api/mcp/auth/sessions/validate",  # MCP session validation (no JWT required)
         "/api/tp/capabilities",  # TP capabilities endpoint (public, no auth needed)
+        "/api/diagnostics/skills",  # Skills diagnostic endpoint (no auth for debugging)
+        "/api/diagnostics/agent-config",  # Agent config diagnostic (no auth for debugging)
     },
     exempt_prefixes={
         "/health",
@@ -167,6 +170,7 @@ routers = (
     workflow_reporting_router,
     test_workflows_router,
     work_recipes_router,
+    diagnostics_router,
 )
 
 # Add correlation middleware
