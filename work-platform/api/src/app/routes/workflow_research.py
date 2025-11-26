@@ -100,6 +100,7 @@ async def execute_research_workflow(
         500: Execution error
     """
     user_id = user.get("sub") or user.get("user_id")
+    user_token = user.get("token")  # JWT for substrate-API auth
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid user token")
 
@@ -272,6 +273,7 @@ async def execute_research_workflow(
         substrate_adapter = SubstrateQueryAdapter(
             basket_id=request.basket_id,
             workspace_id=workspace_id,
+            user_token=user_token,  # Pass JWT for substrate-API auth
             agent_type="research",
             work_ticket_id=work_ticket_id,
         )
