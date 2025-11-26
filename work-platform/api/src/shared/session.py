@@ -94,6 +94,7 @@ class AgentSession(BaseModel):
         workspace_id: str,
         agent_type: str,
         user_id: str,
+        parent_session_id: Optional[str] = None,
     ) -> "AgentSession":
         """
         Get existing agent session or create new one.
@@ -101,11 +102,16 @@ class AgentSession(BaseModel):
         Agent sessions are unique per (basket_id, agent_type) combination.
         This ensures ONE persistent session per agent type per basket.
 
+        Supports hierarchical sessions:
+        - TP sessions: parent_session_id=None (root)
+        - Specialist sessions: parent_session_id=TP.id (children)
+
         Args:
             basket_id: Basket UUID
             workspace_id: Workspace UUID
-            agent_type: Agent type ('research', 'content', 'reporting')
+            agent_type: Agent type ('research', 'content', 'reporting', 'thinking_partner')
             user_id: User UUID creating the session
+            parent_session_id: Parent session UUID (for hierarchical sessions)
 
         Returns:
             AgentSession instance (loaded from DB or newly created)
@@ -139,7 +145,8 @@ class AgentSession(BaseModel):
 
             # Create new session
             logger.info(
-                f"Creating new agent_session: type={agent_type}, basket={basket_id}"
+                f"Creating new agent_session: type={agent_type}, basket={basket_id}, "
+                f"parent={parent_session_id or 'root'}"
             )
 
             new_session_data = {
@@ -147,6 +154,7 @@ class AgentSession(BaseModel):
                 "basket_id": basket_id,
                 "agent_type": agent_type,
                 "created_by_user_id": user_id,
+                "parent_session_id": parent_session_id,  # Support hierarchical sessions
                 "last_active_at": datetime.utcnow().isoformat(),
                 "conversation_history": [],
                 "state": {},

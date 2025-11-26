@@ -34,8 +34,9 @@ from datetime import datetime
 
 from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, AgentDefinition
 
-from adapters.memory_adapter import SubstrateMemoryAdapter
 from agents_sdk.shared_tools_mcp import create_shared_tools_server
+from agents_sdk.orchestration_patterns import build_agent_system_prompt, TOOL_CALLING_GUIDANCE
+from agents_sdk.work_bundle import WorkBundle
 from shared.session import AgentSession
 
 logger = logging.getLogger(__name__)
@@ -55,23 +56,30 @@ Your core capabilities:
 
 **IMPORTANT**: You create TEXT CONTENT ONLY. You do NOT generate files (PDF, DOCX, PPTX). File generation is handled by the ReportingAgent.
 
-**Platform Specialists (Native Subagents)**:
-You have access to specialized subagents for each platform via the SDK's native agent delegation system.
+**How You Receive Context**:
+- Research findings and substrate context are provided in USER MESSAGES, not system prompt
+- Each work ticket includes a "Work Assignment Context" section with pre-loaded research outputs
+- You build on this substrate layer (shared knowledge) to create platform-specific content
 
-**CRITICAL: How to Invoke Subagents**:
-- DO NOT use the Task tool to call subagents
-- Instead, directly invoke your subagent colleagues by their names
-- Available subagents: twitter_specialist, linkedin_specialist, blog_specialist, instagram_specialist
-- Example: To create Twitter content, invoke the twitter_specialist subagent directly
-- The SDK will handle the delegation automatically with shared context
+**Platform Delegation via Task Tool**:
+Use the Task tool to delegate to platform specialists (shared context approach):
+- Task tool preserves full conversation + substrate context
+- Available specialists: twitter_specialist, linkedin_specialist, blog_specialist, instagram_specialist
+- Each specialist sees the same research findings and brand voice examples
 
-**Subagent Capabilities**:
+Example delegation:
+```
+Use Task tool with:
+  subagent_type: "twitter_specialist"
+  description: "Create Twitter thread"
+  prompt: "Create engaging Twitter thread about [topic]. Reference substrate blocks: [block_ids]"
+```
+
+**Platform Specialist Capabilities**:
 - twitter_specialist: Concise threads (280 chars), viral hooks, engagement tactics
 - linkedin_specialist: Professional thought leadership, B2B storytelling, industry insights
 - blog_specialist: Long-form articles, SEO optimization, narrative structure
 - instagram_specialist: Visual-first captions, emoji strategy, hashtag optimization
-
-When you need platform-specific content, invoke the appropriate specialist subagent.
 
 **CRITICAL: Structured Output Requirements**
 
@@ -79,28 +87,31 @@ You have access to the emit_work_output tool. You MUST use this tool to record a
 DO NOT just describe content in free text. Every content piece must be emitted as a structured output.
 
 When to use emit_work_output:
-- "content_draft" - When you create a piece of content (post, thread, article, caption)
+- output_type: "draft_content" - When you create a piece of content (post, thread, article, caption)
 - Include platform, content_type, tone, character/word count in metadata
+- Reference source_block_ids from substrate context for provenance
 
 Each output you emit will be reviewed by the user before any action is taken.
 The user maintains full control through this supervision workflow.
 
 **Content Creation Workflow**:
-1. Query existing knowledge for brand voice examples
+1. Review substrate context provided in user message (research findings, brand voice examples)
 2. Identify platform requirements and best practices
-3. Invoke the appropriate platform specialist subagent (twitter_specialist, linkedin_specialist, etc.)
-4. The subagent will create platform-optimized content with shared context
-5. Call emit_work_output with structured data including platform metadata
+3. Delegate to appropriate platform specialist via Task tool (preserves substrate context)
+4. The specialist creates platform-optimized content with shared research
+5. Call emit_work_output with structured data including platform metadata and source_block_ids
 
 **Quality Standards**:
 - Authentic voice (not generic AI)
 - Platform-appropriate formatting
 - Clear actionable takeaways
 - Engaging hooks and CTAs
-- Match brand voice from examples
+- Match brand voice from substrate examples
+- Reference specific research findings with block IDs
 
 **Tools Available**:
 - emit_work_output: Record structured content drafts
+- Task: Delegate to platform specialists (preserves context)
 """
 
 # Platform specialist definitions for native subagents
@@ -272,31 +283,26 @@ class ContentAgentSDK:
         model: str = "claude-sonnet-4-5",
         enabled_platforms: Optional[List[str]] = None,
         brand_voice_mode: Literal["adaptive", "strict", "creative"] = "adaptive",
-        knowledge_modules: str = "",
         session: Optional['AgentSession'] = None,
-        bundle: Optional[Any] = None,  # NEW: Pre-loaded context bundle from TP staging
-        memory: Optional['SubstrateMemoryAdapter'] = None,  # DEPRECATED: For backward compatibility
+        bundle: Optional[WorkBundle] = None,  # Pre-loaded context bundle from TP staging
     ):
         """
-        Initialize ContentAgentSDK.
+        Initialize ContentAgentSDK with persistent session architecture.
 
         Args:
-            basket_id: Basket ID for substrate queries
+            basket_id: Basket ID for context tracking
             workspace_id: Workspace ID for authorization
             work_ticket_id: Work ticket ID for output tracking
             anthropic_api_key: Anthropic API key (from env if None)
             model: Claude model to use
             enabled_platforms: Platforms to support (default: ["twitter", "linkedin", "blog", "instagram"])
             brand_voice_mode: Voice learning approach
-            knowledge_modules: Knowledge modules (procedural knowledge) loaded from orchestration layer
-            session: Optional AgentSession from TP (hierarchical session management)
-            bundle: Optional WorkBundle from TP staging (pre-loaded substrate + assets)
-            memory: DEPRECATED - Use bundle instead (kept for backward compatibility)
+            session: AgentSession from AgentSessionManager (persistent sessions)
+            bundle: WorkBundle from TP staging (substrate context injected via user messages)
         """
         self.basket_id = basket_id
         self.workspace_id = workspace_id
         self.work_ticket_id = work_ticket_id
-        self.knowledge_modules = knowledge_modules
         self.enabled_platforms = enabled_platforms or ["twitter", "linkedin", "blog", "instagram"]
         self.brand_voice_mode = brand_voice_mode
 
@@ -309,35 +315,26 @@ class ContentAgentSDK:
         self.api_key = anthropic_api_key
         self.model = model
 
-        # NEW PATTERN: Use pre-loaded bundle from TP staging
+        # Store bundle for user message injection (substrate context NOT in system prompt)
+        self.bundle = bundle
         if bundle:
-            self.bundle = bundle
             logger.info(
-                f"Using WorkBundle from TP staging: {len(bundle.substrate_blocks)} blocks, "
-                f"{len(bundle.reference_assets)} assets"
+                f"Using WorkBundle: {len(bundle.substrate_blocks)} substrate blocks, "
+                f"{len(bundle.reference_assets)} reference assets"
             )
-            self.memory = None  # No memory adapter needed - bundle has pre-loaded context
-        elif memory:
-            # LEGACY PATTERN: For backward compatibility (will be removed)
-            self.bundle = None
-            self.memory = memory
-            logger.info(f"LEGACY: Using memory adapter from TP for basket={basket_id}")
-        else:
-            # Standalone mode: No pre-loaded context (testing only)
-            self.bundle = None
-            self.memory = None
-            logger.info("Standalone mode: No pre-loaded context (testing mode)")
 
-        # Use provided session from TP, or will create in async init
+        # Use provided session from AgentSessionManager (persistent sessions)
+        self.session = session
         if session:
-            self.current_session = session
-            logger.info(f"Using session from TP: {session.id} (parent={session.parent_session_id})")
+            logger.info(
+                f"Using persistent session: {session.id} "
+                f"(parent={session.parent_session_id}, sdk_session_id={session.sdk_session_id})"
+            )
         else:
-            # Standalone mode: session will be created by async get_or_create in methods
-            self.current_session = None
-            logger.info("Standalone mode: session will be created on first method call")
+            logger.warning("No session provided - will create ephemeral session (not recommended for production)")
 
         # Build subagents dict for ClaudeAgentOptions
+        # NOTE: Not used with Task tool delegation, kept for potential future use
         subagents = {}
         if "twitter" in self.enabled_platforms:
             subagents["twitter_specialist"] = TWITTER_SPECIALIST
@@ -355,45 +352,136 @@ class ContentAgentSDK:
             agent_type="content"
         )
 
-        # Build Claude SDK options with subagents and MCP server
-        # NOTE: Official SDK v0.1.8+ does NOT have 'tools' parameter
-        # Must use mcp_servers + allowed_tools pattern
-        # Note: max_tokens is controlled at ClaudeSDKClient.chat() level, not here
+        # Build Claude SDK options with STATIC system prompt (cacheable!)
         self._options = ClaudeAgentOptions(
             model=self.model,
-            system_prompt=self._build_system_prompt(),
-            agents=subagents,  # Native subagents!
+            system_prompt=self._build_static_system_prompt(),  # Static prompt (no bundle context)
+            agents=subagents,  # Native subagents (not used with Task tool approach)
             mcp_servers={"shared_tools": shared_tools},
-            allowed_tools=["mcp__shared_tools__emit_work_output"],
+            allowed_tools=[
+                "mcp__shared_tools__emit_work_output",
+                "Task",  # For platform specialist delegation (preserves context)
+                "TodoWrite",  # For progress tracking
+            ],
         )
 
         logger.info(
-            f"ContentAgentSDK initialized: basket={basket_id}, "
-            f"ticket={work_ticket_id}, platforms={self.enabled_platforms}, "
-            f"subagents={list(subagents.keys())}"
+            f"ContentAgentSDK initialized: basket={basket_id}, ticket={work_ticket_id}, "
+            f"platforms={self.enabled_platforms}, session={session.id if session else 'none'}"
         )
 
-    def _build_system_prompt(self) -> str:
-        """Build system prompt with knowledge modules."""
-        prompt = CONTENT_AGENT_SYSTEM_PROMPT
+    def _build_static_system_prompt(self) -> str:
+        """
+        Build STATIC system prompt (cacheable by Claude API).
 
-        # Add capabilities info
-        prompt += f"""
+        Substrate context is injected via user messages, not system prompt.
+        This allows prompt caching for efficiency.
+        """
+        agent_identity = f"""# Content Agent Identity
 
-**Your Capabilities**:
-- Memory: Available (SubstrateMemoryAdapter)
-- Enabled Platforms: {", ".join(self.enabled_platforms)}
-- Brand Voice Mode: {self.brand_voice_mode}
-- Session ID: {self.current_session.id if self.current_session else 'standalone-mode'}
-"""
+You are YARNNN's specialized Content Agent for {", ".join(self.enabled_platforms)} platforms.
 
-        # Inject knowledge modules if provided
-        if self.knowledge_modules:
-            prompt += "\n\n---\n\n# 📚 YARNNN Knowledge Modules (Procedural Knowledge)\n\n"
-            prompt += "The following knowledge modules provide guidelines on how to work effectively in YARNNN:\n\n"
-            prompt += self.knowledge_modules
+**Your Role**: Create platform-optimized text content (posts, threads, articles, captions) that maintains brand voice consistency.
 
-        return prompt
+**Brand Voice Mode**: {self.brand_voice_mode}"""
+
+        agent_responsibilities = CONTENT_AGENT_SYSTEM_PROMPT
+
+        available_tools = """## Tools You Have Access To
+
+1. **emit_work_output** (mcp__shared_tools__emit_work_output)
+   - CRITICAL: Use this to save all content drafts
+   - Required fields: output_type, title, body, confidence, metadata, source_block_ids
+   - Example metadata: {{"platform": "twitter", "content_type": "thread", "character_count": 280}}
+
+2. **Task** (for platform specialist delegation)
+   - Delegate to specialists while preserving full substrate context
+   - Available: twitter_specialist, linkedin_specialist, blog_specialist, instagram_specialist
+   - Pattern: Task(subagent_type="twitter_specialist", description="...", prompt="...")
+
+3. **TodoWrite** (for progress tracking)
+   - Use for multi-step content creation workflows
+   - Helps user see real-time progress"""
+
+        quality_standards = """## Content Quality Standards
+
+**Authenticity Over Generic AI**:
+- Use conversational, human voice (not corporate jargon)
+- Incorporate specific details from substrate context
+- Avoid obvious AI patterns ("delve", "landscape", "unlock", "leverage")
+
+**Platform Optimization**:
+- Twitter: 280 char limit, viral hooks, engagement tactics
+- LinkedIn: Professional thought leadership, B2B storytelling, 1300-2000 chars
+- Blog: Long-form (800-2000 words), SEO optimization, narrative structure
+- Instagram: Visual-first captions (150-300 words), emoji strategy, 20-30 hashtags
+
+**Contextual Awareness**:
+- Always reference substrate blocks when available
+- Include source_block_ids in emit_work_output for provenance
+- Build on prior work in conversation history"""
+
+        # Use build_agent_system_prompt from orchestration_patterns.py
+        return build_agent_system_prompt(
+            agent_identity=agent_identity,
+            agent_responsibilities=agent_responsibilities,
+            available_tools=available_tools,
+            quality_standards=quality_standards
+        )
+
+    def _build_context_message(self, task_description: str) -> str:
+        """
+        Build user message with substrate context injection.
+
+        This is where WorkBundle substrate blocks are injected (NOT in system prompt).
+        Keeps system prompt static for caching while providing dynamic context per work ticket.
+
+        Args:
+            task_description: The specific task for this work ticket
+
+        Returns:
+            Formatted user message with task + substrate context
+        """
+        message = f"# Work Assignment Context\n\n## Task\n{task_description}\n\n"
+
+        # Inject substrate context from WorkBundle if available
+        if self.bundle and self.bundle.substrate_blocks:
+            message += f"## Substrate Context ({len(self.bundle.substrate_blocks)} research outputs)\n\n"
+            message += "You have access to the following research findings from prior work:\n\n"
+
+            for i, block in enumerate(self.bundle.substrate_blocks, 1):
+                message += f"### Research Output {i}: {block.get('title', 'Untitled')}\n"
+                message += f"- **ID**: `{block.get('id', 'unknown')}`\n"
+                message += f"- **Type**: {block.get('output_type', 'unknown')}\n"
+                message += f"- **Source**: {block.get('source', 'research_agent')}\n"
+                message += f"- **Confidence**: {block.get('confidence', 'N/A')}\n\n"
+
+                content = block.get('content', '')
+                if isinstance(content, dict):
+                    # Structured content - show formatted
+                    import json
+                    content_str = json.dumps(content, indent=2)
+                    message += f"**Content**:\n```json\n{content_str[:2000]}\n```\n\n"
+                elif isinstance(content, str):
+                    # Text content - truncate if too long
+                    if len(content) > 2000:
+                        message += f"**Content** (truncated):\n{content[:2000]}...\n\n"
+                    else:
+                        message += f"**Content**:\n{content}\n\n"
+                else:
+                    message += f"**Content**:\n{str(content)[:2000]}\n\n"
+
+                message += "---\n\n"
+
+        # Add reference assets if available
+        if self.bundle and self.bundle.reference_assets:
+            message += f"## Reference Assets ({len(self.bundle.reference_assets)} assets)\n\n"
+            for i, asset in enumerate(self.bundle.reference_assets, 1):
+                message += f"### Asset {i}: {asset.get('name', 'Unnamed')}\n"
+                message += f"- **Type**: {asset.get('type', 'unknown')}\n"
+                message += f"- **Description**: {asset.get('description', 'N/A')}\n\n"
+
+        return message
 
     async def create(
         self,
