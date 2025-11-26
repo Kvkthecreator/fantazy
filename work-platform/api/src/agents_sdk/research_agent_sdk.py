@@ -190,7 +190,7 @@ class ResearchAgentSDK:
             mcp_servers={"shared_tools": shared_tools},
             allowed_tools=[
                 "mcp__shared_tools__emit_work_output",  # Custom tool for structured outputs
-                "web_search"  # Built-in web search
+                "WebSearch"  # Built-in web search (capitalized)
             ],
         )
 
