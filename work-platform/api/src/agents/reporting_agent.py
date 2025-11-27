@@ -331,7 +331,7 @@ class ReportingAgent(BaseAgent):
                     logger.warning(f"Failed to store work output: {e}")
 
             return ExecutionResult(
-                response=response_text,
+                response_text=response_text,
                 work_outputs=work_outputs,
                 tool_calls=tool_calls,
                 input_tokens=response.usage.input_tokens,
@@ -343,7 +343,7 @@ class ReportingAgent(BaseAgent):
             logger.error(f"Skills API call failed: {e}")
             # Return error result
             return ExecutionResult(
-                response=f"Document generation failed: {str(e)}",
+                response_text=f"Document generation failed: {str(e)}",
                 work_outputs=[{
                     "output_type": "error",
                     "title": f"Failed to generate {output_format.upper()}",
