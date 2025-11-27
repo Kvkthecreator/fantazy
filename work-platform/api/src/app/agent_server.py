@@ -122,21 +122,17 @@ app.add_middleware(
         "/api/agents/p4-composition",
         "/api/mcp/auth/sessions/validate",  # MCP session validation (no JWT required)
         "/api/tp/capabilities",  # TP capabilities endpoint (public, no auth needed)
-        "/api/diagnostics/skills",  # Skills diagnostic endpoint (no auth for debugging)
-        "/api/diagnostics/agent-config",  # Agent config diagnostic (no auth for debugging)
-        "/api/diagnostics/test-skill-invocation",  # Skill test endpoint (no auth for debugging)
-        "/api/diagnostics/test-basic-sdk",  # Basic SDK test endpoint (no auth for debugging)
-        "/api/diagnostics/test-minimal-sdk",  # Minimal SDK test - Phase 1 core hardening (no auth)
-        "/api/diagnostics/test-todowrite",  # TodoWrite test - Phase 2 core hardening (no auth)
-        "/api/diagnostics/test-emit-work-output",  # emit_work_output test - Phase 3 core hardening (no auth)
-        "/api/diagnostics/test-research-workflow",  # Research workflow test - Phase 4 multi-step validation (no auth)
-        "/api/diagnostics/test-inter-agent-flow",  # Inter-agent flow test - Phase 5 substrate-mediated orchestration (no auth)
+        "/api/diagnostics/skills",  # Skills diagnostic (legacy)
+        "/api/diagnostics/agent-config",  # Agent config diagnostic
+        "/api/diagnostics/migration-status",  # Migration status
     },
     exempt_prefixes={
         "/health",
         "/auth/mcp",  # OAuth authorization flow (uses Supabase cookies, not JWT)
         "/api/auth/mcp",  # OAuth with /api prefix (registration, authorize, token endpoints)
         "/api/test/workflows",  # Test endpoints (header-based auth for E2E testing)
+        "/api/diagnostics/test-",  # All diagnostic test endpoints (no auth for production testing)
+        "/api/diagnostics/run-",  # Run-all-tests endpoint
     },
 )
 
