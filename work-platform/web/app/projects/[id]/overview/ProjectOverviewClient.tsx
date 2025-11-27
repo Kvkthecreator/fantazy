@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Plus, Zap, CheckCircle2 } from 'lucide-react';
+import { Plus, Zap, CheckCircle2, FileCheck, Clock, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -164,6 +164,38 @@ export function ProjectOverviewClient({ project }: ProjectOverviewClientProps) {
           </div>
         </Card>
       )}
+
+      {/* Work Review Quick Access */}
+      <Card className="p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <FileCheck className="h-5 w-5 text-primary" />
+              <h3 className="text-lg font-semibold text-foreground">Work Review</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Review and approve agent outputs before they're promoted to your knowledge base.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/projects/${project.id}/work-tickets-view`)}
+            >
+              <Eye className="h-4 w-4 mr-1" />
+              View Tickets
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => router.push(`/projects/${project.id}/work-review`)}
+            >
+              <Clock className="h-4 w-4 mr-1" />
+              Review Outputs
+            </Button>
+          </div>
+        </div>
+      </Card>
 
       {/* Context Basket Info */}
       <Card className="p-6 border border-border bg-muted/60">
