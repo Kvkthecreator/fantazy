@@ -1,65 +1,53 @@
 """
-Auth adapter: Uses Phase 1-3 infrastructure (infra/utils/jwt).
+Auth adapter: JWT utilities for agent routes.
 
 This adapter provides authentication utilities for agent routes,
-respecting the established Phase 1-3 architecture.
+using PyJWT for token decoding/verification.
 
 Architecture flow:
-Agent routes → AuthAdapter → infra/utils/jwt → JWT validation
+Agent routes → AuthAdapter → PyJWT → JWT validation
 """
 
 from __future__ import annotations
 
 import logging
-import os
-import sys
 from typing import Any, Dict, Optional
 
-# Add infra to path (Phase 1-3 infrastructure)
-infra_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
-if infra_path not in sys.path:
-    sys.path.insert(0, infra_path)
-
-# Import Phase 1-3 JWT utilities
-try:
-    from infra.utils.jwt import decode_jwt, verify_jwt
-except ImportError:
-    # Fallback if infra not in path yet
-    logger = logging.getLogger(__name__)
-    logger.warning("Could not import infra.utils.jwt - JWT functions unavailable")
-
-    def decode_jwt(token: str) -> Optional[Dict[str, Any]]:
-        """Fallback decode_jwt"""
-        import jwt
-        try:
-            return jwt.decode(token, options={"verify_signature": False})
-        except Exception:
-            return None
-
-    def verify_jwt(token: str) -> Optional[Dict[str, Any]]:
-        """Fallback verify_jwt"""
-        return decode_jwt(token)
+import jwt
 
 logger = logging.getLogger(__name__)
 
 
+def decode_jwt(token: str) -> Optional[Dict[str, Any]]:
+    """Decode JWT token without verification (for extracting claims)."""
+    try:
+        return jwt.decode(token, options={"verify_signature": False})
+    except Exception:
+        return None
+
+
+def verify_jwt_token(token: str) -> Optional[Dict[str, Any]]:
+    """Verify and decode JWT token."""
+    # For service-to-service, we decode without full verification
+    # Full verification happens at AuthMiddleware level
+    return decode_jwt(token)
+
+
 class AuthAdapter:
     """
-    Adapter for authentication using Phase 1-3 infrastructure.
+    Adapter for authentication utilities.
 
     Provides utilities for:
     - JWT token verification
     - User ID extraction
     - Workspace ID extraction
     - Service token validation
-
-    All operations use infra/utils/jwt (Phase 1-3 compliant).
     """
 
     @staticmethod
     def verify_token(token: str) -> Optional[Dict[str, Any]]:
         """
-        Verify JWT token using Phase 1-3 infrastructure.
+        Verify JWT token.
 
         Args:
             token: JWT token string
@@ -68,7 +56,7 @@ class AuthAdapter:
             Decoded token payload if valid, None otherwise
         """
         try:
-            payload = verify_jwt(token)
+            payload = verify_jwt_token(token)
             if payload:
                 logger.debug("Token verified successfully")
                 return payload

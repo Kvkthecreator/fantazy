@@ -341,7 +341,7 @@ class SubstrateClient:
         if limit:
             params["limit"] = limit
 
-        response = self._request("GET", f"/baskets/{basket_id}/blocks", params=params)
+        response = self._request("GET", f"/api/baskets/{basket_id}/blocks", params=params)
         return response.get("blocks", [])
 
     # ========================================================================
@@ -494,7 +494,7 @@ class SubstrateClient:
         Returns:
             List of dump dictionaries
         """
-        response = self._request("GET", f"/baskets/{basket_id}/inputs")
+        response = self._request("GET", f"/api/baskets/{basket_id}/inputs")
         return response.get("inputs", [])
 
     def create_dump(
