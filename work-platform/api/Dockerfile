@@ -1,25 +1,15 @@
-# Phase 0: Claude Agent SDK Infrastructure
-# This Dockerfile adds Node.js + Claude Code CLI to support Claude Agent SDK Python wrapper
+# Direct Anthropic API Deployment
+# Simplified Dockerfile after SDK removal - no Node.js required
+# First-principled design: Python + direct API calls only
 
 FROM python:3.10-slim
 
-# Install Node.js 18.x (REQUIRED for Claude Code CLI)
-# The Python SDK wraps the Claude Code CLI which is a Node.js application
+# Install minimal dependencies (curl for health checks, ca-certificates for HTTPS)
 RUN apt-get update && apt-get install -y \
     curl \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
+    ca-certificates \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Verify Node.js and npm installed
-RUN node --version && npm --version
-
-# Install Claude Code CLI globally
-# The Python SDK (claude-agent-sdk) wraps this CLI, so it must be installed
-RUN npm install -g @anthropic-ai/claude-code && \
-    which claude && \
-    claude --version
 
 # Set working directory
 WORKDIR /app
@@ -32,7 +22,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Add /app/src to PYTHONPATH so yarnnn_agents can be imported
+# Add /app/src to PYTHONPATH so modules can be imported
 ENV PYTHONPATH="/app/src:${PYTHONPATH}"
 
 # Expose port (Render will set PORT env var)

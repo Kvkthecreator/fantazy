@@ -20,12 +20,10 @@ tenacity>=8.0.0  # Retry logic for substrate HTTP client (Phase 3.1 BFF)
 anthropic>=0.40.0  # Core Anthropic API for agent reasoning
 pyyaml>=6.0  # For agent configuration files
 
-# ── Claude Agent SDK (Official Anthropic) ─────────────────────────────
-# Official Python SDK from Anthropic with ClaudeSDKClient for session management
-# Requires Python 3.10+ (Dockerfile uses python:3.10-slim)
-# Includes Claude Code CLI bundled (Node.js subprocess managed by SDK)
-# Documentation: https://platform.claude.com/docs/en/agent-sdk/python
-claude-agent-sdk>=0.1.8  # Official Anthropic SDK (Nov 19, 2025)
+# ── Direct Anthropic API (No SDK) ─────────────────────────────────────
+# Using direct anthropic Python client instead of claude-agent-sdk
+# First-principled design: no Node.js, no CLI wrapper, direct API calls
+# See: src/clients/anthropic_client.py for implementation
 
 # ── Supabase integration ──────────────────────────────────────────────
 # Using PyPI version instead of git for Render reliability
