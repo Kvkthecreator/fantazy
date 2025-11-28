@@ -12,7 +12,6 @@ import { useRouter } from 'next/navigation';
 interface GovernanceSettings {
   governance_enabled: boolean;
   validator_required: boolean;
-  // Removed from UI: direct_substrate_writes is canon-enforced server-side (always false)
   governance_ui_enabled: boolean;
   // Phase 2: retention controls
   retention_enabled: boolean;
@@ -22,8 +21,6 @@ interface GovernanceSettings {
   entry_point_policies: {
     onboarding_dump: string;
     manual_edit: string;
-    graph_action: string;
-    timeline_restore: string;
   };
   default_blast_radius: string;
 }
@@ -50,12 +47,10 @@ export default function GovernanceSettingsClient({
         governance_ui_enabled: true,
         retention_enabled: Boolean(initialSettings.retention_enabled),
         retention_policy_text: JSON.stringify(initialSettings.retention_policy || {}, null, 2),
-        mode: (initialSettings.ep_manual_edit === 'hybrid' || initialSettings.ep_graph_action === 'hybrid') ? 'hybrid' : 'proposal',
+        mode: initialSettings.ep_manual_edit === 'hybrid' ? 'hybrid' : 'proposal',
         entry_point_policies: {
           onboarding_dump: 'direct', // Canon: P0 capture must be direct
           manual_edit: initialSettings.ep_manual_edit,
-          graph_action: initialSettings.ep_graph_action,
-          timeline_restore: initialSettings.ep_timeline_restore
         },
         default_blast_radius: initialSettings.default_blast_radius === 'Global' ? 'Scoped' : initialSettings.default_blast_radius
       };
@@ -72,8 +67,6 @@ export default function GovernanceSettingsClient({
       entry_point_policies: {
         onboarding_dump: 'direct',
         manual_edit: 'proposal',
-        graph_action: 'proposal',
-        timeline_restore: 'proposal'
       },
       default_blast_radius: 'Scoped'
     };
@@ -86,24 +79,6 @@ export default function GovernanceSettingsClient({
     setHasChanges(true);
   }, [settings]);
 
-
-  const getInitialSettings = () => {
-    if (initialSettings) {
-      return {
-        governance_enabled: initialSettings.governance_enabled,
-        validator_required: initialSettings.validator_required,
-        governance_ui_enabled: initialSettings.governance_ui_enabled,
-        entry_point_policies: {
-          onboarding_dump: 'direct',
-          manual_edit: initialSettings.ep_manual_edit,
-          graph_action: initialSettings.ep_graph_action,
-          timeline_restore: initialSettings.ep_timeline_restore
-        },
-        default_blast_radius: initialSettings.default_blast_radius === 'Global' ? 'Scoped' : initialSettings.default_blast_radius
-      };
-    }
-    return null;
-  };
 
   const handleSave = async () => {
     setLoading(true);
@@ -121,8 +96,8 @@ export default function GovernanceSettingsClient({
       const derivedPolicies = {
         onboarding_dump: 'direct',
         manual_edit: settings.mode,
-        graph_action: settings.mode,
-        timeline_restore: 'proposal'
+        graph_action: 'proposal', // legacy graph ops always reviewed
+        timeline_restore: 'proposal', // always reviewed per canon
       };
 
       const response = await fetch('/api/governance/settings', {
@@ -226,7 +201,7 @@ export default function GovernanceSettingsClient({
           <CardHeader className="p-6">
             <CardTitle>Review Mode</CardTitle>
             <p className="text-sm text-gray-600 mt-2">
-              Control which operations require manual approval
+              Control how manual context edits are reviewed before landing in substrate
             </p>
           </CardHeader>
           <CardContent className="p-8 space-y-4">
@@ -242,7 +217,7 @@ export default function GovernanceSettingsClient({
                 <div className="flex-1">
                   <div className="font-medium text-sm text-gray-900">Review Everything</div>
                   <p className="text-xs text-gray-600 mt-1">
-                    All changes go through governance review before execution. Maximum control and safety.
+                    All manual edits to substrate go through governance review before execution. Maximum control and safety.
                   </p>
                 </div>
               </label>
@@ -258,7 +233,7 @@ export default function GovernanceSettingsClient({
                 <div className="flex-1">
                   <div className="font-medium text-sm text-gray-900">Smart Review</div>
                   <p className="text-xs text-gray-600 mt-1">
-                    High-confidence changes auto-approve. Low-confidence or risky changes require review. Balanced approach.
+                    High-confidence manual edits auto-approve. Low-confidence or risky edits require review. Balanced approach.
                   </p>
                 </div>
               </label>
@@ -283,21 +258,9 @@ export default function GovernanceSettingsClient({
                     {settings.mode === 'hybrid' ? '⚡ Smart Review' : '⚠ Requires Review'}
                   </Badge>
                 </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="text-slate-600">Graph Actions (Relationships)</span>
-                  <Badge variant="outline" className={settings.mode === 'hybrid' ? 'bg-blue-50 text-blue-700 border-blue-300' : 'bg-yellow-50 text-yellow-700 border-yellow-300'}>
-                    {settings.mode === 'hybrid' ? '⚡ Smart Review' : '⚠ Requires Review'}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between py-1.5">
-                  <span className="text-slate-600">Timeline Restore (History)</span>
-                  <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-300">
-                    ⚠ Always Review
-                  </Badge>
-                </div>
               </div>
               <p className="text-xs text-slate-500 mt-3">
-                These policies are managed automatically based on your Review Mode selection. Canon rules ensure P0 capture is always direct and timeline restores always require review.
+                Review Mode only affects manual edits to substrate. Onboarding captures stay direct; other operations are reviewed by default.
               </p>
             </div>
 
@@ -365,10 +328,6 @@ function getEntryPointDescription(entryPoint: string): string {
   switch (entryPoint) {
     case 'onboarding_dump': return 'Initial content capture from new users';
     case 'manual_edit': return 'Direct editing of substrate (Add Meaning, etc.)';
-    case 'document_edit': return 'Document composition and narrative editing';
-    case 'reflection_suggestion': return 'AI-suggested insights and patterns';
-    case 'graph_action': return 'Relationship and connection management';
-    case 'timeline_restore': return 'Restoring content from timeline history';
     default: return 'Substrate modification action';
   }
 }
