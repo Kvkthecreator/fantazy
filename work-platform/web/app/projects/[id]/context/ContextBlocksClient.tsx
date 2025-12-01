@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { ProjectHealthCheck } from "@/components/projects/ProjectHealthCheck";
 import BlockDetailModal from "@/components/context/BlockDetailModal";
-import AnchorStatusSection from "@/components/context/AnchorStatusSection";
 
 interface Block {
   id: string;
@@ -32,10 +31,9 @@ interface Block {
 interface ContextBlocksClientProps {
   projectId: string;
   basketId: string;
-  onAddContextClick?: () => void;
 }
 
-export default function ContextBlocksClient({ projectId, basketId, onAddContextClick }: ContextBlocksClientProps) {
+export default function ContextBlocksClient({ projectId, basketId }: ContextBlocksClientProps) {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,9 +42,6 @@ export default function ContextBlocksClient({ projectId, basketId, onAddContextC
   const [isPolling, setIsPolling] = useState(false);
   const [pollingMessage, setPollingMessage] = useState<string | null>(null);
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-
-  // Anchor section refresh key
-  const [anchorSectionKey, setAnchorSectionKey] = useState(0);
 
   // Fetch blocks from BFF
   const fetchBlocks = async () => {
@@ -199,24 +194,8 @@ export default function ContextBlocksClient({ projectId, basketId, onAddContextC
     info: 'border-surface-primary-border bg-surface-primary text-foreground',
   };
 
-  // Handler for anchor seeding success
-  const handleAnchorSeedSuccess = () => {
-    // Refresh anchor section
-    setAnchorSectionKey((prev) => prev + 1);
-    // Also refresh blocks to show new anchor blocks
-    fetchBlocks();
-  };
-
   return (
     <div className="space-y-6">
-      {/* Anchor Status Section - Shows foundational anchors */}
-      <AnchorStatusSection
-        key={anchorSectionKey}
-        projectId={projectId}
-        basketId={basketId}
-        onSeedSuccess={handleAnchorSeedSuccess}
-      />
-
       {/* Project Health Check */}
       <ProjectHealthCheck projectId={projectId} basketId={basketId} />
 
