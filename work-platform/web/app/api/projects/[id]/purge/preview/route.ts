@@ -36,8 +36,6 @@ export async function GET(
       );
     }
 
-    const token = session.access_token;
-
     // Fetch project to get basket_id
     const projectResponse = await supabase
       .from('projects')
@@ -76,12 +74,12 @@ export async function GET(
     console.log(`[PURGE PREVIEW API] Fetching preview for basket ${basketId}`);
 
     // Query database directly (work-platform shares DB with substrate-api)
-    // Count active blocks (excluding REJECTED and SUPERSEDED states)
+    // Count active blocks (only PROPOSED, ACCEPTED, LOCKED, CONSTANT states)
     const { count: blocksCount, error: blocksError } = await supabase
       .from('blocks')
       .select('*', { count: 'exact', head: true })
       .eq('basket_id', basketId)
-      .not('state', 'in', '(REJECTED,SUPERSEDED)');
+      .in('state', ['PROPOSED', 'ACCEPTED', 'LOCKED', 'CONSTANT']);
 
     if (blocksError) {
       console.error('[PURGE PREVIEW API] Database error counting blocks:', blocksError);

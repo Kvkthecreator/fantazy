@@ -114,13 +114,15 @@ export async function POST(
     let redactedDumps = 0;
 
     if (mode === 'archive_all') {
-      // Archive all active blocks (excluding REJECTED/SUPERSEDED)
-      console.log('[PURGE API] Archiving blocks...');
-      const { error: archiveError, count: archiveCount } = await supabase
+      // Mark all active blocks as SUPERSEDED (soft delete)
+      // Valid block states: PROPOSED, ACCEPTED, LOCKED, CONSTANT, SUPERSEDED, REJECTED
+      console.log('[PURGE API] Marking blocks as SUPERSEDED...');
+      const { data: updatedBlocks, error: archiveError } = await supabase
         .from('blocks')
-        .update({ state: 'ARCHIVED' }, { count: 'exact' })
+        .update({ state: 'SUPERSEDED' })
         .eq('basket_id', basketId)
-        .not('state', 'in', '(REJECTED,SUPERSEDED,ARCHIVED)');
+        .in('state', ['PROPOSED', 'ACCEPTED', 'LOCKED', 'CONSTANT'])
+        .select('id');
 
       if (archiveError) {
         console.error('[PURGE API] Error archiving blocks:', archiveError);
@@ -130,27 +132,42 @@ export async function POST(
         );
       }
 
-      archivedBlocks = archiveCount || 0;
-      console.log(`[PURGE API] Archived ${archivedBlocks} blocks`);
+      archivedBlocks = updatedBlocks?.length || 0;
+      console.log(`[PURGE API] Marked ${archivedBlocks} blocks as SUPERSEDED`);
     }
 
     if (mode === 'archive_all' || mode === 'redact_dumps') {
       // Delete all raw dumps
       console.log('[PURGE API] Redacting dumps...');
-      const { error: deleteError, count: deleteCount } = await supabase
+
+      // First count the dumps to delete
+      const { data: dumpsToDelete, error: countError } = await supabase
         .from('raw_dumps')
-        .delete({ count: 'exact' })
+        .select('id')
         .eq('basket_id', basketId);
 
-      if (deleteError) {
-        console.error('[PURGE API] Error redacting dumps:', deleteError);
-        return NextResponse.json(
-          { detail: 'Failed to redact dumps', error: deleteError.message },
-          { status: 500 }
-        );
+      if (countError) {
+        console.error('[PURGE API] Error counting dumps:', countError);
       }
 
-      redactedDumps = deleteCount || 0;
+      const dumpCount = dumpsToDelete?.length || 0;
+
+      if (dumpCount > 0) {
+        const { error: deleteError } = await supabase
+          .from('raw_dumps')
+          .delete()
+          .eq('basket_id', basketId);
+
+        if (deleteError) {
+          console.error('[PURGE API] Error redacting dumps:', deleteError);
+          return NextResponse.json(
+            { detail: 'Failed to redact dumps', error: deleteError.message },
+            { status: 500 }
+          );
+        }
+      }
+
+      redactedDumps = dumpCount;
       console.log(`[PURGE API] Redacted ${redactedDumps} dumps`);
     }
 
