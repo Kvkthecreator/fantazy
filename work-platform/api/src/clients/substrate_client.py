@@ -732,6 +732,8 @@ class SubstrateClient:
         source_context_ids: Optional[list] = None,
         tool_call_id: Optional[str] = None,
         metadata: Optional[dict] = None,
+        target_context_role: Optional[str] = None,
+        auto_promote: bool = False,
     ) -> dict:
         """
         Create a work output in substrate-API for user supervision.
@@ -747,6 +749,8 @@ class SubstrateClient:
             source_context_ids: Block IDs used as context (provenance)
             tool_call_id: Claude's tool_use id for traceability
             metadata: Additional metadata
+            target_context_role: Context role this output targets for promotion
+            auto_promote: Whether to auto-promote after approval
 
         Returns:
             Created work output record
@@ -762,6 +766,8 @@ class SubstrateClient:
             "source_context_ids": source_context_ids or [],
             "tool_call_id": tool_call_id,
             "metadata": metadata or {},
+            "target_context_role": target_context_role,
+            "auto_promote": auto_promote,
         }
 
         return self._request(

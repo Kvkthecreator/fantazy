@@ -96,6 +96,11 @@ class WorkToSubstrateBridge:
         """
         Called when a work output is approved. Handles auto-promotion if configured.
 
+        Auto-promotion triggers if ANY of these conditions are met:
+        1. Output has auto_promote=True (from recipe context_outputs)
+        2. Output has target_context_role set (explicit role targeting)
+        3. Project setting promotion_mode="auto" AND output_type is in auto_promote_types
+
         Args:
             work_output_id: Work output ID
             basket_id: Basket ID
@@ -103,6 +108,29 @@ class WorkToSubstrateBridge:
         Returns:
             Promotion result if auto-promoted, None if manual mode
         """
+        # Get output details first
+        output = await self._get_work_output(work_output_id, basket_id)
+        if not output:
+            logger.error(f"Work output not found: {work_output_id}")
+            return None
+
+        # Check if output has explicit auto_promote flag from recipe
+        output_auto_promote = output.get("auto_promote", False)
+        target_context_role = output.get("target_context_role")
+
+        # If output has explicit auto-promotion or target role, promote regardless of project settings
+        if output_auto_promote or target_context_role:
+            logger.info(
+                f"[BRIDGE] Work output {work_output_id} has explicit auto-promotion "
+                f"(auto_promote={output_auto_promote}, target_role={target_context_role})"
+            )
+            return await self.promote_to_substrate(
+                work_output_id=work_output_id,
+                promotion_method="auto",
+                target_context_role=target_context_role,
+            )
+
+        # Otherwise, check project-level settings
         settings = await self.get_project_settings(basket_id)
         promotion_mode = settings.get("promotion_mode", "auto")
 
@@ -112,12 +140,6 @@ class WorkToSubstrateBridge:
         )
 
         if promotion_mode == "auto":
-            # Get output details
-            output = await self._get_work_output(work_output_id)
-            if not output:
-                logger.error(f"Work output not found: {work_output_id}")
-                return None
-
             # Check if output type is auto-promotable
             auto_types = settings.get("auto_promote_types", ["finding", "recommendation"])
             if output.get("output_type") not in auto_types:
@@ -140,6 +162,7 @@ class WorkToSubstrateBridge:
         work_output_id: str,
         promotion_method: str = "manual",
         target_basket_id: Optional[str] = None,
+        target_context_role: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Promote a work output to substrate via P1 proposal.
@@ -148,6 +171,7 @@ class WorkToSubstrateBridge:
             work_output_id: Work output ID to promote
             promotion_method: "auto" or "manual"
             target_basket_id: Optional override basket (default: output's basket)
+            target_context_role: Optional anchor role for the created block
 
         Returns:
             Promotion result with proposal_id
@@ -181,8 +205,9 @@ class WorkToSubstrateBridge:
 
         basket_id = target_basket_id or output.get("basket_id")
 
-        # Build P1 proposal
-        proposal_data = self._build_proposal_from_output(output, basket_id)
+        # Build P1 proposal (use target_context_role from param or from output)
+        context_role = target_context_role or output.get("target_context_role")
+        proposal_data = self._build_proposal_from_output(output, basket_id, context_role)
 
         # Create proposal via substrate-API
         try:
@@ -223,6 +248,7 @@ class WorkToSubstrateBridge:
         self,
         output: Dict[str, Any],
         basket_id: str,
+        anchor_role: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Build P1 proposal data from work output.
@@ -230,6 +256,7 @@ class WorkToSubstrateBridge:
         Args:
             output: Work output dict
             basket_id: Target basket ID
+            anchor_role: Optional context role for the created block
 
         Returns:
             Proposal data dict for substrate-API
@@ -259,22 +286,29 @@ class WorkToSubstrateBridge:
         semantic_type = semantic_type_map.get(output_type, "knowledge")
 
         # Build proposal ops
+        block_data = {
+            "title": title,
+            "body": block_content,
+            "semantic_type": semantic_type,
+            "confidence": confidence,
+            "state": "PROPOSED",  # Will be ACCEPTED on proposal approval
+            "metadata": {
+                "from_work_output": True,
+                "work_output_id": str(output.get("id")),
+                "output_type": output_type,
+                "agent_type": output.get("agent_type"),
+                "source_context_ids": [str(s) for s in source_ids] if source_ids else [],
+            },
+        }
+
+        # Add anchor_role if targeting a specific context role
+        if anchor_role:
+            block_data["anchor_role"] = anchor_role
+            block_data["anchor_status"] = "accepted"  # Auto-accept anchor assignment
+
         create_block_op = {
             "type": "CreateBlock",
-            "data": {
-                "title": title,
-                "body": block_content,
-                "semantic_type": semantic_type,
-                "confidence": confidence,
-                "state": "PROPOSED",  # Will be ACCEPTED on proposal approval
-                "metadata": {
-                    "from_work_output": True,
-                    "work_output_id": str(output.get("id")),
-                    "output_type": output_type,
-                    "agent_type": output.get("agent_type"),
-                    "source_context_ids": [str(s) for s in source_ids] if source_ids else [],
-                },
-            },
+            "data": block_data,
         }
 
         # Build proposal

@@ -132,6 +132,16 @@ export default function RecipeConfigureClient({
         async_execution: true, // Enable async mode for immediate redirect
       };
 
+      // Include context_outputs if recipe produces an anchor role
+      // This enables auto-promotion of outputs to context blocks
+      if (recipe.context_outputs) {
+        requestBody.context_outputs = {
+          target_context_role: recipe.context_outputs.role,
+          auto_promote: recipe.context_outputs.refresh_policy?.auto_promote ?? true,
+          ttl_hours: recipe.context_outputs.refresh_policy?.ttl_hours,
+        };
+      }
+
       switch (recipe.agent_type) {
         case "reporting":
           endpoint = "/api/work/reporting/execute";

@@ -28,6 +28,8 @@ def write_agent_outputs(
     agent_type: str,
     outputs: List[Dict[str, Any]],
     metadata: Optional[Dict[str, Any]] = None,
+    target_context_role: Optional[str] = None,
+    auto_promote: bool = False,
 ) -> Dict[str, Any]:
     """
     Write agent outputs to substrate-API for user supervision.
@@ -42,6 +44,8 @@ def write_agent_outputs(
         outputs: List of output dictionaries from agent execution
                  Each should have: output_type, title, body, confidence, source_context_ids, tool_call_id
         metadata: Additional metadata to attach to each output
+        target_context_role: Context role this output targets for promotion
+        auto_promote: Whether to auto-promote after approval
 
     Returns:
         {
@@ -60,7 +64,9 @@ def write_agent_outputs(
             basket_id=basket_id,
             work_ticket_id=ticket_id,
             agent_type="research",
-            outputs=outputs
+            outputs=outputs,
+            target_context_role="trend_digest",
+            auto_promote=True
         )
     """
     client = get_substrate_client()
@@ -70,6 +76,7 @@ def write_agent_outputs(
     logger.info(
         f"Writing {len(outputs)} agent outputs for session {work_ticket_id} "
         f"to basket {basket_id}"
+        f"{f' (target_role={target_context_role}, auto_promote={auto_promote})' if target_context_role else ''}"
     )
 
     for i, output in enumerate(outputs):
@@ -86,6 +93,8 @@ def write_agent_outputs(
                 source_context_ids=output.get("source_context_ids", []),
                 tool_call_id=output.get("tool_call_id"),
                 metadata=metadata or {},
+                target_context_role=target_context_role,
+                auto_promote=auto_promote,
             )
 
             output_id = created_output.get("id")

@@ -54,6 +54,10 @@ class WorkOutputCreate(BaseModel):
     generation_method: str = "text"
     skill_metadata: Optional[dict] = None
 
+    # Context role targeting (for auto-promotion to context blocks)
+    target_context_role: Optional[str] = None
+    auto_promote: bool = False
+
     @field_validator('source_context_ids', mode='before')
     @classmethod
     def parse_source_context_ids(cls, v: Union[str, List[str]]) -> List[str]:
@@ -111,6 +115,11 @@ class WorkOutputResponse(BaseModel):
     mime_type: Optional[str] = None
     generation_method: Optional[str] = None
     skill_metadata: Optional[dict] = None
+
+    # Context role targeting
+    target_context_role: Optional[str] = None
+    auto_promote: bool = False
+    promotion_status: str = "pending"
 
 
 class WorkOutputListResponse(BaseModel):
@@ -233,6 +242,10 @@ async def create_work_output(
             "mime_type": output_data.mime_type,
             "generation_method": output_data.generation_method,
             "skill_metadata": output_data.skill_metadata,
+            # Context role targeting for auto-promotion
+            "target_context_role": output_data.target_context_role,
+            "auto_promote": output_data.auto_promote,
+            "promotion_status": "pending",  # Track promotion workflow
         }
 
         result = supabase_admin_client.table("work_outputs").insert(output_record).execute()

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Plus, Zap, CheckCircle2, FileCheck, Clock, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { ContextReadinessCard } from '@/app/projects/[id]/agents/_components/ContextReadinessCard';
 
 interface ProjectAgent {
   id: string;
@@ -165,6 +166,9 @@ export function ProjectOverviewClient({ project }: ProjectOverviewClientProps) {
           </div>
         </Card>
       )}
+
+      {/* Context Readiness - Quick view of anchor status */}
+      <ContextReadinessCard projectId={project.id} agentType="overview" />
 
       {/* Work Review Quick Access */}
       <Card className={cn(
