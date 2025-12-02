@@ -1,4 +1,4 @@
-\restrict TtOozGuU5VjxoqOzhbo4Hpgmljwr1KxCEprn6hTPg61ARQHFvQZ3dv5X9cYA2Xz
+\restrict vey5eyNSWY7gWDdeVFE4UXTe0IeDsCK72SHfQmLLFGPohkl3bYGUSQ7hEnAzfZ8
 CREATE SCHEMA public;
 CREATE TYPE public.alert_severity AS ENUM (
     'info',
@@ -1052,6 +1052,14 @@ BEGIN
   RETURN reset_count;
 END;
 $$;
+CREATE FUNCTION public.fn_set_schedule_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
 CREATE FUNCTION public.fn_timeline_after_raw_dump() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1683,6 +1691,11 @@ BEGIN
   -- ========================================
   -- WORK-PLATFORM TABLES (Phase 2e Schema)
   -- ========================================
+  -- Delete project_recipe_schedules (new)
+  DELETE FROM project_recipe_schedules
+  WHERE project_id IN (
+    SELECT id FROM projects WHERE workspace_id = target_workspace_id
+  );
   -- Delete work_iterations (references work_tickets)
   DELETE FROM work_iterations
   WHERE work_ticket_id IN (
@@ -2657,6 +2670,23 @@ CREATE TABLE public.project_agents (
     config_updated_at timestamp with time zone DEFAULT now(),
     config_updated_by uuid
 );
+CREATE TABLE public.project_recipe_schedules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    recipe_slug text NOT NULL,
+    cron_expression text,
+    interval_hours integer,
+    enabled boolean DEFAULT true,
+    last_run_at timestamp with time zone,
+    next_run_at timestamp with time zone,
+    last_run_status text,
+    last_run_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    created_by uuid,
+    CONSTRAINT project_recipe_schedules_check CHECK (((cron_expression IS NOT NULL) OR (interval_hours IS NOT NULL))),
+    CONSTRAINT project_recipe_schedules_last_run_status_check CHECK ((last_run_status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])))
+);
 CREATE TABLE public.projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid NOT NULL,
@@ -3048,11 +3078,15 @@ CREATE TABLE public.work_outputs (
     promotion_method text,
     promoted_at timestamp with time zone,
     promoted_by uuid,
+    target_context_role text,
+    auto_promote boolean DEFAULT false,
+    promotion_status text DEFAULT 'pending'::text,
     CONSTRAINT title_not_empty CHECK ((length(TRIM(BOTH FROM title)) > 0)),
     CONSTRAINT work_outputs_confidence_check CHECK (((confidence IS NULL) OR ((confidence >= (0)::double precision) AND (confidence <= (1)::double precision)))),
     CONSTRAINT work_outputs_content_type CHECK ((((body IS NOT NULL) AND (file_id IS NULL)) OR ((body IS NULL) AND (file_id IS NOT NULL)))),
     CONSTRAINT work_outputs_generation_method_check CHECK ((generation_method = ANY (ARRAY['text'::text, 'code_execution'::text, 'skill'::text, 'manual'::text]))),
     CONSTRAINT work_outputs_promotion_method_check CHECK ((promotion_method = ANY (ARRAY['auto'::text, 'manual'::text, 'skipped'::text, 'rejected'::text]))),
+    CONSTRAINT work_outputs_promotion_status_check CHECK ((promotion_status = ANY (ARRAY['pending'::text, 'promoted'::text, 'rejected'::text, 'skipped'::text]))),
     CONSTRAINT work_outputs_storage_path_format CHECK (((storage_path IS NULL) OR (storage_path ~~ (('baskets/'::text || (basket_id)::text) || '/work_outputs/%'::text)))),
     CONSTRAINT work_outputs_supervision_status_check CHECK ((supervision_status = ANY (ARRAY['pending_review'::text, 'approved'::text, 'rejected'::text, 'revision_requested'::text, 'archived'::text])))
 );
@@ -3075,6 +3109,7 @@ CREATE TABLE public.work_recipes (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    context_outputs jsonb,
     CONSTRAINT work_recipes_agent_type_check CHECK (((agent_type)::text = ANY ((ARRAY['research'::character varying, 'content'::character varying, 'reporting'::character varying])::text[]))),
     CONSTRAINT work_recipes_status_check CHECK (((status)::text = ANY ((ARRAY['active'::character varying, 'beta'::character varying, 'deprecated'::character varying])::text[])))
 );
@@ -3247,6 +3282,10 @@ ALTER TABLE ONLY public.pipeline_offsets
     ADD CONSTRAINT pipeline_offsets_pkey PRIMARY KEY (pipeline_name);
 ALTER TABLE ONLY public.project_agents
     ADD CONSTRAINT project_agents_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.project_recipe_schedules
+    ADD CONSTRAINT project_recipe_schedules_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.project_recipe_schedules
+    ADD CONSTRAINT project_recipe_schedules_project_id_recipe_slug_key UNIQUE (project_id, recipe_slug);
 ALTER TABLE ONLY public.projects
     ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.proposal_executions
@@ -3468,6 +3507,8 @@ CREATE INDEX idx_reflection_cache_computation_timestamp ON public.reflections_ar
 CREATE INDEX idx_reflections_basket ON public.reflections_artifact USING btree (basket_id);
 CREATE INDEX idx_reflections_lineage ON public.reflections_artifact USING btree (previous_id) WHERE (previous_id IS NOT NULL);
 CREATE INDEX idx_reflections_workspace_scope ON public.reflections_artifact USING btree (workspace_id, scope_level, is_current) WHERE (scope_level = 'workspace'::text);
+CREATE INDEX idx_schedules_next_run ON public.project_recipe_schedules USING btree (next_run_at, enabled) WHERE (enabled = true);
+CREATE INDEX idx_schedules_project ON public.project_recipe_schedules USING btree (project_id);
 CREATE INDEX idx_subscriptions_active ON public.user_agent_subscriptions USING btree (user_id, workspace_id, agent_type) WHERE (status = 'active'::text);
 CREATE INDEX idx_subscriptions_stripe ON public.user_agent_subscriptions USING btree (stripe_subscription_id) WHERE (stripe_subscription_id IS NOT NULL);
 CREATE INDEX idx_subscriptions_user_workspace ON public.user_agent_subscriptions USING btree (user_id, workspace_id);
@@ -3497,6 +3538,7 @@ CREATE INDEX idx_work_outputs_pending ON public.work_outputs USING btree (superv
 CREATE INDEX idx_work_outputs_pending_promotion ON public.work_outputs USING btree (basket_id, supervision_status) WHERE ((supervision_status = 'approved'::text) AND (substrate_proposal_id IS NULL));
 CREATE INDEX idx_work_outputs_provenance ON public.work_outputs USING gin (source_context_ids);
 CREATE INDEX idx_work_outputs_session ON public.work_outputs USING btree (work_ticket_id, created_at DESC);
+CREATE INDEX idx_work_outputs_target_role ON public.work_outputs USING btree (target_context_role, promotion_status) WHERE (target_context_role IS NOT NULL);
 CREATE INDEX idx_work_outputs_tool_call ON public.work_outputs USING btree (tool_call_id) WHERE (tool_call_id IS NOT NULL);
 CREATE INDEX idx_work_outputs_type ON public.work_outputs USING btree (output_type, basket_id);
 CREATE INDEX idx_work_recipes_agent_type ON public.work_recipes USING btree (agent_type);
@@ -3549,6 +3591,7 @@ CREATE TRIGGER enforce_single_workspace_per_user BEFORE INSERT OR UPDATE ON publ
 CREATE TRIGGER ensure_text_dump_columns BEFORE INSERT ON public.raw_dumps FOR EACH ROW EXECUTE FUNCTION public.ensure_raw_dump_text_columns();
 CREATE TRIGGER mcp_unassigned_set_updated_at BEFORE UPDATE ON public.mcp_unassigned_captures FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER openai_app_tokens_set_updated_at BEFORE UPDATE ON public.openai_app_tokens FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER project_recipe_schedules_updated_at BEFORE UPDATE ON public.project_recipe_schedules FOR EACH ROW EXECUTE FUNCTION public.fn_set_schedule_updated_at();
 CREATE TRIGGER proposals_validation_gate BEFORE UPDATE ON public.proposals FOR EACH ROW EXECUTE FUNCTION public.proposal_validation_check();
 CREATE TRIGGER reflection_cache_updated_at_trigger BEFORE UPDATE ON public.reflections_artifact FOR EACH ROW EXECUTE FUNCTION public.update_reflection_cache_updated_at();
 CREATE TRIGGER set_updated_at_agent_catalog BEFORE UPDATE ON public.agent_catalog FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
@@ -3719,6 +3762,10 @@ ALTER TABLE ONLY public.project_agents
     ADD CONSTRAINT project_agents_config_updated_by_fkey FOREIGN KEY (config_updated_by) REFERENCES auth.users(id);
 ALTER TABLE ONLY public.project_agents
     ADD CONSTRAINT project_agents_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.project_recipe_schedules
+    ADD CONSTRAINT project_recipe_schedules_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE ONLY public.project_recipe_schedules
+    ADD CONSTRAINT project_recipe_schedules_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.projects
     ADD CONSTRAINT projects_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.proposal_executions
@@ -4262,6 +4309,7 @@ CREATE POLICY p3_p4_policy_workspace_access ON public.p3_p4_regeneration_policy 
   WHERE (workspace_memberships.user_id = auth.uid()))));
 ALTER TABLE public.p3_p4_regeneration_policy ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_agents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_recipe_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.proposal_executions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY proposal_executions_insert ON public.proposal_executions FOR INSERT WITH CHECK ((proposal_id IN ( SELECT proposals.id
@@ -4317,6 +4365,26 @@ CREATE POLICY revision_member_update ON public.block_revisions FOR UPDATE USING 
    FROM public.workspace_memberships
   WHERE ((workspace_memberships.workspace_id = block_revisions.workspace_id) AND (workspace_memberships.user_id = auth.uid())))));
 ALTER TABLE public.revisions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY schedule_service_full ON public.project_recipe_schedules TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY schedule_workspace_members_delete ON public.project_recipe_schedules FOR DELETE TO authenticated USING ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_recipe_schedules.project_id) AND (wm.user_id = auth.uid())))));
+CREATE POLICY schedule_workspace_members_insert ON public.project_recipe_schedules FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_recipe_schedules.project_id) AND (wm.user_id = auth.uid())))));
+CREATE POLICY schedule_workspace_members_select ON public.project_recipe_schedules FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_recipe_schedules.project_id) AND (wm.user_id = auth.uid())))));
+CREATE POLICY schedule_workspace_members_update ON public.project_recipe_schedules FOR UPDATE TO authenticated USING ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_recipe_schedules.project_id) AND (wm.user_id = auth.uid()))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_recipe_schedules.project_id) AND (wm.user_id = auth.uid())))));
 CREATE POLICY select_own_raw_dumps ON public.raw_dumps FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
    FROM public.baskets b
   WHERE ((b.id = raw_dumps.basket_id) AND (b.user_id = auth.uid())))));
@@ -4400,4 +4468,4 @@ CREATE POLICY ws_owner_or_member_read ON public.workspaces FOR SELECT USING (((o
    FROM public.workspace_memberships
   WHERE (workspace_memberships.user_id = auth.uid())))));
 CREATE POLICY ws_owner_update ON public.workspaces FOR UPDATE USING ((owner_id = auth.uid()));
-\unrestrict TtOozGuU5VjxoqOzhbo4Hpgmljwr1KxCEprn6hTPg61ARQHFvQZ3dv5X9cYA2Xz
+\unrestrict vey5eyNSWY7gWDdeVFE4UXTe0IeDsCK72SHfQmLLFGPohkl3bYGUSQ7hEnAzfZ8
