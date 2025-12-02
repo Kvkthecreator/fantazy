@@ -86,7 +86,7 @@ export default function TicketTrackingClient({
             // Fetch work_outputs for this ticket
             const { data: outputs } = await supabase
               .from('work_outputs')
-              .select('id, title, body, output_type, agent_type, file_id, file_format, generation_method, created_at')
+              .select('id, title, body, output_type, agent_type, file_id, file_format, generation_method, created_at, supervision_status')
               .eq('work_ticket_id', ticket.id)
               .order('created_at', { ascending: false });
 
