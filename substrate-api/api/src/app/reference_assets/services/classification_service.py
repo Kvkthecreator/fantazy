@@ -8,6 +8,18 @@ Architecture: Async classification after minimal upload
 1. User uploads file with minimal metadata
 2. Classification runs in background
 3. User notified via app_events when complete
+
+DEPRECATION NOTICE (2025-12-03):
+=================================
+LLM classification is now ONLY used for work output files (agent-produced).
+User uploads are classified by attachment to context entries instead.
+
+For user uploads:
+- Set source="user" to skip LLM classification
+- Use context_entry_id to link asset to structured context
+- Asset type defaults to "other" for standalone uploads
+
+See: /docs/architecture/ADR_CONTEXT_ENTRIES.md#de-wiring-legacy-classification-system
 """
 
 import json
@@ -83,6 +95,7 @@ class AssetClassificationService:
         file_size_bytes: int,
         text_preview: Optional[str] = None,
         available_types: Optional[List[str]] = None,
+        source: str = "agent",  # NEW (2025-12-03): "agent" | "user"
     ) -> Dict[str, Any]:
         """
         Classify an asset using LLM.
@@ -93,10 +106,29 @@ class AssetClassificationService:
             file_size_bytes: File size in bytes
             text_preview: Optional text preview (first ~500 chars for text files)
             available_types: Optional list of valid asset types from catalog
+            source: Upload source - "agent" for work outputs, "user" for manual uploads
+                    User uploads skip LLM classification (context entry defines type)
 
         Returns:
-            Dict with: asset_type, confidence, description, reasoning, success
+            Dict with: asset_type, confidence, description, reasoning, success, skipped
+
+        DEPRECATION NOTE (2025-12-03):
+            For user uploads (source="user"), LLM classification is skipped.
+            Classification is determined by attachment to context_entries instead.
+            See: /docs/architecture/ADR_CONTEXT_ENTRIES.md
         """
+        # Skip LLM classification for user uploads (2025-12-03)
+        if source == "user":
+            logger.info(f"[ASSET CLASSIFY] Skipping LLM for user upload: {file_name}")
+            return {
+                "success": True,
+                "asset_type": "other",
+                "confidence": 1.0,
+                "description": file_name,
+                "reasoning": "User upload - classification skipped (context entry determines type)",
+                "skipped": True,
+            }
+
         if not os.getenv("OPENAI_API_KEY"):
             logger.error("[ASSET CLASSIFY] OPENAI_API_KEY not set")
             return {

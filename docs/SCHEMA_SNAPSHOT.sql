@@ -1,4 +1,4 @@
-\restrict vey5eyNSWY7gWDdeVFE4UXTe0IeDsCK72SHfQmLLFGPohkl3bYGUSQ7hEnAzfZ8
+\restrict v7Bz7t7hFelXGs59HAMcVX4m4d9gOnnFkcww8C5uqkpwu21mcjPQ11SwVj4skHa
 CREATE SCHEMA public;
 CREATE TYPE public.alert_severity AS ENUM (
     'info',
@@ -124,6 +124,94 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+CREATE FUNCTION public.calculate_context_completeness(p_data jsonb, p_field_schema jsonb) RETURNS double precision
+    LANGUAGE plpgsql IMMUTABLE
+    AS $$
+DECLARE
+    v_required_count INTEGER := 0;
+    v_filled_count INTEGER := 0;
+    v_field JSONB;
+    v_key TEXT;
+    v_value JSONB;
+BEGIN
+    FOR v_field IN SELECT * FROM jsonb_array_elements(p_field_schema->'fields')
+    LOOP
+        IF (v_field->>'required')::boolean = true THEN
+            v_required_count := v_required_count + 1;
+            v_key := v_field->>'key';
+            IF p_data ? v_key THEN
+                v_value := p_data->v_key;
+                -- Check if value is non-null and non-empty
+                IF v_value IS NOT NULL
+                   AND v_value::text != 'null'
+                   AND v_value::text != '""'
+                   AND v_value::text != '[]' THEN
+                    v_filled_count := v_filled_count + 1;
+                END IF;
+            END IF;
+        END IF;
+    END LOOP;
+    IF v_required_count = 0 THEN
+        RETURN 1.0;
+    END IF;
+    RETURN v_filled_count::FLOAT / v_required_count::FLOAT;
+END;
+$$;
+CREATE FUNCTION public.calculate_next_run_at(p_frequency text, p_day_of_week integer, p_time_of_day time without time zone, p_cron_expression text DEFAULT NULL::text) RETURNS timestamp with time zone
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_next_run TIMESTAMPTZ;
+  v_today DATE := CURRENT_DATE;
+  v_now TIMESTAMPTZ := NOW();
+  v_target_dow INTEGER;
+  v_days_until INTEGER;
+BEGIN
+  -- Default time if not specified
+  IF p_time_of_day IS NULL THEN
+    p_time_of_day := '09:00:00'::TIME;
+  END IF;
+  CASE p_frequency
+    WHEN 'weekly' THEN
+      -- Find next occurrence of day_of_week at time_of_day
+      v_target_dow := COALESCE(p_day_of_week, 1); -- Default to Monday
+      v_days_until := (v_target_dow - EXTRACT(DOW FROM v_today)::INTEGER + 7) % 7;
+      -- If today is the target day but time has passed, schedule for next week
+      IF v_days_until = 0 AND (v_today + p_time_of_day) <= v_now THEN
+        v_days_until := 7;
+      END IF;
+      v_next_run := (v_today + v_days_until) + p_time_of_day;
+    WHEN 'biweekly' THEN
+      v_target_dow := COALESCE(p_day_of_week, 1);
+      v_days_until := (v_target_dow - EXTRACT(DOW FROM v_today)::INTEGER + 7) % 7;
+      IF v_days_until = 0 AND (v_today + p_time_of_day) <= v_now THEN
+        v_days_until := 14;
+      ELSIF v_days_until > 0 THEN
+        -- Add extra week for biweekly
+        v_days_until := v_days_until + 7;
+      END IF;
+      v_next_run := (v_today + v_days_until) + p_time_of_day;
+    WHEN 'monthly' THEN
+      -- First occurrence of day_of_week in next month
+      v_target_dow := COALESCE(p_day_of_week, 1);
+      v_next_run := date_trunc('month', v_today + INTERVAL '1 month');
+      -- Find first target day of week in that month
+      v_days_until := (v_target_dow - EXTRACT(DOW FROM v_next_run)::INTEGER + 7) % 7;
+      v_next_run := v_next_run + (v_days_until * INTERVAL '1 day') + p_time_of_day;
+    WHEN 'custom' THEN
+      -- For custom cron, we'd need a cron parser - for now, default to weekly
+      v_target_dow := COALESCE(p_day_of_week, 1);
+      v_days_until := (v_target_dow - EXTRACT(DOW FROM v_today)::INTEGER + 7) % 7;
+      IF v_days_until = 0 AND (v_today + p_time_of_day) <= v_now THEN
+        v_days_until := 7;
+      END IF;
+      v_next_run := (v_today + v_days_until) + p_time_of_day;
+    ELSE
+      RAISE EXCEPTION 'Unknown frequency: %', p_frequency;
+  END CASE;
+  RETURN v_next_run;
+END;
+$$;
 CREATE FUNCTION public.capture_agent_config_change() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -154,6 +242,139 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+CREATE FUNCTION public.check_and_queue_due_schedules() RETURNS TABLE(schedule_id uuid, job_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_schedule RECORD;
+  v_job_id UUID;
+BEGIN
+  -- Find all enabled schedules that are due
+  FOR v_schedule IN
+    SELECT
+      ps.id,
+      ps.project_id,
+      ps.recipe_id,
+      ps.basket_id,
+      ps.recipe_parameters,
+      ps.frequency,
+      ps.day_of_week,
+      ps.time_of_day,
+      wr.slug as recipe_slug,
+      wr.context_outputs
+    FROM project_schedules ps
+    JOIN work_recipes wr ON wr.id = ps.recipe_id
+    WHERE ps.enabled = true
+    AND ps.next_run_at <= NOW()
+    AND wr.status = 'active'
+    -- Don't create duplicate jobs for same schedule
+    AND NOT EXISTS (
+      SELECT 1 FROM jobs j
+      WHERE j.parent_schedule_id = ps.id
+      AND j.status IN ('pending', 'claimed', 'running')
+    )
+    FOR UPDATE OF ps SKIP LOCKED
+  LOOP
+    -- Create job for this schedule
+    INSERT INTO jobs (
+      job_type,
+      payload,
+      priority,
+      parent_schedule_id
+    ) VALUES (
+      'scheduled_work',
+      jsonb_build_object(
+        'schedule_id', v_schedule.id,
+        'project_id', v_schedule.project_id,
+        'recipe_id', v_schedule.recipe_id,
+        'recipe_slug', v_schedule.recipe_slug,
+        'basket_id', v_schedule.basket_id,
+        'recipe_parameters', v_schedule.recipe_parameters,
+        'context_outputs', v_schedule.context_outputs,
+        'triggered_at', NOW()
+      ),
+      5,  -- Default priority
+      v_schedule.id
+    )
+    RETURNING id INTO v_job_id;
+    -- Update schedule's next run time
+    UPDATE project_schedules
+    SET
+      next_run_at = calculate_next_run_at(
+        v_schedule.frequency,
+        v_schedule.day_of_week,
+        v_schedule.time_of_day,
+        NULL
+      ),
+      updated_at = NOW()
+    WHERE id = v_schedule.id;
+    schedule_id := v_schedule.id;
+    job_id := v_job_id;
+    RETURN NEXT;
+  END LOOP;
+  RETURN;
+END;
+$$;
+CREATE FUNCTION public.check_and_queue_stale_anchors() RETURNS TABLE(block_id uuid, job_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_stale RECORD;
+  v_job_id UUID;
+BEGIN
+  -- Find stale anchor blocks that have a producing recipe
+  FOR v_stale IN
+    SELECT
+      b.id as block_id,
+      b.basket_id,
+      b.anchor_role,
+      wr.id as recipe_id,
+      wr.slug as recipe_slug,
+      wr.context_outputs
+    FROM blocks b
+    JOIN work_recipes wr ON wr.context_outputs->>'role' = b.anchor_role
+    WHERE b.anchor_role IS NOT NULL
+    AND b.state = 'ACCEPTED'
+    AND wr.status = 'active'
+    AND b.updated_at < NOW() - (
+      (wr.context_outputs->'refresh_policy'->>'ttl_hours')::INTEGER * INTERVAL '1 hour'
+    )
+    -- Don't queue if there's already a pending job
+    AND NOT EXISTS (
+      SELECT 1 FROM jobs j
+      WHERE j.job_type = 'stale_refresh'
+      AND j.payload->>'basket_id' = b.basket_id::TEXT
+      AND j.payload->>'anchor_role' = b.anchor_role
+      AND j.status IN ('pending', 'claimed', 'running')
+    )
+    FOR UPDATE OF b SKIP LOCKED
+  LOOP
+    -- Create refresh job
+    INSERT INTO jobs (
+      job_type,
+      payload,
+      priority
+    ) VALUES (
+      'stale_refresh',
+      jsonb_build_object(
+        'block_id', v_stale.block_id,
+        'basket_id', v_stale.basket_id,
+        'anchor_role', v_stale.anchor_role,
+        'recipe_id', v_stale.recipe_id,
+        'recipe_slug', v_stale.recipe_slug,
+        'context_outputs', v_stale.context_outputs,
+        'triggered_at', NOW()
+      ),
+      3  -- Lower priority than user-initiated
+    )
+    RETURNING id INTO v_job_id;
+    block_id := v_stale.block_id;
+    job_id := v_job_id;
+    RETURN NEXT;
+  END LOOP;
+  RETURN;
+END;
+$$;
 CREATE FUNCTION public.check_block_depth() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -168,6 +389,63 @@ BEGIN
     SELECT parent_block_id INTO cursor_id FROM blocks WHERE id = cursor_id;
   END LOOP;
   RETURN NEW;
+END;
+$$;
+CREATE FUNCTION public.check_output_promotable(p_output_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  v_output RECORD;
+  v_target_role TEXT;
+  v_result JSONB;
+BEGIN
+  SELECT wo.*, wt.recipe_slug
+  INTO v_output
+  FROM work_outputs wo
+  LEFT JOIN work_tickets wt ON wo.work_ticket_id = wt.id
+  WHERE wo.id = p_output_id;
+  IF v_output IS NULL THEN
+    RETURN jsonb_build_object(
+      'promotable', false,
+      'reason', 'Output not found'
+    );
+  END IF;
+  IF v_output.promotion_status = 'promoted' THEN
+    RETURN jsonb_build_object(
+      'promotable', false,
+      'reason', 'Already promoted',
+      'promoted_to_block_id', v_output.promoted_to_block_id
+    );
+  END IF;
+  -- Check for target role
+  v_target_role := v_output.target_context_role;
+  IF v_target_role IS NULL AND v_output.recipe_slug IS NOT NULL THEN
+    SELECT context_outputs->>'role'
+    INTO v_target_role
+    FROM work_recipes
+    WHERE slug = v_output.recipe_slug;
+  END IF;
+  IF v_target_role IS NULL THEN
+    RETURN jsonb_build_object(
+      'promotable', false,
+      'reason', 'No target context role defined'
+    );
+  END IF;
+  -- Check supervision status
+  IF v_output.supervision_status NOT IN ('approved', 'auto_approved') THEN
+    RETURN jsonb_build_object(
+      'promotable', true,
+      'requires_approval', true,
+      'target_role', v_target_role,
+      'supervision_status', v_output.supervision_status
+    );
+  END IF;
+  RETURN jsonb_build_object(
+    'promotable', true,
+    'requires_approval', false,
+    'target_role', v_target_role,
+    'auto_promote', COALESCE(v_output.auto_promote, false)
+  );
 END;
 $$;
 CREATE FUNCTION public.check_single_workspace_per_user() RETURNS trigger
@@ -239,6 +517,42 @@ BEGIN
     );
 END;
 $$;
+CREATE FUNCTION public.claim_jobs(p_worker_id text, p_job_types text[], p_limit integer DEFAULT 5) RETURNS TABLE(id uuid, job_type text, payload jsonb, priority integer, attempts integer, max_attempts integer, parent_schedule_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  RETURN QUERY
+  WITH claimed AS (
+    UPDATE jobs j
+    SET
+      status = 'claimed',
+      claimed_by = p_worker_id,
+      claimed_at = NOW(),
+      updated_at = NOW()
+    WHERE j.id IN (
+      SELECT j2.id
+      FROM jobs j2
+      WHERE j2.status = 'pending'
+      AND j2.job_type = ANY(p_job_types)
+      AND j2.scheduled_for <= NOW()
+      AND (j2.retry_after IS NULL OR j2.retry_after <= NOW())
+      ORDER BY j2.priority DESC, j2.scheduled_for ASC
+      LIMIT p_limit
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING j.*
+  )
+  SELECT
+    claimed.id,
+    claimed.job_type,
+    claimed.payload,
+    claimed.priority,
+    claimed.attempts,
+    claimed.max_attempts,
+    claimed.parent_schedule_id
+  FROM claimed;
+END;
+$$;
 CREATE FUNCTION public.cleanup_expired_assets() RETURNS TABLE(deleted_count bigint)
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -270,6 +584,37 @@ BEGIN
     WHERE expires_at < NOW();
     GET DIAGNOSTICS deleted_count = ROW_COUNT;
     RETURN deleted_count;
+END;
+$$;
+CREATE FUNCTION public.cleanup_old_jobs(p_retention_days integer DEFAULT 30) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_deleted INTEGER;
+BEGIN
+  DELETE FROM jobs
+  WHERE status IN ('completed', 'failed', 'cancelled')
+  AND completed_at < NOW() - (p_retention_days * INTERVAL '1 day');
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  RETURN v_deleted;
+END;
+$$;
+CREATE FUNCTION public.complete_job(p_job_id uuid, p_result jsonb DEFAULT NULL::jsonb) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_updated BOOLEAN;
+BEGIN
+  UPDATE jobs
+  SET
+    status = 'completed',
+    completed_at = NOW(),
+    result = p_result,
+    updated_at = NOW()
+  WHERE id = p_job_id
+  AND status IN ('claimed', 'running');
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
+  RETURN v_updated > 0;
 END;
 $$;
 CREATE FUNCTION public.create_basket_with_dump(dump_body text, file_urls jsonb, user_id uuid, workspace_id uuid) RETURNS TABLE(basket_id uuid)
@@ -415,6 +760,45 @@ CREATE FUNCTION public.ensure_raw_dump_text_columns() RETURNS trigger
     RETURN NEW;
   END;
   $$;
+CREATE FUNCTION public.fail_job(p_job_id uuid, p_error text) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_job RECORD;
+  v_retry_delay INTERVAL;
+BEGIN
+  -- Get current job state
+  SELECT * INTO v_job FROM jobs WHERE id = p_job_id;
+  IF NOT FOUND THEN
+    RETURN FALSE;
+  END IF;
+  -- Check if we should retry
+  IF v_job.attempts < v_job.max_attempts THEN
+    -- Exponential backoff: 1min, 5min, 25min, etc.
+    v_retry_delay := (POWER(5, v_job.attempts) * INTERVAL '1 minute');
+    UPDATE jobs
+    SET
+      status = 'pending',
+      attempts = attempts + 1,
+      last_error = p_error,
+      retry_after = NOW() + v_retry_delay,
+      claimed_by = NULL,
+      claimed_at = NULL,
+      updated_at = NOW()
+    WHERE id = p_job_id;
+  ELSE
+    -- Max retries exceeded, mark as failed
+    UPDATE jobs
+    SET
+      status = 'failed',
+      completed_at = NOW(),
+      last_error = p_error,
+      updated_at = NOW()
+    WHERE id = p_job_id;
+  END IF;
+  RETURN TRUE;
+END;
+$$;
 CREATE FUNCTION public.fn_archive_block(p_basket_id uuid, p_block_id uuid, p_actor_id uuid DEFAULT NULL::uuid) RETURNS uuid
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -1663,6 +2047,128 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+CREATE FUNCTION public.promote_output_to_context_block(p_output_id uuid, p_promoted_by uuid DEFAULT NULL::uuid, p_override_role text DEFAULT NULL::text) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  v_output RECORD;
+  v_recipe RECORD;
+  v_new_block_id UUID;
+  v_target_role TEXT;
+  v_refresh_policy JSONB;
+BEGIN
+  -- 1. Fetch the work output
+  SELECT wo.*, wt.recipe_slug
+  INTO v_output
+  FROM work_outputs wo
+  LEFT JOIN work_tickets wt ON wo.work_ticket_id = wt.id
+  WHERE wo.id = p_output_id;
+  IF v_output IS NULL THEN
+    RAISE EXCEPTION 'Work output not found: %', p_output_id;
+  END IF;
+  IF v_output.promotion_status = 'promoted' THEN
+    RAISE EXCEPTION 'Output already promoted: %', p_output_id;
+  END IF;
+  -- 2. Determine target role (override > output > recipe)
+  v_target_role := COALESCE(
+    p_override_role,
+    v_output.target_context_role
+  );
+  -- If no role specified, try to get from recipe
+  IF v_target_role IS NULL AND v_output.recipe_slug IS NOT NULL THEN
+    SELECT context_outputs->>'role'
+    INTO v_target_role
+    FROM work_recipes
+    WHERE slug = v_output.recipe_slug;
+  END IF;
+  IF v_target_role IS NULL THEN
+    RAISE EXCEPTION 'No target context role specified for output: %', p_output_id;
+  END IF;
+  -- 3. Get refresh policy from recipe if available
+  IF v_output.recipe_slug IS NOT NULL THEN
+    SELECT context_outputs->'refresh_policy'
+    INTO v_refresh_policy
+    FROM work_recipes
+    WHERE slug = v_output.recipe_slug;
+  END IF;
+  -- 4. Create the block
+  INSERT INTO blocks (
+    id,
+    basket_id,
+    workspace_id,
+    title,
+    body_md,
+    content,
+    semantic_type,
+    anchor_role,
+    anchor_status,
+    anchor_confidence,
+    refresh_policy,
+    state,
+    scope,
+    status,
+    confidence_score,
+    metadata,
+    processing_agent,
+    approved_at,
+    approved_by,
+    created_at,
+    updated_at
+  )
+  SELECT
+    gen_random_uuid(),
+    v_output.basket_id,
+    b.workspace_id,
+    v_output.title,
+    v_output.body,
+    v_output.body,  -- content = body for context blocks
+    'context_' || v_target_role,  -- semantic_type derived from role
+    v_target_role,
+    'approved',  -- anchor_status - promoted outputs are approved
+    COALESCE(v_output.confidence, 0.8),  -- anchor_confidence
+    v_refresh_policy,
+    'active',  -- state
+    'primary',  -- scope
+    'approved',  -- status
+    v_output.confidence,
+    jsonb_build_object(
+      'promoted_from_output_id', v_output.id,
+      'promoted_at', now(),
+      'source_agent', v_output.agent_type
+    ) || COALESCE(v_output.metadata, '{}'::jsonb),
+    v_output.agent_type,
+    now(),
+    p_promoted_by
+  FROM baskets b
+  WHERE b.id = v_output.basket_id
+  RETURNING id INTO v_new_block_id;
+  -- 5. Update the work output to mark as promoted
+  UPDATE work_outputs
+  SET
+    promotion_status = 'promoted',
+    promoted_to_block_id = v_new_block_id,
+    promoted_at = now(),
+    promoted_by = p_promoted_by,
+    promotion_method = CASE
+      WHEN p_promoted_by IS NOT NULL THEN 'manual'
+      ELSE 'auto'
+    END,
+    updated_at = now()
+  WHERE id = p_output_id;
+  -- 6. Archive any existing block with the same anchor_role in this basket
+  -- (only one active block per role per basket)
+  UPDATE blocks
+  SET
+    state = 'archived',
+    anchor_status = 'superseded',
+    updated_at = now()
+  WHERE basket_id = v_output.basket_id
+    AND anchor_role = v_target_role
+    AND id != v_new_block_id
+    AND state = 'active';
+  RETURN v_new_block_id;
+END;
+$$;
 CREATE FUNCTION public.proposal_validation_check() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1792,6 +2298,163 @@ BEGIN
   WHERE b.id = NEW.basket_id;
   
   RETURN NEW;
+END;
+$$;
+CREATE FUNCTION public.queue_scheduled_work_tickets() RETURNS TABLE(schedule_id uuid, project_id uuid, recipe_id uuid, ticket_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_schedule RECORD;
+  v_ticket_id UUID;
+  v_recipe RECORD;
+BEGIN
+  -- Find all due schedules
+  FOR v_schedule IN
+    SELECT
+      ps.id,
+      ps.project_id,
+      ps.recipe_id,
+      ps.basket_id,
+      ps.recipe_parameters,
+      ps.frequency,
+      ps.day_of_week,
+      ps.time_of_day
+    FROM project_schedules ps
+    WHERE ps.enabled = true
+    AND ps.next_run_at <= NOW()
+    ORDER BY ps.next_run_at ASC
+    FOR UPDATE SKIP LOCKED
+  LOOP
+    -- Get recipe details
+    SELECT wr.slug, wr.name, wr.agent_type, wr.context_outputs
+    INTO v_recipe
+    FROM work_recipes wr
+    WHERE wr.id = v_schedule.recipe_id
+    AND wr.status = 'active';
+    IF NOT FOUND THEN
+      -- Recipe no longer active, skip
+      UPDATE project_schedules
+      SET last_run_status = 'skipped',
+          last_run_at = NOW(),
+          next_run_at = calculate_next_run_at(
+            v_schedule.frequency,
+            v_schedule.day_of_week,
+            v_schedule.time_of_day,
+            NULL
+          )
+      WHERE id = v_schedule.id;
+      CONTINUE;
+    END IF;
+    -- Create work ticket
+    INSERT INTO work_tickets (
+      basket_id,
+      status,
+      priority,
+      source,
+      metadata
+    ) VALUES (
+      v_schedule.basket_id,
+      'pending',
+      5, -- Default priority
+      'scheduled',
+      jsonb_build_object(
+        'schedule_id', v_schedule.id,
+        'recipe_slug', v_recipe.slug,
+        'recipe_id', v_schedule.recipe_id,
+        'recipe_parameters', v_schedule.recipe_parameters,
+        'context_outputs', v_recipe.context_outputs,
+        'scheduled_at', NOW()
+      )
+    )
+    RETURNING id INTO v_ticket_id;
+    -- Update schedule state
+    UPDATE project_schedules
+    SET last_run_at = NOW(),
+        last_run_status = 'success',
+        last_run_ticket_id = v_ticket_id,
+        run_count = run_count + 1,
+        next_run_at = calculate_next_run_at(
+          v_schedule.frequency,
+          v_schedule.day_of_week,
+          v_schedule.time_of_day,
+          NULL
+        )
+    WHERE id = v_schedule.id;
+    -- Return result
+    schedule_id := v_schedule.id;
+    project_id := v_schedule.project_id;
+    recipe_id := v_schedule.recipe_id;
+    ticket_id := v_ticket_id;
+    RETURN NEXT;
+  END LOOP;
+  RETURN;
+END;
+$$;
+CREATE FUNCTION public.queue_stale_anchor_refreshes() RETURNS TABLE(block_id uuid, basket_id uuid, anchor_role text, recipe_id uuid, ticket_id uuid)
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  v_stale RECORD;
+  v_ticket_id UUID;
+BEGIN
+  -- Find stale anchor blocks that have a producing recipe
+  FOR v_stale IN
+    SELECT
+      b.id as block_id,
+      b.basket_id,
+      b.anchor_role,
+      wr.id as recipe_id,
+      wr.slug as recipe_slug,
+      wr.context_outputs
+    FROM blocks b
+    JOIN work_recipes wr ON wr.context_outputs->>'role' = b.anchor_role
+    WHERE b.anchor_role IS NOT NULL
+    AND b.state = 'ACCEPTED'
+    AND wr.status = 'active'
+    AND b.updated_at < NOW() - (
+      (wr.context_outputs->'refresh_policy'->>'ttl_hours')::INTEGER * INTERVAL '1 hour'
+    )
+    -- Don't queue if there's already a pending ticket for this basket/recipe
+    AND NOT EXISTS (
+      SELECT 1 FROM work_tickets wt
+      WHERE wt.basket_id = b.basket_id
+      AND wt.source = 'stale_refresh'
+      AND wt.metadata->>'recipe_id' = wr.id::TEXT
+      AND wt.status IN ('pending', 'running')
+    )
+    FOR UPDATE OF b SKIP LOCKED
+  LOOP
+    -- Create work ticket for refresh
+    INSERT INTO work_tickets (
+      basket_id,
+      status,
+      priority,
+      source,
+      metadata
+    ) VALUES (
+      v_stale.basket_id,
+      'pending',
+      3, -- Lower priority than user-initiated
+      'stale_refresh',
+      jsonb_build_object(
+        'recipe_slug', v_stale.recipe_slug,
+        'recipe_id', v_stale.recipe_id,
+        'anchor_role', v_stale.anchor_role,
+        'stale_block_id', v_stale.block_id,
+        'context_outputs', v_stale.context_outputs,
+        'triggered_at', NOW()
+      )
+    )
+    RETURNING id INTO v_ticket_id;
+    -- Return result
+    block_id := v_stale.block_id;
+    basket_id := v_stale.basket_id;
+    anchor_role := v_stale.anchor_role;
+    recipe_id := v_stale.recipe_id;
+    ticket_id := v_ticket_id;
+    RETURN NEXT;
+  END LOOP;
+  RETURN;
 END;
 $$;
 CREATE FUNCTION public.reject_work_output(p_output_id uuid, p_reviewer_id uuid, p_notes text) RETURNS void
@@ -1998,6 +2661,22 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+CREATE FUNCTION public.update_context_entry_timestamp() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$;
+CREATE FUNCTION public.update_jobs_updated_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
 CREATE FUNCTION public.update_project_supervision_settings(p_project_id uuid, p_settings jsonb) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     AS $$
@@ -2025,6 +2704,25 @@ CREATE FUNCTION public.update_reflection_cache_updated_at() RETURNS trigger
     AS $$
 BEGIN
   NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+CREATE FUNCTION public.update_schedule_next_run() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  -- Only calculate if enabled
+  IF NEW.enabled THEN
+    NEW.next_run_at := calculate_next_run_at(
+      NEW.frequency,
+      NEW.day_of_week,
+      NEW.time_of_day,
+      NEW.cron_expression
+    );
+  ELSE
+    NEW.next_run_at := NULL;
+  END IF;
+  NEW.updated_at := NOW();
   RETURN NEW;
 END;
 $$;
@@ -2387,6 +3085,34 @@ CASE
 END) STORED,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+CREATE TABLE public.context_entries (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    basket_id uuid NOT NULL,
+    anchor_role text NOT NULL,
+    entry_key text,
+    display_name text,
+    data jsonb DEFAULT '{}'::jsonb NOT NULL,
+    completeness_score double precision,
+    state text DEFAULT 'active'::text,
+    refresh_policy jsonb,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    created_by uuid,
+    CONSTRAINT context_entries_state_check CHECK ((state = ANY (ARRAY['active'::text, 'archived'::text])))
+);
+CREATE TABLE public.context_entry_schemas (
+    anchor_role text NOT NULL,
+    display_name text NOT NULL,
+    description text,
+    icon text,
+    category text,
+    is_singleton boolean DEFAULT true,
+    field_schema jsonb NOT NULL,
+    sort_order integer DEFAULT 0,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT context_entry_schemas_category_check CHECK ((category = ANY (ARRAY['foundation'::text, 'market'::text, 'insight'::text])))
+);
 CREATE TABLE public.context_items (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     basket_id uuid NOT NULL,
@@ -2510,6 +3236,28 @@ CREATE TABLE public.integration_tokens (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     revoked_at timestamp with time zone,
     last_used_at timestamp with time zone
+);
+CREATE TABLE public.jobs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    job_type text NOT NULL,
+    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
+    scheduled_for timestamp with time zone DEFAULT now() NOT NULL,
+    priority integer DEFAULT 5,
+    status text DEFAULT 'pending'::text,
+    claimed_by text,
+    claimed_at timestamp with time zone,
+    started_at timestamp with time zone,
+    completed_at timestamp with time zone,
+    attempts integer DEFAULT 0,
+    max_attempts integer DEFAULT 3,
+    last_error text,
+    retry_after timestamp with time zone,
+    result jsonb,
+    parent_schedule_id uuid,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT jobs_priority_check CHECK (((priority >= 1) AND (priority <= 10))),
+    CONSTRAINT jobs_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'claimed'::text, 'running'::text, 'completed'::text, 'failed'::text, 'cancelled'::text])))
 );
 CREATE TABLE public.knowledge_timeline (
     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL,
@@ -2687,6 +3435,29 @@ CREATE TABLE public.project_recipe_schedules (
     CONSTRAINT project_recipe_schedules_check CHECK (((cron_expression IS NOT NULL) OR (interval_hours IS NOT NULL))),
     CONSTRAINT project_recipe_schedules_last_run_status_check CHECK ((last_run_status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])))
 );
+CREATE TABLE public.project_schedules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    recipe_id uuid NOT NULL,
+    basket_id uuid NOT NULL,
+    frequency text NOT NULL,
+    cron_expression text,
+    day_of_week integer,
+    time_of_day time without time zone DEFAULT '09:00:00'::time without time zone,
+    recipe_parameters jsonb DEFAULT '{}'::jsonb,
+    enabled boolean DEFAULT true,
+    next_run_at timestamp with time zone,
+    last_run_at timestamp with time zone,
+    last_run_status text,
+    last_run_ticket_id uuid,
+    run_count integer DEFAULT 0,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT project_schedules_day_of_week_check CHECK (((day_of_week >= 0) AND (day_of_week <= 6))),
+    CONSTRAINT project_schedules_frequency_check CHECK ((frequency = ANY (ARRAY['weekly'::text, 'biweekly'::text, 'monthly'::text, 'custom'::text]))),
+    CONSTRAINT project_schedules_last_run_status_check CHECK ((last_run_status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])))
+);
 CREATE TABLE public.projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     workspace_id uuid NOT NULL,
@@ -2795,6 +3566,8 @@ CREATE TABLE public.reference_assets (
     classification_confidence double precision,
     classified_at timestamp with time zone,
     classification_metadata jsonb DEFAULT '{}'::jsonb,
+    context_entry_id uuid,
+    context_field_key text,
     CONSTRAINT access_count_non_negative CHECK ((access_count >= 0)),
     CONSTRAINT expires_at_future CHECK (((expires_at IS NULL) OR (expires_at > created_at))),
     CONSTRAINT file_size_positive CHECK (((file_size_bytes IS NULL) OR (file_size_bytes > 0))),
@@ -3238,6 +4011,12 @@ ALTER TABLE ONLY public.block_usage
     ADD CONSTRAINT block_usage_pkey PRIMARY KEY (block_id);
 ALTER TABLE ONLY public.blocks
     ADD CONSTRAINT blocks_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.context_entries
+    ADD CONSTRAINT context_entries_basket_id_anchor_role_entry_key_key UNIQUE (basket_id, anchor_role, entry_key);
+ALTER TABLE ONLY public.context_entries
+    ADD CONSTRAINT context_entries_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.context_entry_schemas
+    ADD CONSTRAINT context_entry_schemas_pkey PRIMARY KEY (anchor_role);
 ALTER TABLE ONLY public.context_items
     ADD CONSTRAINT context_items_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.document_context_items
@@ -3258,6 +4037,8 @@ ALTER TABLE ONLY public.integration_tokens
     ADD CONSTRAINT integration_tokens_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.integration_tokens
     ADD CONSTRAINT integration_tokens_token_hash_key UNIQUE (token_hash);
+ALTER TABLE ONLY public.jobs
+    ADD CONSTRAINT jobs_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.knowledge_timeline
     ADD CONSTRAINT knowledge_timeline_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.mcp_activity_logs
@@ -3286,6 +4067,10 @@ ALTER TABLE ONLY public.project_recipe_schedules
     ADD CONSTRAINT project_recipe_schedules_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.project_recipe_schedules
     ADD CONSTRAINT project_recipe_schedules_project_id_recipe_slug_key UNIQUE (project_id, recipe_slug);
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_pkey PRIMARY KEY (id);
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_project_id_recipe_id_key UNIQUE (project_id, recipe_id);
 ALTER TABLE ONLY public.projects
     ADD CONSTRAINT projects_pkey PRIMARY KEY (id);
 ALTER TABLE ONLY public.proposal_executions
@@ -3416,6 +4201,10 @@ CREATE INDEX idx_blocks_version_chain ON public.blocks USING btree (parent_block
 CREATE INDEX idx_blocks_workspace ON public.blocks USING btree (workspace_id);
 CREATE INDEX idx_blocks_workspace_id ON public.blocks USING btree (workspace_id);
 CREATE INDEX idx_blocks_workspace_scope ON public.blocks USING btree (workspace_id, scope, state) WHERE (scope IS NOT NULL);
+CREATE INDEX idx_context_entries_basket_role ON public.context_entries USING btree (basket_id, anchor_role);
+CREATE INDEX idx_context_entries_data ON public.context_entries USING gin (data);
+CREATE INDEX idx_context_entries_state ON public.context_entries USING btree (basket_id, state) WHERE (state = 'active'::text);
+CREATE INDEX idx_context_entries_updated ON public.context_entries USING btree (basket_id, updated_at DESC);
 CREATE INDEX idx_context_items_basket ON public.context_items USING btree (basket_id);
 CREATE INDEX idx_context_items_basket_id ON public.context_items USING btree (basket_id);
 CREATE INDEX idx_context_items_status ON public.context_items USING btree (status);
@@ -3444,6 +4233,10 @@ CREATE INDEX idx_history_basket_ts ON public.timeline_events USING btree (basket
 CREATE INDEX idx_idem_delta_id ON public.idempotency_keys USING btree (delta_id);
 CREATE INDEX idx_idempotency_delta ON public.idempotency_keys USING btree (delta_id);
 CREATE INDEX idx_idempotency_keys_delta_id ON public.idempotency_keys USING btree (delta_id);
+CREATE INDEX idx_jobs_completed_at ON public.jobs USING btree (completed_at) WHERE (status = ANY (ARRAY['completed'::text, 'failed'::text, 'cancelled'::text]));
+CREATE INDEX idx_jobs_parent_schedule ON public.jobs USING btree (parent_schedule_id) WHERE (parent_schedule_id IS NOT NULL);
+CREATE INDEX idx_jobs_pending_ready ON public.jobs USING btree (scheduled_for, priority DESC) WHERE (status = 'pending'::text);
+CREATE INDEX idx_jobs_type_status ON public.jobs USING btree (job_type, status);
 CREATE INDEX idx_knowledge_timeline_basket_time ON public.knowledge_timeline USING btree (basket_id, created_at DESC);
 CREATE INDEX idx_knowledge_timeline_significance ON public.knowledge_timeline USING btree (significance, created_at DESC);
 CREATE INDEX idx_knowledge_timeline_workspace_time ON public.knowledge_timeline USING btree (workspace_id, created_at DESC);
@@ -3466,6 +4259,9 @@ CREATE INDEX idx_project_agents_active_config ON public.project_agents USING btr
 CREATE INDEX idx_project_agents_config ON public.project_agents USING gin (config);
 CREATE INDEX idx_project_agents_project ON public.project_agents USING btree (project_id);
 CREATE INDEX idx_project_agents_type ON public.project_agents USING btree (agent_type);
+CREATE INDEX idx_project_schedules_next_run ON public.project_schedules USING btree (next_run_at) WHERE (enabled = true);
+CREATE INDEX idx_project_schedules_project ON public.project_schedules USING btree (project_id);
+CREATE INDEX idx_project_schedules_recipe ON public.project_schedules USING btree (recipe_id);
 CREATE INDEX idx_projects_basket ON public.projects USING btree (basket_id);
 CREATE UNIQUE INDEX idx_projects_basket_unique ON public.projects USING btree (basket_id);
 CREATE INDEX idx_projects_created ON public.projects USING btree (created_at DESC);
@@ -3494,6 +4290,7 @@ CREATE INDEX idx_raw_dumps_workspace_id ON public.raw_dumps USING btree (workspa
 CREATE INDEX idx_rawdump_doc ON public.raw_dumps USING btree (document_id);
 CREATE INDEX idx_ref_assets_basket ON public.reference_assets USING btree (basket_id, created_at DESC);
 CREATE INDEX idx_ref_assets_category ON public.reference_assets USING btree (asset_category, basket_id);
+CREATE INDEX idx_ref_assets_context_entry ON public.reference_assets USING btree (context_entry_id, context_field_key) WHERE (context_entry_id IS NOT NULL);
 CREATE INDEX idx_ref_assets_embedding ON public.reference_assets USING ivfflat (description_embedding public.vector_cosine_ops) WITH (lists='100') WHERE (description_embedding IS NOT NULL);
 CREATE INDEX idx_ref_assets_expired ON public.reference_assets USING btree (expires_at) WHERE ((permanence = 'temporary'::text) AND (expires_at IS NOT NULL));
 CREATE INDEX idx_ref_assets_metadata ON public.reference_assets USING gin (metadata);
@@ -3599,12 +4396,16 @@ CREATE TRIGGER set_updated_at_subscriptions BEFORE UPDATE ON public.user_agent_s
 CREATE TRIGGER sync_text_dump_columns BEFORE UPDATE ON public.raw_dumps FOR EACH ROW EXECUTE FUNCTION public.sync_raw_dump_text_columns();
 CREATE TRIGGER trg_block_depth BEFORE INSERT OR UPDATE ON public.blocks FOR EACH ROW EXECUTE FUNCTION public.check_block_depth();
 CREATE TRIGGER trg_capture_config_change AFTER UPDATE ON public.project_agents FOR EACH ROW WHEN ((old.config IS DISTINCT FROM new.config)) EXECUTE FUNCTION public.capture_agent_config_change();
+CREATE TRIGGER trg_context_entries_updated_at BEFORE UPDATE ON public.context_entries FOR EACH ROW EXECUTE FUNCTION public.update_context_entry_timestamp();
+CREATE TRIGGER trg_context_entry_schemas_updated_at BEFORE UPDATE ON public.context_entry_schemas FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER trg_jobs_updated_at BEFORE UPDATE ON public.jobs FOR EACH ROW EXECUTE FUNCTION public.update_jobs_updated_at();
 CREATE TRIGGER trg_lock_constant BEFORE INSERT OR UPDATE ON public.blocks FOR EACH ROW EXECUTE FUNCTION public.prevent_lock_vs_constant();
 CREATE TRIGGER trg_set_basket_user_id BEFORE INSERT ON public.baskets FOR EACH ROW EXECUTE FUNCTION public.set_basket_user_id();
 CREATE TRIGGER trg_timeline_after_raw_dump AFTER INSERT ON public.raw_dumps FOR EACH ROW EXECUTE FUNCTION public.fn_timeline_after_raw_dump();
 CREATE TRIGGER trg_update_asset_type_catalog_updated_at BEFORE UPDATE ON public.asset_type_catalog FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER trg_update_output_type_catalog_updated_at BEFORE UPDATE ON public.output_type_catalog FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER trg_update_reference_assets_updated_at BEFORE UPDATE ON public.reference_assets FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+CREATE TRIGGER trg_update_schedule_next_run BEFORE INSERT OR UPDATE OF frequency, day_of_week, time_of_day, cron_expression, enabled ON public.project_schedules FOR EACH ROW EXECUTE FUNCTION public.update_schedule_next_run();
 CREATE TRIGGER trg_update_work_outputs_updated_at BEFORE UPDATE ON public.work_outputs FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 CREATE TRIGGER trigger_auto_increment_usage_on_substrate_reference AFTER INSERT ON public.substrate_references FOR EACH ROW EXECUTE FUNCTION public.auto_increment_block_usage_on_reference();
 CREATE TRIGGER trigger_mark_blocks_stale_on_new_dump AFTER INSERT ON public.raw_dumps FOR EACH ROW EXECUTE FUNCTION public.mark_related_blocks_stale();
@@ -3684,6 +4485,12 @@ ALTER TABLE ONLY public.blocks
     ADD CONSTRAINT blocks_proposal_id_fkey FOREIGN KEY (proposal_id) REFERENCES public.proposals(id);
 ALTER TABLE ONLY public.blocks
     ADD CONSTRAINT blocks_raw_dump_id_fkey FOREIGN KEY (raw_dump_id) REFERENCES public.raw_dumps(id);
+ALTER TABLE ONLY public.context_entries
+    ADD CONSTRAINT context_entries_anchor_role_fkey FOREIGN KEY (anchor_role) REFERENCES public.context_entry_schemas(anchor_role);
+ALTER TABLE ONLY public.context_entries
+    ADD CONSTRAINT context_entries_basket_id_fkey FOREIGN KEY (basket_id) REFERENCES public.baskets(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.context_entries
+    ADD CONSTRAINT context_entries_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
 ALTER TABLE ONLY public.context_items
     ADD CONSTRAINT context_items_basket_id_fkey FOREIGN KEY (basket_id) REFERENCES public.baskets(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.document_context_items
@@ -3728,6 +4535,8 @@ ALTER TABLE ONLY public.integration_tokens
     ADD CONSTRAINT integration_tokens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.integration_tokens
     ADD CONSTRAINT integration_tokens_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.jobs
+    ADD CONSTRAINT jobs_parent_schedule_id_fkey FOREIGN KEY (parent_schedule_id) REFERENCES public.project_schedules(id) ON DELETE SET NULL;
 ALTER TABLE ONLY public.knowledge_timeline
     ADD CONSTRAINT knowledge_timeline_basket_id_fkey FOREIGN KEY (basket_id) REFERENCES public.baskets(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.knowledge_timeline
@@ -3766,6 +4575,16 @@ ALTER TABLE ONLY public.project_recipe_schedules
     ADD CONSTRAINT project_recipe_schedules_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
 ALTER TABLE ONLY public.project_recipe_schedules
     ADD CONSTRAINT project_recipe_schedules_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_basket_id_fkey FOREIGN KEY (basket_id) REFERENCES public.baskets(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id);
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_last_run_ticket_id_fkey FOREIGN KEY (last_run_ticket_id) REFERENCES public.work_tickets(id);
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.project_schedules
+    ADD CONSTRAINT project_schedules_recipe_id_fkey FOREIGN KEY (recipe_id) REFERENCES public.work_recipes(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.projects
     ADD CONSTRAINT projects_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id) ON DELETE CASCADE;
 ALTER TABLE ONLY public.proposal_executions
@@ -3778,6 +4597,8 @@ ALTER TABLE ONLY public.proposals
     ADD CONSTRAINT proposals_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES public.workspaces(id);
 ALTER TABLE ONLY public.raw_dumps
     ADD CONSTRAINT raw_dumps_basket_id_fkey FOREIGN KEY (basket_id) REFERENCES public.baskets(id) ON DELETE CASCADE;
+ALTER TABLE ONLY public.reference_assets
+    ADD CONSTRAINT ref_assets_context_entry_fk FOREIGN KEY (context_entry_id) REFERENCES public.context_entries(id) ON DELETE SET NULL;
 ALTER TABLE ONLY public.reference_assets
     ADD CONSTRAINT reference_assets_asset_type_fkey FOREIGN KEY (asset_type) REFERENCES public.asset_type_catalog(asset_type);
 ALTER TABLE ONLY public.reference_assets
@@ -3872,6 +4693,7 @@ CREATE POLICY "Anon can view events temporarily" ON public.basket_events FOR SEL
 CREATE POLICY "Authenticated users can view events" ON public.basket_events FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Service role can manage all relationships" ON public.substrate_relationships USING (((auth.jwt() ->> 'role'::text) = 'service_role'::text)) WITH CHECK (((auth.jwt() ->> 'role'::text) = 'service_role'::text));
 CREATE POLICY "Service role can manage integration tokens" ON public.integration_tokens TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY "Service role can manage jobs" ON public.jobs TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role can manage queue" ON public.agent_processing_queue TO service_role USING (true);
 CREATE POLICY "Service role full access" ON public.baskets TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "Service role has full access to agent_catalog" ON public.agent_catalog TO service_role USING (true) WITH CHECK (true);
@@ -3904,6 +4726,10 @@ CREATE POLICY "Users can create outputs in their workspace" ON public.work_outpu
    FROM (public.baskets b
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = b.workspace_id)))
   WHERE (wm.user_id = auth.uid()))));
+CREATE POLICY "Users can create project schedules" ON public.project_schedules FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_schedules.project_id) AND (wm.user_id = auth.uid())))));
 CREATE POLICY "Users can create project_agents in their workspace" ON public.project_agents FOR INSERT WITH CHECK ((EXISTS ( SELECT 1
    FROM (public.projects p
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
@@ -3936,6 +4762,10 @@ CREATE POLICY "Users can delete outputs from their workspace" ON public.work_out
    FROM (public.baskets b
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = b.workspace_id)))
   WHERE (wm.user_id = auth.uid()))));
+CREATE POLICY "Users can delete project schedules" ON public.project_schedules FOR DELETE USING ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_schedules.project_id) AND (wm.user_id = auth.uid())))));
 CREATE POLICY "Users can delete project_agents in their workspace" ON public.project_agents FOR DELETE USING ((EXISTS ( SELECT 1
    FROM (public.projects p
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
@@ -4003,6 +4833,10 @@ CREATE POLICY "Users can update checkpoints in their workspace tickets" ON publi
   WHERE (work_tickets.workspace_id IN ( SELECT workspace_memberships.workspace_id
            FROM public.workspace_memberships
           WHERE (workspace_memberships.user_id = auth.uid()))))));
+CREATE POLICY "Users can update project schedules" ON public.project_schedules FOR UPDATE USING ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_schedules.project_id) AND (wm.user_id = auth.uid())))));
 CREATE POLICY "Users can update project_agents in their workspace" ON public.project_agents FOR UPDATE USING ((EXISTS ( SELECT 1
    FROM (public.projects p
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
@@ -4086,6 +4920,10 @@ CREATE POLICY "Users can view outputs in their workspace" ON public.work_outputs
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = b.workspace_id)))
   WHERE (wm.user_id = auth.uid()))));
 CREATE POLICY "Users can view own MCP sessions" ON public.mcp_oauth_sessions FOR SELECT USING ((user_id = auth.uid()));
+CREATE POLICY "Users can view project schedules" ON public.project_schedules FOR SELECT USING ((EXISTS ( SELECT 1
+   FROM (public.projects p
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((p.id = project_schedules.project_id) AND (wm.user_id = auth.uid())))));
 CREATE POLICY "Users can view project_agents in their workspace" ON public.project_agents FOR SELECT USING ((EXISTS ( SELECT 1
    FROM (public.projects p
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
@@ -4112,6 +4950,11 @@ CREATE POLICY "Users can view relationships in their workspace baskets" ON publi
      JOIN public.baskets bsk ON ((b.basket_id = bsk.id)))
      JOIN public.workspace_memberships wm ON ((bsk.workspace_id = wm.workspace_id)))
   WHERE (((b.id = substrate_relationships.from_block_id) OR (b.id = substrate_relationships.to_block_id)) AND (wm.user_id = auth.uid())))));
+CREATE POLICY "Users can view their project jobs" ON public.jobs FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM ((public.project_schedules ps
+     JOIN public.projects p ON ((p.id = ps.project_id)))
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((ps.id = jobs.parent_schedule_id) AND (wm.user_id = auth.uid())))));
 CREATE POLICY "Users can view their workspace integration tokens" ON public.integration_tokens FOR SELECT TO authenticated USING ((workspace_id IN ( SELECT workspace_memberships.workspace_id
    FROM public.workspace_memberships
   WHERE (workspace_memberships.user_id = auth.uid()))));
@@ -4210,6 +5053,31 @@ CREATE POLICY br_select_workspace_member ON public.reflections_artifact FOR SELE
    FROM (public.baskets b
      JOIN public.workspace_memberships wm ON ((wm.workspace_id = b.workspace_id)))
   WHERE ((b.id = reflections_artifact.basket_id) AND (wm.user_id = auth.uid())))));
+ALTER TABLE public.context_entries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY context_entries_delete_workspace_members ON public.context_entries FOR DELETE TO authenticated USING ((EXISTS ( SELECT 1
+   FROM ((public.baskets b
+     JOIN public.projects p ON ((p.basket_id = b.id)))
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((b.id = context_entries.basket_id) AND (wm.user_id = auth.uid())))));
+CREATE POLICY context_entries_insert_workspace_members ON public.context_entries FOR INSERT TO authenticated WITH CHECK ((EXISTS ( SELECT 1
+   FROM ((public.baskets b
+     JOIN public.projects p ON ((p.basket_id = b.id)))
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((b.id = context_entries.basket_id) AND (wm.user_id = auth.uid())))));
+CREATE POLICY context_entries_select_workspace_members ON public.context_entries FOR SELECT TO authenticated USING ((EXISTS ( SELECT 1
+   FROM ((public.baskets b
+     JOIN public.projects p ON ((p.basket_id = b.id)))
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((b.id = context_entries.basket_id) AND (wm.user_id = auth.uid())))));
+CREATE POLICY context_entries_service_role ON public.context_entries TO service_role USING (true) WITH CHECK (true);
+CREATE POLICY context_entries_update_workspace_members ON public.context_entries FOR UPDATE TO authenticated USING ((EXISTS ( SELECT 1
+   FROM ((public.baskets b
+     JOIN public.projects p ON ((p.basket_id = b.id)))
+     JOIN public.workspace_memberships wm ON ((wm.workspace_id = p.workspace_id)))
+  WHERE ((b.id = context_entries.basket_id) AND (wm.user_id = auth.uid())))));
+ALTER TABLE public.context_entry_schemas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY context_entry_schemas_select_authenticated ON public.context_entry_schemas FOR SELECT TO authenticated USING (true);
+CREATE POLICY context_entry_schemas_service_role ON public.context_entry_schemas TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "debug insert bypass" ON public.workspaces FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "delete history by service role" ON public.timeline_events FOR DELETE USING ((auth.role() = 'service_role'::text));
 CREATE POLICY "delete reflections by service role" ON public.reflections_artifact FOR DELETE USING ((auth.role() = 'service_role'::text));
@@ -4259,6 +5127,7 @@ CREATE POLICY events_select_workspace_member ON public.events FOR SELECT TO auth
 CREATE POLICY events_service_role_all ON public.events TO service_role USING (true) WITH CHECK (true);
 ALTER TABLE public.extraction_quality_metrics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.integration_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jobs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.knowledge_timeline ENABLE ROW LEVEL SECURITY;
 CREATE POLICY knowledge_timeline_workspace_read ON public.knowledge_timeline FOR SELECT USING ((workspace_id IN ( SELECT workspace_memberships.workspace_id
    FROM public.workspace_memberships
@@ -4310,6 +5179,7 @@ CREATE POLICY p3_p4_policy_workspace_access ON public.p3_p4_regeneration_policy 
 ALTER TABLE public.p3_p4_regeneration_policy ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_agents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.project_recipe_schedules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.project_schedules ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.proposal_executions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY proposal_executions_insert ON public.proposal_executions FOR INSERT WITH CHECK ((proposal_id IN ( SELECT proposals.id
@@ -4468,4 +5338,4 @@ CREATE POLICY ws_owner_or_member_read ON public.workspaces FOR SELECT USING (((o
    FROM public.workspace_memberships
   WHERE (workspace_memberships.user_id = auth.uid())))));
 CREATE POLICY ws_owner_update ON public.workspaces FOR UPDATE USING ((owner_id = auth.uid()));
-\unrestrict vey5eyNSWY7gWDdeVFE4UXTe0IeDsCK72SHfQmLLFGPohkl3bYGUSQ7hEnAzfZ8
+\unrestrict v7Bz7t7hFelXGs59HAMcVX4m4d9gOnnFkcww8C5uqkpwu21mcjPQ11SwVj4skHa

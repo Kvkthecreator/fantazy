@@ -1,6 +1,6 @@
 # Context Entries Implementation Plan
 
-**Version**: 1.0
+**Version**: 1.1
 **Date**: 2025-12-03
 **Status**: Approved for Implementation
 **ADR Reference**: [ADR_CONTEXT_ENTRIES.md](../architecture/ADR_CONTEXT_ENTRIES.md)
@@ -12,13 +12,32 @@
 
 This document provides the detailed implementation plan for Context Entries - the structured, multi-modal context management system that replaces flat text blocks for work recipe context.
 
+**Key Changes in v1.1**:
+- Added ephemeral/permanent asset model
+- Added de-wiring plan for legacy classification
+- Consolidated migrations into single file for atomic execution
+
 ---
 
 ## Phase 1: Schema & Database (Week 1)
 
+### 1.0 Migration Strategy
+
+All schema changes are consolidated into a single migration file for atomic execution:
+- **Migration File**: `supabase/migrations/20251203_context_entries.sql`
+- **Execution**: Via `dump_schema.sh` which connects directly to Supabase
+
+This includes:
+1. `context_entry_schemas` table
+2. `context_entries` table
+3. Seed data for initial schemas
+4. `reference_assets` columns for context entry linking
+5. Deprecation of `asset_type_catalog` for user uploads
+6. RLS policies and grants
+
 ### 1.1 Create Context Entry Schema Table
 
-**Migration**: `supabase/migrations/20251203_context_entry_schemas.sql`
+**Migration**: `supabase/migrations/20251203_context_entries.sql` (Part 1)
 
 ```sql
 -- Context Entry Schemas: Defines structure for each anchor role
@@ -230,6 +249,101 @@ See: /docs/architecture/ADR_CONTEXT_ENTRIES.md';
 -- Indexes
 CREATE INDEX idx_context_entries_basket_role
 ON context_entries(basket_id, anchor_role);
+```
+
+### 1.4 Link Reference Assets to Context Entries
+
+**Migration**: `supabase/migrations/20251203_context_entries.sql` (Part 4)
+
+```sql
+-- =====================================================
+-- Add context entry linking to reference_assets
+-- =====================================================
+
+-- Add columns for context entry association
+ALTER TABLE reference_assets
+  ADD COLUMN IF NOT EXISTS context_entry_id UUID,
+  ADD COLUMN IF NOT EXISTS context_field_key TEXT;
+
+-- Add FK constraint (deferred to allow migration ordering)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_name = 'ref_assets_context_entry_fk'
+  ) THEN
+    ALTER TABLE reference_assets
+      ADD CONSTRAINT ref_assets_context_entry_fk
+      FOREIGN KEY (context_entry_id)
+      REFERENCES context_entries(id)
+      ON DELETE SET NULL;
+  END IF;
+END $$;
+
+-- Update permanence logic: linked to entry = permanent
+-- Note: We keep existing constraint and add logic in application layer
+-- to avoid breaking existing assets
+
+-- Index for context entry lookups
+CREATE INDEX IF NOT EXISTS idx_ref_assets_context_entry
+  ON reference_assets(context_entry_id, context_field_key)
+  WHERE context_entry_id IS NOT NULL;
+
+COMMENT ON COLUMN reference_assets.context_entry_id IS
+'Links asset to context entry. If set, asset is permanent. If NULL, asset is ephemeral.
+See: /docs/architecture/ADR_CONTEXT_ENTRIES.md#ephemeral-vs-permanent-asset-model';
+
+COMMENT ON COLUMN reference_assets.context_field_key IS
+'Which field in the context entry this asset fills (e.g., "logo", "guidelines_doc")';
+```
+
+### 1.5 Deprecate Asset Type Catalog for User Uploads
+
+**Migration**: `supabase/migrations/20251203_context_entries.sql` (Part 5)
+
+```sql
+-- =====================================================
+-- Deprecation notices for legacy systems
+-- =====================================================
+
+-- Mark asset_type_catalog as deprecated for user uploads
+COMMENT ON TABLE asset_type_catalog IS
+'Dynamic catalog of asset types.
+
+DEPRECATION NOTICE (2025-12-03):
+For USER uploads, asset classification is now determined by attachment to context_entries.
+LLM classification remains active ONLY for work output files (agent-produced).
+This table is kept for backward compatibility and existing assets.
+See: /docs/architecture/ADR_CONTEXT_ENTRIES.md#de-wiring-legacy-classification-system
+
+New user uploads should use context_entry_id instead of asset_type for categorization.';
+
+-- Mark basket_anchors as deprecated (if not already done)
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'basket_anchors') THEN
+    COMMENT ON TABLE basket_anchors IS
+'DEPRECATED (2025-12-03): This table is empty and unused.
+Context roles are now stored on context_entries.
+Block anchor_role column remains for RAG/knowledge extraction only.
+Table will be dropped after 30-day observation period.
+See: /docs/architecture/ADR_CONTEXT_ENTRIES.md';
+  END IF;
+END $$;
+
+-- Add deprecation notice to blocks.anchor_role
+COMMENT ON COLUMN blocks.anchor_role IS
+'LEGACY (2025-12-03): For work recipe context, use context_entries instead.
+This column remains active for:
+- RAG/semantic search
+- Knowledge extraction pipelines
+- Existing block categorization
+See: /docs/architecture/ADR_CONTEXT_ENTRIES.md#legacy-systems-reference';
+```
+
+### 1.6 Indexes for Context Entries (continued)
+
+```sql
 
 CREATE INDEX idx_context_entries_updated
 ON context_entries(basket_id, updated_at DESC);
@@ -320,6 +434,140 @@ BEGIN
     RETURN v_filled_count::FLOAT / v_required_count::FLOAT;
 END;
 $$ LANGUAGE plpgsql;
+```
+
+---
+
+## Phase 1.5: De-wire Legacy Classification (With Phase 1)
+
+### 1.5.1 Update Classification Service
+
+**File**: `substrate-api/api/src/app/reference_assets/services/classification_service.py`
+
+Add source parameter and skip classification for user uploads:
+
+```python
+"""
+Asset Classification Service - LLM-powered asset type detection
+
+DEPRECATION NOTICE (2025-12-03):
+LLM classification is now only used for work output files (agent-produced).
+User uploads are classified by attachment to context entries.
+See: /docs/architecture/ADR_CONTEXT_ENTRIES.md#de-wiring-legacy-classification-system
+"""
+
+class AssetClassificationService:
+    @staticmethod
+    async def classify_asset(
+        file_name: str,
+        mime_type: str,
+        file_size_bytes: int,
+        text_preview: Optional[str] = None,
+        available_types: Optional[List[str]] = None,
+        source: str = "agent",  # NEW: "agent" | "user"
+    ) -> Dict[str, Any]:
+        """
+        Classify an asset using LLM.
+
+        IMPORTANT: As of 2025-12-03, this is ONLY called for agent uploads.
+        User uploads skip classification entirely (context entry defines type).
+        """
+        # Skip classification for user uploads
+        if source == "user":
+            logger.info(f"[ASSET CLASSIFY] Skipping LLM for user upload: {file_name}")
+            return {
+                "success": True,
+                "asset_type": "other",
+                "confidence": 1.0,
+                "description": file_name,
+                "reasoning": "User upload - classification skipped (context entry determines type)",
+                "skipped": True,
+            }
+
+        # ... existing LLM classification logic for agent uploads ...
+```
+
+### 1.5.2 Update Asset Upload Endpoint
+
+**File**: `substrate-api/api/src/app/reference_assets/routes/upload.py`
+
+Add parameter to control classification:
+
+```python
+@router.post("/upload")
+async def upload_asset(
+    basket_id: str,
+    file: UploadFile,
+    # NEW: Context entry linking
+    context_entry_id: Optional[str] = None,
+    context_field_key: Optional[str] = None,
+    # NEW: Skip classification for user uploads
+    source: str = "user",  # "user" | "agent"
+    # Existing fields
+    asset_type: Optional[str] = None,
+    description: Optional[str] = None,
+    ...
+):
+    # Determine permanence based on context entry linking
+    if context_entry_id:
+        permanence = "permanent"
+        expires_at = None
+    else:
+        permanence = "temporary"
+        expires_at = datetime.utcnow() + timedelta(days=7)
+
+    # Skip LLM classification for user uploads
+    if source == "user":
+        classification = {
+            "asset_type": asset_type or "other",
+            "confidence": 1.0,
+            "skipped": True,
+        }
+    else:
+        # Agent uploads still get LLM classification
+        classification = await classification_service.classify_asset(
+            file_name=file.filename,
+            mime_type=file.content_type,
+            file_size_bytes=file_size,
+            source=source,
+        )
+
+    # Create asset record with context entry link
+    asset = await create_reference_asset(
+        basket_id=basket_id,
+        file_name=file.filename,
+        mime_type=file.content_type,
+        storage_path=storage_path,
+        file_size_bytes=file_size,
+        asset_type=classification["asset_type"],
+        permanence=permanence,
+        expires_at=expires_at,
+        context_entry_id=context_entry_id,  # NEW
+        context_field_key=context_field_key,  # NEW
+        ...
+    )
+```
+
+### 1.5.3 Add Deprecation Comments to BlockFormModal
+
+**File**: `work-platform/web/components/context/BlockFormModal.tsx`
+
+Add clear deprecation notice at top of file:
+
+```typescript
+/**
+ * LEGACY COMPONENT (2025-12-03)
+ *
+ * This component is for creating/editing blocks with anchor roles.
+ * For work recipe context, use ContextEntryEditor instead.
+ *
+ * This component remains active for:
+ * - Knowledge extraction workflows
+ * - RAG/semantic search block management
+ * - Legacy block editing
+ *
+ * See: /docs/architecture/ADR_CONTEXT_ENTRIES.md
+ */
 ```
 
 ---

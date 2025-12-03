@@ -1,5 +1,22 @@
 "use client";
 
+/**
+ * LEGACY COMPONENT (2025-12-03)
+ *
+ * This component is for creating/editing blocks with anchor roles.
+ * For work recipe context, use ContextEntryEditor instead.
+ *
+ * This component remains active for:
+ * - Knowledge extraction workflows
+ * - RAG/semantic search block management
+ * - Legacy block editing
+ *
+ * For new context management, see:
+ * - ContextEntryEditor component (to be created)
+ * - /docs/architecture/ADR_CONTEXT_ENTRIES.md
+ * - /docs/implementation/CONTEXT_ENTRIES_IMPLEMENTATION_PLAN.md
+ */
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';

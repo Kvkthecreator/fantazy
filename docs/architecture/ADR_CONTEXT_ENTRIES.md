@@ -655,6 +655,158 @@ A:
 
 ---
 
+## Ephemeral vs Permanent Asset Model
+
+### Decision
+
+**Anything not attached to a Context Entry is ephemeral.**
+
+This creates a clean binary model for asset lifecycle:
+- **Permanent**: Asset is linked to a `context_entry_id` - it persists indefinitely
+- **Temporary/Ephemeral**: Asset has no context entry link - expires automatically
+
+### How It Works
+
+1. **User uploads asset outside context entry**:
+   - Asset created with `permanence = 'temporary'`
+   - `expires_at` set to 7 days (configurable)
+   - User can attach it to a context entry to make permanent
+
+2. **User uploads asset within context entry field**:
+   - Asset created with `permanence = 'permanent'`
+   - `context_entry_id` and `context_field_key` set automatically
+   - Never expires
+
+3. **Agent produces work output with file**:
+   - Asset created with `permanence = 'temporary'`
+   - If user promotes to context entry → becomes permanent
+   - Otherwise, expires after work session TTL
+
+### Schema Changes
+
+```sql
+-- Add to reference_assets
+ALTER TABLE reference_assets
+  ADD COLUMN context_entry_id UUID REFERENCES context_entries(id) ON DELETE SET NULL,
+  ADD COLUMN context_field_key TEXT;
+
+-- Update permanence constraint
+ALTER TABLE reference_assets
+  DROP CONSTRAINT IF EXISTS temporary_must_expire;
+
+ALTER TABLE reference_assets
+  ADD CONSTRAINT permanence_logic CHECK (
+    CASE
+      -- Linked to context entry = must be permanent
+      WHEN context_entry_id IS NOT NULL THEN permanence = 'permanent'
+      -- Not linked = must have expiration
+      WHEN context_entry_id IS NULL AND permanence = 'temporary' THEN expires_at IS NOT NULL
+      ELSE TRUE
+    END
+  );
+
+-- Index for context entry links
+CREATE INDEX idx_ref_assets_context_entry
+  ON reference_assets(context_entry_id, context_field_key)
+  WHERE context_entry_id IS NOT NULL;
+
+COMMENT ON COLUMN reference_assets.context_entry_id IS
+'Links asset to context entry. If set, asset is permanent. If NULL, asset is ephemeral.';
+
+COMMENT ON COLUMN reference_assets.context_field_key IS
+'Which field in the context entry this asset fills (e.g., "logo", "guidelines_doc")';
+```
+
+### Cleanup Mechanism
+
+The existing `cleanup_expired_assets()` function handles ephemeral cleanup:
+```sql
+-- Already exists in 20251113_phase1_reference_assets.sql
+SELECT * FROM cleanup_expired_assets();
+-- Deletes assets WHERE permanence = 'temporary' AND expires_at < now()
+```
+
+Call via pg_cron daily:
+```sql
+SELECT cron.schedule('cleanup-expired-assets', '0 3 * * *',
+  'SELECT cleanup_expired_assets()');
+```
+
+---
+
+## De-wiring Legacy Classification System
+
+### Background
+
+The current system has two classification tracks:
+1. **Asset Type Catalog + LLM Classification** (for `reference_assets`)
+2. **Block Semantic Types + Anchor Roles** (for `blocks`)
+
+With Context Entries, we need to de-wire the asset classification for user uploads while preserving it for work output files.
+
+### Decision
+
+| Upload Source | Classification | Rationale |
+|---------------|---------------|-----------|
+| User via Context Entry | **None** | Schema defines field type; user explicitly chooses where to attach |
+| User standalone upload | **None** | Ephemeral by default; attach to entry to categorize |
+| Work output file | **Keep LLM** | Agent doesn't know asset type; need auto-classification |
+| Block from extraction | **Keep** | RAG/semantic search still uses semantic types |
+
+### Implementation
+
+1. **Disable classification trigger for user uploads**:
+   - Add `skip_classification` flag to upload endpoint
+   - Default to `true` for user uploads, `false` for agent uploads
+
+2. **Update classification service**:
+   ```python
+   # substrate-api/api/src/app/reference_assets/services/classification_service.py
+
+   # Add deprecation notice
+   """
+   DEPRECATION NOTICE (2025-12-03):
+   LLM classification is now only used for work output files.
+   User uploads are classified by attachment to context entries.
+   See: /docs/architecture/ADR_CONTEXT_ENTRIES.md#de-wiring-legacy-classification-system
+   """
+
+   @staticmethod
+   async def classify_asset(
+       ...,
+       source: str = "agent",  # New: "agent" | "user"
+   ) -> Dict[str, Any]:
+       # Skip for user uploads
+       if source == "user":
+           return {
+               "success": True,
+               "asset_type": "other",
+               "confidence": 1.0,
+               "description": file_name,
+               "reasoning": "User upload - classification skipped (context entry determines type)",
+           }
+       # ... existing LLM logic for agent uploads
+   ```
+
+3. **Deprecate asset_type_catalog for context purposes**:
+   - Keep table for backward compatibility
+   - Add deprecation comment
+   - Stop expanding with new types
+   - Context entry schemas replace this functionality
+
+### Legacy Code Preservation
+
+The following remain active but deprecated:
+- `asset_type_catalog` table - kept for existing assets
+- `blocks.anchor_role` - kept for RAG use cases
+- `blocks.semantic_type` - kept for knowledge extraction
+
+The following are actively de-wired:
+- LLM classification for user file uploads
+- `asset_category` field on new user uploads (use context entry instead)
+
+---
+
 ## Related Documents
 
 - [CONTEXT_ROLES_ARCHITECTURE.md](../canon/CONTEXT_ROLES_ARCHITECTURE.md) - Prior architecture (partially superseded)
@@ -673,7 +825,39 @@ A:
 | 2025-12-03 | Multi-modal context entries concept proposed |
 | 2025-12-03 | First principles validation (user value focus) |
 | 2025-12-03 | API architecture decision (substrate-api vs Next.js) |
+| 2025-12-03 | Ephemeral/permanent asset model defined |
+| 2025-12-03 | De-wiring of LLM classification for user uploads decided |
 | 2025-12-03 | This ADR created and approved |
+
+---
+
+## Appendix: Legacy Systems Reference
+
+### What Remains Active (Not Deprecated)
+
+| Component | Purpose | Why Kept |
+|-----------|---------|----------|
+| `blocks` table | Knowledge extraction, RAG | Semantic search, embeddings, provenance |
+| `blocks.semantic_type` | Block categorization | Extraction pipelines use this |
+| `context_items` table | External context ingestion | May merge with entries later |
+| `reference_assets` table | File storage | Core storage layer |
+
+### What Is Deprecated (Legacy)
+
+| Component | Deprecated For | Migration Path |
+|-----------|---------------|----------------|
+| `blocks.anchor_role` for context | Work recipe context | Use `context_entries` instead |
+| `basket_anchors` table | Everything | Drop after validation |
+| `asset_type_catalog` for user uploads | Classification | Context entries define type |
+| LLM classification for user files | User uploads | Attach to context entry |
+
+### What Is Actively De-wired
+
+| Component | De-wiring Action |
+|-----------|-----------------|
+| `AssetClassificationService.classify_asset()` | Skip for `source="user"` |
+| Asset upload auto-classification trigger | Add `skip_classification` flag |
+| `asset_category` on new user uploads | Default to 'uncategorized' |
 
 ---
 
