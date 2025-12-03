@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * @deprecated LEGACY COMPONENT (2025-12-03)
+ *
+ * This component displays substrate blocks for knowledge extraction workflows.
+ * It is NO LONGER used for work recipe context management.
+ *
+ * For work platform context, use ContextEntriesPanel instead.
+ * See: /docs/architecture/ADR_CONTEXT_ENTRIES.md
+ *
+ * This component remains for:
+ * - Knowledge extraction workflows
+ * - RAG/semantic search use cases
+ * - Legacy data viewing
+ */
+
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";

@@ -72,11 +72,13 @@ const CATEGORY_CONFIG = {
 interface ContextEntriesPanelProps {
   projectId: string;
   basketId: string;
+  initialAnchorRole?: string; // Optional: auto-open editor for this role on mount
 }
 
 export default function ContextEntriesPanel({
   projectId,
   basketId,
+  initialAnchorRole,
 }: ContextEntriesPanelProps) {
   // Fetch schemas and entries
   const {
@@ -100,6 +102,7 @@ export default function ContextEntriesPanel({
   const [editingSchema, setEditingSchema] = useState<ContextEntrySchema | null>(null);
   const [editingEntry, setEditingEntry] = useState<ContextEntry | null>(null);
   const [editingEntryKey, setEditingEntryKey] = useState<string | undefined>();
+  const [initialRoleHandled, setInitialRoleHandled] = useState(false);
 
   // Open editor for a schema
   const openEditor = (schema: ContextEntrySchema, entry?: ContextEntry, entryKey?: string) => {
@@ -108,6 +111,18 @@ export default function ContextEntriesPanel({
     setEditingEntryKey(entryKey);
     setEditorOpen(true);
   };
+
+  // Auto-open editor for initialAnchorRole when data is loaded
+  useEffect(() => {
+    if (initialAnchorRole && !initialRoleHandled && schemas.length > 0 && !schemasLoading) {
+      const schema = schemas.find((s) => s.anchor_role === initialAnchorRole);
+      if (schema) {
+        const entry = getEntryByRole(initialAnchorRole);
+        openEditor(schema, entry || undefined);
+        setInitialRoleHandled(true);
+      }
+    }
+  }, [initialAnchorRole, schemas, schemasLoading, initialRoleHandled, getEntryByRole]);
 
   // Close editor
   const closeEditor = () => {

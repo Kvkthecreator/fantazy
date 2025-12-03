@@ -1,5 +1,18 @@
 "use client";
 
+/**
+ * @deprecated LEGACY COMPONENT (2025-12-03)
+ *
+ * This component displays raw text entries and agent work outputs.
+ * It is NO LONGER the primary context management interface.
+ *
+ * For structured context management, use ContextEntriesPanel instead.
+ * See: /docs/architecture/ADR_CONTEXT_ENTRIES.md
+ *
+ * Note: This component uses /api/baskets/{id}/entries (legacy endpoint),
+ * NOT the new /api/substrate/baskets/{id}/context/entries endpoint.
+ */
+
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";

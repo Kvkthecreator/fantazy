@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * LEGACY COMPONENT (2025-12-03)
+ * @deprecated LEGACY COMPONENT (2025-12-03)
  *
  * This component is for creating/editing blocks with anchor roles.
  * For work recipe context, use ContextEntryEditor instead.
@@ -12,9 +12,9 @@
  * - Legacy block editing
  *
  * For new context management, see:
- * - ContextEntryEditor component (to be created)
+ * - ContextEntryEditor component
+ * - ContextEntriesPanel component
  * - /docs/architecture/ADR_CONTEXT_ENTRIES.md
- * - /docs/implementation/CONTEXT_ENTRIES_IMPLEMENTATION_PLAN.md
  */
 
 import { useState, useEffect } from 'react';
