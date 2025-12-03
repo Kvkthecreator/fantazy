@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
         agent_type,
         version,
         configurable_parameters,
+        output_specification,
         status
       `)
       .eq('status', 'active')
@@ -52,12 +53,22 @@ export async function GET(request: NextRequest) {
     const transformedRecipes = (recipes || []).map((recipe: any) => {
       // Parse configurable_parameters JSON
       const params = recipe.configurable_parameters || {};
+      const outputSpec = recipe.output_specification || {};
 
-      // Determine output format from first parameter or default
-      let outputFormat = 'pptx';
-      if (params.output_format?.default) {
-        outputFormat = params.output_format.default;
-      }
+      // Determine output format from output_specification.format
+      // Format values: pptx, markdown, text, brand_guidelines, competitive_analysis, structured_analysis
+      const rawFormat = outputSpec.format || params.output_format?.default || 'text';
+
+      // Map format to display badge
+      const formatDisplayMap: Record<string, string> = {
+        'pptx': 'PPTX',
+        'markdown': 'MD',
+        'text': 'TXT',
+        'brand_guidelines': 'DOC',
+        'competitive_analysis': 'DOC',
+        'structured_analysis': 'DOC',
+      };
+      const outputFormat = formatDisplayMap[rawFormat] || rawFormat.toUpperCase();
 
       return {
         id: recipe.slug, // Use slug as ID for URL routing
