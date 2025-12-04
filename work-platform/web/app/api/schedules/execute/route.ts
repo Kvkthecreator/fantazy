@@ -12,25 +12,27 @@ import { createServiceRoleClient } from "@/lib/supabase/clients";
 
 const CRON_SECRET = process.env.CRON_SECRET;
 
-interface ScheduleWithRecipe {
+interface WorkRecipe {
+  id: string;
+  slug: string;
+  name: string;
+  agent_type: string;
+  context_requirements: Record<string, unknown>;
+}
+
+interface ScheduleRow {
   id: string;
   project_id: string;
   basket_id: string;
   recipe_id: string;
   frequency: string;
-  day_of_week: number;
+  day_of_week: number | null;
   time_of_day: string;
-  recipe_parameters: Record<string, unknown>;
+  recipe_parameters: Record<string, unknown> | null;
   enabled: boolean;
   next_run_at: string;
   run_count: number;
-  work_recipes: {
-    id: string;
-    slug: string;
-    name: string;
-    agent_type: string;
-    context_requirements: Record<string, unknown>;
-  };
+  work_recipes: WorkRecipe | null;  // Supabase single() relation
 }
 
 // POST /api/schedules/execute - Process all due schedules
@@ -100,7 +102,7 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     // Process each due schedule
-    for (const schedule of dueSchedules as ScheduleWithRecipe[]) {
+    for (const schedule of dueSchedules as unknown as ScheduleRow[]) {
       try {
         const recipe = schedule.work_recipes;
         if (!recipe) {
