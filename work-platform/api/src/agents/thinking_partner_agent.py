@@ -299,7 +299,7 @@ The output goes to the user's supervision queue for review.""",
                 "body": tool_input.get("body", ""),
                 "output_type": tool_input.get("output_type", "insight"),
                 "confidence": tool_input.get("confidence", 0.8),
-                "supervision_status": "pending",
+                "supervision_status": "pending_review",
                 "metadata": {
                     "source": "thinking_partner",
                     "session_id": self.session_id,
