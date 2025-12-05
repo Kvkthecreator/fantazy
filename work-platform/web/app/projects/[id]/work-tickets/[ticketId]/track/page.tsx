@@ -59,6 +59,21 @@ export default async function TicketTrackingPage({ params }: PageProps) {
 
   console.log('[TicketTrackingPage] Ticket query result:', { ticket, ticketError });
 
+  // Fetch context_items created by this work_ticket (for context-output recipes)
+  // These are items emitted via emit_context_item tool (trend-digest, market-research, etc.)
+  let contextItems: any[] = [];
+  if (ticket) {
+    const { data: items } = await supabase
+      .from('context_items')
+      .select('id, title, content, tier, item_type, schema_id, source_type, source_ref, created_at')
+      .eq('basket_id', ticket.basket_id)
+      .filter('source_ref->>work_ticket_id', 'eq', ticketId)
+      .order('created_at', { ascending: false });
+
+    contextItems = items || [];
+    console.log('[TicketTrackingPage] Context items for ticket:', contextItems.length);
+  }
+
   if (!ticket) {
     console.error('[TicketTrackingPage] Ticket not found:', ticketId);
     notFound();
@@ -115,6 +130,7 @@ export default async function TicketTrackingPage({ params }: PageProps) {
       recipeParams={recipeParams}
       taskDescription={taskDescription}
       scheduleInfo={scheduleInfo}
+      contextItems={contextItems}
     />
   );
 }

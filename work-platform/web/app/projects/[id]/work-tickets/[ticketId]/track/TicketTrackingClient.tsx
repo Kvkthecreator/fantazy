@@ -6,7 +6,7 @@ import { createBrowserClient } from "@/lib/supabase/clients";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { ArrowLeft, Download, RefreshCw, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText, Calendar, Bot, User } from "lucide-react";
+import { ArrowLeft, Download, RefreshCw, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText, Calendar, Bot, User, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +44,18 @@ interface ScheduleInfo {
   time_of_day: string;
 }
 
+interface ContextItem {
+  id: string;
+  title: string | null;
+  content: Record<string, any>;
+  tier: 'foundation' | 'working' | 'ephemeral';
+  item_type: string;
+  schema_id: string | null;
+  source_type: string | null;
+  source_ref: Record<string, any> | null;
+  created_at: string;
+}
+
 interface TicketTrackingClientProps {
   projectId: string;
   projectName: string;
@@ -52,6 +64,7 @@ interface TicketTrackingClientProps {
   recipeParams: Record<string, any>;
   taskDescription: string;
   scheduleInfo?: ScheduleInfo | null;
+  contextItems?: ContextItem[];
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -69,6 +82,7 @@ export default function TicketTrackingClient({
   recipeParams,
   taskDescription,
   scheduleInfo,
+  contextItems = [],
 }: TicketTrackingClientProps) {
   const router = useRouter();
   const [ticket, setTicket] = useState<WorkTicket>(initialTicket);
@@ -168,7 +182,9 @@ export default function TicketTrackingClient({
   };
 
   // Check if execution produced expected results
-  const hasOutputs = ticket.work_outputs && ticket.work_outputs.length > 0;
+  const hasWorkOutputs = ticket.work_outputs && ticket.work_outputs.length > 0;
+  const hasContextItems = contextItems && contextItems.length > 0;
+  const hasAnyOutputs = hasWorkOutputs || hasContextItems;
   const hasExecutionSteps = ticket.metadata?.final_todos && ticket.metadata.final_todos.length > 0;
   const executionTimeMs = ticket.metadata?.execution_time_ms;
   const isCompleted = ticket.status === 'completed';
@@ -180,8 +196,8 @@ export default function TicketTrackingClient({
   const approvedOutputs = ticket.work_outputs?.filter(o => o.supervision_status === 'approved') || [];
   const hasPendingReview = pendingReviewOutputs.length > 0;
 
-  // Determine if this is a problematic execution
-  const isProblematicExecution = isCompleted && !hasOutputs && !isFailed;
+  // Determine if this is a problematic execution (no outputs of any kind)
+  const isProblematicExecution = isCompleted && !hasAnyOutputs && !isFailed;
 
   // Source label helper
   const getSourceLabel = () => {
@@ -290,7 +306,9 @@ export default function TicketTrackingClient({
           </div>
 
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>{ticket.work_outputs?.length || 0} outputs</span>
+            {hasWorkOutputs && <span>{ticket.work_outputs.length} outputs</span>}
+            {hasContextItems && <span>{contextItems.length} context items</span>}
+            {!hasAnyOutputs && <span>0 outputs</span>}
             <span>{formatDuration() || '—'}</span>
             <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
             <Button
@@ -351,8 +369,23 @@ export default function TicketTrackingClient({
           </div>
         )}
 
+        {/* Context Items - For context-output recipes (trend-digest, market-research, etc.) */}
+        {hasContextItems && (
+          <div className="mb-4">
+            <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              Context Items Created ({contextItems.length})
+            </h3>
+            <div className="space-y-3">
+              {contextItems.map((item) => (
+                <ContextItemCard key={item.id} item={item} projectId={projectId} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Work Outputs */}
-        {hasOutputs ? (
+        {hasWorkOutputs && (
           <div>
             <h3 className="text-sm font-medium mb-3">Work Outputs ({ticket.work_outputs.length})</h3>
             <div className="space-y-3">
@@ -361,11 +394,14 @@ export default function TicketTrackingClient({
               ))}
             </div>
           </div>
-        ) : isCompleted && (
+        )}
+
+        {/* No outputs warning - only if both work_outputs and context_items are empty */}
+        {isCompleted && !hasAnyOutputs && (
           <div className="p-3 rounded bg-yellow-500/10 border border-yellow-500/20">
-            <h3 className="text-sm font-medium text-yellow-700 mb-1">No Work Outputs</h3>
+            <h3 className="text-sm font-medium text-yellow-700 mb-1">No Outputs Generated</h3>
             <p className="text-xs text-yellow-600">
-              The agent completed but did not generate outputs. This may indicate an execution issue.
+              The agent completed but did not generate any outputs or context items. This may indicate an execution issue.
             </p>
           </div>
         )}
@@ -604,6 +640,133 @@ function OutputBodyPreview({ body }: { body: string }) {
       <p className="whitespace-pre-wrap text-xs">
         {body.slice(0, 500)}{body.length > 500 ? '...' : ''}
       </p>
+    </div>
+  );
+}
+
+/**
+ * Context Item Card - Displays agent-generated context items (from emit_context_item)
+ * Used for continuous recipes like trend-digest, market-research, competitor-monitor
+ */
+function ContextItemCard({ item, projectId }: { item: ContextItem; projectId: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Tier badge styling
+  const tierStyles: Record<string, string> = {
+    foundation: 'bg-blue-500/10 text-blue-700 border-blue-500/30',
+    working: 'bg-purple-500/10 text-purple-700 border-purple-500/30',
+    ephemeral: 'bg-gray-500/10 text-gray-600 border-gray-500/30',
+  };
+
+  // Item type display mapping
+  const itemTypeLabels: Record<string, string> = {
+    trend_digest: 'Trend Digest',
+    market_intel: 'Market Intelligence',
+    competitor_snapshot: 'Competitor Snapshot',
+  };
+
+  const content = item.content || {};
+  const contentKeys = Object.keys(content);
+  const hasDetailedContent = contentKeys.length > 0;
+
+  return (
+    <div className="border rounded-lg p-4 space-y-3 border-purple-500/20 bg-purple-500/5">
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <h3 className="font-medium text-foreground flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-purple-500" />
+            {item.title || itemTypeLabels[item.item_type] || item.item_type}
+          </h3>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            <Badge variant="outline" className={cn("text-xs", tierStyles[item.tier] || tierStyles.working)}>
+              {item.tier}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {itemTypeLabels[item.item_type] || item.item_type}
+            </Badge>
+            {item.source_type === 'agent' && (
+              <Badge variant="secondary" className="text-xs">
+                <Bot className="h-3 w-3 mr-1" />
+                Agent Generated
+              </Badge>
+            )}
+            <span className="text-xs text-muted-foreground">
+              {new Date(item.created_at).toLocaleString()}
+            </span>
+          </div>
+        </div>
+        {hasDetailedContent && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-shrink-0"
+          >
+            {isExpanded ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+          </Button>
+        )}
+      </div>
+
+      {/* Summary preview (always shown) */}
+      {content.summary && !isExpanded && (
+        <p className="text-sm text-muted-foreground line-clamp-2">
+          {content.summary}
+        </p>
+      )}
+
+      {/* Expanded content */}
+      {isExpanded && hasDetailedContent && (
+        <div className="text-sm bg-muted rounded p-3 space-y-3 max-h-96 overflow-auto">
+          {contentKeys.map((key) => {
+            const value = content[key];
+            if (!value) return null;
+
+            return (
+              <div key={key}>
+                <p className="text-xs font-medium text-muted-foreground capitalize mb-1">
+                  {key.replace(/_/g, ' ')}
+                </p>
+                {Array.isArray(value) ? (
+                  <ul className="list-disc list-inside text-foreground text-sm space-y-1">
+                    {value.slice(0, 10).map((v: any, i: number) => (
+                      <li key={i} className="text-sm">
+                        {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                      </li>
+                    ))}
+                    {value.length > 10 && (
+                      <li className="text-muted-foreground text-xs">+{value.length - 10} more</li>
+                    )}
+                  </ul>
+                ) : typeof value === 'object' ? (
+                  <pre className="text-xs bg-background p-2 rounded overflow-auto max-h-32">
+                    {JSON.stringify(value, null, 2)}
+                  </pre>
+                ) : (
+                  <p className="text-foreground text-sm whitespace-pre-wrap">
+                    {String(value).slice(0, 1000)}
+                    {String(value).length > 1000 ? '...' : ''}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Link to context page */}
+      <div className="pt-2 border-t border-border/50">
+        <Link
+          href={`/projects/${projectId}/context`}
+          className="text-xs text-primary hover:underline flex items-center gap-1"
+        >
+          <FileText className="h-3 w-3" />
+          View in Project Context
+        </Link>
+      </div>
     </div>
   );
 }

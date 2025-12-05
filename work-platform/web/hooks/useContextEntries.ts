@@ -51,10 +51,14 @@ export interface ContextEntry {
   entry_key?: string;
   display_name?: string;
   data: Record<string, unknown>;
+  tier?: 'foundation' | 'working' | 'ephemeral';
+  schema_id?: string;
   completeness_score?: number;
   state: 'active' | 'archived';
   created_by?: string;  // 'user:{id}' or 'agent:{type}'
   updated_by?: string;  // 'user:{id}' or 'agent:{type}'
+  source_type?: string | null;  // 'user' | 'agent' | null
+  source_ref?: Record<string, unknown> | null;  // { work_ticket_id, agent_type, ... }
   created_at: string;
   updated_at: string;
 }

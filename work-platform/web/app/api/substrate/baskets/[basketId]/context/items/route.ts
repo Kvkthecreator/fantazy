@@ -60,6 +60,8 @@ export async function GET(
         updated_by,
         status,
         completeness_score,
+        source_type,
+        source_ref,
         created_at,
         updated_at
       `)
@@ -92,10 +94,14 @@ export async function GET(
       entry_key: item.item_key,
       display_name: item.title,
       data: item.content,
+      tier: item.tier,  // Include tier for UI display
+      schema_id: item.schema_id,
       completeness_score: item.completeness_score,
       state: item.status,
       created_by: item.created_by,
       updated_by: item.updated_by,
+      source_type: item.source_type,  // Include for agent-generated detection
+      source_ref: item.source_ref,    // Include for provenance tracking
       created_at: item.created_at,
       updated_at: item.updated_at,
     }));

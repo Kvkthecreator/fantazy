@@ -35,7 +35,11 @@ import {
   RefreshCw,
   User,
   Bot,
+  Sparkles,
+  ExternalLink,
+  Lightbulb,
 } from 'lucide-react';
+import Link from 'next/link';
 import {
   useContextSchemas,
   useContextEntries,
@@ -53,7 +57,27 @@ const ROLE_ICONS: Record<string, React.ElementType> = {
   brand: Palette,
   competitor: Target,
   trend_digest: TrendingUp,
+  market_intel: Lightbulb,
   competitor_snapshot: BarChart3,
+};
+
+// Tier display config
+const TIER_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
+  foundation: { label: 'Foundation', color: 'text-blue-700', bgColor: 'bg-blue-500/10 border-blue-500/30' },
+  working: { label: 'Working', color: 'text-purple-700', bgColor: 'bg-purple-500/10 border-purple-500/30' },
+  ephemeral: { label: 'Ephemeral', color: 'text-gray-600', bgColor: 'bg-gray-500/10 border-gray-500/30' },
+};
+
+// Item type display labels
+const ITEM_TYPE_LABELS: Record<string, string> = {
+  trend_digest: 'Trend Digest',
+  market_intel: 'Market Intelligence',
+  competitor_snapshot: 'Competitor Snapshot',
+  problem: 'Problem',
+  customer: 'Customer',
+  vision: 'Vision',
+  brand: 'Brand',
+  competitor: 'Competitor',
 };
 
 // Category display config
@@ -180,6 +204,16 @@ export default function ContextEntriesPanel({
 
     return filled / foundationSchemas.length;
   }, [schemasByCategory.foundation, getEntryByRole]);
+
+  // Filter agent-generated working-tier insights (trend_digest, market_intel, competitor_snapshot)
+  const agentInsights = useMemo(() => {
+    return entries.filter(
+      (entry) =>
+        entry.tier === 'working' &&
+        entry.source_type === 'agent' &&
+        ['trend_digest', 'market_intel', 'competitor_snapshot'].includes(entry.anchor_role)
+    );
+  }, [entries]);
 
   const loading = schemasLoading || entriesLoading;
   const error = schemasError || entriesError;
@@ -388,6 +422,40 @@ export default function ContextEntriesPanel({
         );
       })}
 
+      {/* Agent Insights Section - Working tier, agent-generated items */}
+      {agentInsights.length > 0 && (
+        <div className="space-y-4">
+          {/* Section header */}
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-6 rounded-full bg-purple-500" />
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold">Agent Insights</h3>
+                <Badge variant="secondary" className="text-xs">
+                  {agentInsights.length}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                AI-generated analysis from scheduled research
+              </p>
+            </div>
+          </div>
+
+          {/* Agent insight cards */}
+          <div className="grid gap-3">
+            {agentInsights.map((entry) => (
+              <AgentInsightCard
+                key={entry.id}
+                entry={entry}
+                projectId={projectId}
+                isExpanded={expandedCards.has(entry.id)}
+                onToggle={() => toggleExpanded(entry.id)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Editor modal */}
       {editingSchema && (
         <ContextEntryEditor
@@ -497,6 +565,162 @@ function ContextContentDisplay({
         Updated {new Date(entry.updated_at).toLocaleDateString()} at{' '}
         {new Date(entry.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Card for displaying agent-generated insights (working tier)
+ */
+function AgentInsightCard({
+  entry,
+  projectId,
+  isExpanded,
+  onToggle,
+}: {
+  entry: ContextEntry;
+  projectId: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const Icon = ROLE_ICONS[entry.anchor_role] || Sparkles;
+  const tierConfig = TIER_CONFIG[entry.tier || 'working'];
+  const typeLabel = ITEM_TYPE_LABELS[entry.anchor_role] || entry.anchor_role;
+
+  // Parse source_ref for provenance
+  const sourceRef = entry.source_ref as { work_ticket_id?: string; agent_type?: string } | null;
+  const workTicketId = sourceRef?.work_ticket_id;
+  const agentType = sourceRef?.agent_type;
+
+  const data = (entry.data || {}) as Record<string, string | string[] | Record<string, unknown>>;
+  const hasContent = Object.keys(data).length > 0;
+  const summary = typeof data.summary === 'string' ? data.summary : null;
+
+  return (
+    <Card className={`overflow-hidden border-purple-500/20 bg-purple-500/5`}>
+      {/* Card header */}
+      <div
+        className="p-4 cursor-pointer hover:bg-purple-500/10 transition-colors"
+        onClick={onToggle}
+      >
+        <div className="flex items-center gap-4">
+          {/* Icon */}
+          <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600">
+            <Icon className="h-5 w-5" />
+          </div>
+
+          {/* Title and meta */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium">
+                {entry.display_name || typeLabel}
+              </span>
+              {/* Tier badge */}
+              <Badge
+                variant="outline"
+                className={`text-xs ${tierConfig.bgColor} ${tierConfig.color}`}
+              >
+                {tierConfig.label}
+              </Badge>
+              {/* Agent badge */}
+              <Badge variant="secondary" className="text-xs gap-1">
+                <Bot className="h-3 w-3" />
+                {agentType || 'Agent'}
+              </Badge>
+            </div>
+            {/* Summary preview when collapsed */}
+            {!isExpanded && summary && (
+              <p className="text-sm text-muted-foreground truncate mt-1">
+                {summary}
+              </p>
+            )}
+          </div>
+
+          {/* Expand/collapse */}
+          <div className="flex items-center gap-2">
+            {isExpanded ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded content */}
+      {isExpanded && hasContent && (
+        <div className="px-4 pb-4 border-t border-purple-500/20 pt-4 space-y-4">
+          {/* Render all content fields */}
+          <AgentInsightContent data={data} />
+
+          {/* Provenance footer */}
+          <div className="pt-3 border-t border-border/50 flex items-center justify-between text-xs text-muted-foreground">
+            <span>
+              Generated {new Date(entry.created_at).toLocaleDateString()} at{' '}
+              {new Date(entry.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {workTicketId && (
+              <Link
+                href={`/projects/${projectId}/work-tickets/${workTicketId}/track`}
+                className="text-primary hover:underline flex items-center gap-1"
+              >
+                View Work Ticket
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
+ * Display structured content from an agent insight
+ */
+function AgentInsightContent({ data }: { data: Record<string, unknown> }) {
+  const contentKeys = Object.keys(data);
+
+  return (
+    <div className="space-y-4">
+      {contentKeys.map((key) => {
+        const value = data[key];
+        if (!value) return null;
+
+        // Format the key as a label
+        const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+        return (
+          <div key={key} className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {label}
+            </label>
+            <div className="text-sm">
+              {Array.isArray(value) ? (
+                <ul className="list-disc list-inside space-y-1 text-foreground">
+                  {value.slice(0, 10).map((item, idx) => (
+                    <li key={idx} className="text-sm">
+                      {typeof item === 'object' ? JSON.stringify(item) : String(item)}
+                    </li>
+                  ))}
+                  {value.length > 10 && (
+                    <li className="text-muted-foreground text-xs">+{value.length - 10} more</li>
+                  )}
+                </ul>
+              ) : typeof value === 'object' ? (
+                <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-32">
+                  {JSON.stringify(value, null, 2)}
+                </pre>
+              ) : (
+                <p className="text-foreground whitespace-pre-wrap leading-relaxed">
+                  {String(value).slice(0, 2000)}
+                  {String(value).length > 2000 ? '...' : ''}
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
