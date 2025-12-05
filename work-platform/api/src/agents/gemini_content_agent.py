@@ -399,14 +399,14 @@ Blog Article:
 
     async def _store_generated_image(
         self,
-        image_base64: str,
+        image_data: bytes | str,
         mime_type: str,
     ) -> tuple[str, str]:
         """
         Store generated image in Supabase Storage.
 
         Args:
-            image_base64: Base64-encoded image data
+            image_data: Image data - either raw bytes or base64-encoded string
             mime_type: Image MIME type
 
         Returns:
@@ -420,8 +420,16 @@ Blog Article:
         file_name = f"generated_{self.work_ticket_id}_{asset_id[:8]}.{extension}"
         storage_path = f"baskets/{self.basket_id}/generated/{file_name}"
 
-        # Decode and upload
-        image_bytes = base64.b64decode(image_base64)
+        # Handle both bytes and base64 string
+        # Gemini SDK may return raw bytes or base64 string depending on version
+        if isinstance(image_data, bytes):
+            # Already raw bytes, use directly
+            image_bytes = image_data
+            logger.info(f"[GEMINI CONTENT] Image data is bytes: {len(image_bytes)} bytes")
+        else:
+            # Base64 string, decode it
+            image_bytes = base64.b64decode(image_data)
+            logger.info(f"[GEMINI CONTENT] Image data decoded from base64: {len(image_bytes)} bytes")
 
         try:
             # Upload to Supabase Storage
