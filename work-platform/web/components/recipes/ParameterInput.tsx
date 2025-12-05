@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, KeyboardEvent } from 'react'
+import { useState, type KeyboardEvent } from 'react'
 import { Label } from '@/components/ui/Label'
 import { X } from 'lucide-react'
 import type { ParameterSchema } from '@/lib/types/recipes'
