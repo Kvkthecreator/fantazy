@@ -4,7 +4,7 @@ Test Workflows Endpoint - For E2E Testing Without JWT Complexity
 Uses service-to-service authentication (X-Test-User-ID header) instead of JWT.
 Bypasses Supabase JWT complexity for programmatic testing.
 
-NOTE: Post-SDK removal, test workflows use the new ResearchExecutor.
+NOTE: Post-SDK removal, test workflows use the new ResearchAgent.
 
 Usage:
     curl -X POST http://localhost:10000/api/test/workflows/research \
@@ -57,7 +57,7 @@ async def test_research_workflow(
     Uses X-Test-User-ID header for user identification instead of JWT.
     This allows E2E testing without Supabase authentication complexity.
 
-    Post-SDK: Uses ResearchExecutor with direct Anthropic API.
+    Post-SDK: Uses ResearchAgent with direct Anthropic API.
 
     Args:
         request: Research workflow parameters
@@ -136,12 +136,12 @@ async def test_research_workflow(
             "status": "running",
         }).eq("id", work_ticket_id).execute()
 
-        # Step 5: Execute ResearchExecutor (new pattern, no SDK)
-        logger.info("[TEST] Executing ResearchExecutor (direct Anthropic API)...")
+        # Step 5: Execute ResearchAgent (new pattern, no SDK)
+        logger.info("[TEST] Executing ResearchAgent (direct Anthropic API)...")
 
-        from agents.research_executor import ResearchExecutor
+        from agents.research_agent import ResearchAgent
 
-        executor = ResearchExecutor(
+        agent = ResearchAgent(
             basket_id=request.basket_id,
             workspace_id=workspace_id,
             work_ticket_id=work_ticket_id,
@@ -150,7 +150,7 @@ async def test_research_workflow(
 
         start_time = time.time()
 
-        result = await executor.execute(
+        result = await agent.execute(
             task=request.task_description,
             research_scope=request.research_scope,
             depth=request.depth,
@@ -220,5 +220,5 @@ async def test_health():
         "status": "ok",
         "message": "Test endpoints available",
         "sdk_status": "removed",
-        "executor": "ResearchExecutor (direct Anthropic API)",
+        "agent": "ResearchAgent (direct Anthropic API)",
     }

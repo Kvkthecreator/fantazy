@@ -19,22 +19,13 @@ Architecture:
 - Streaming support for frontend updates
 """
 
-# New *Agent pattern (primary exports)
 from .base_agent import BaseAgent, AgentContext
 from .research_agent import ResearchAgent, create_research_agent
 from .content_agent import ContentAgent, create_content_agent
 from .reporting_agent import ReportingAgent, create_reporting_agent
 from .thinking_partner_agent import ThinkingPartnerAgent, create_thinking_partner_agent
 
-# Backward compatibility exports (deprecated, use *Agent pattern)
-from .base_agent import BaseAgentExecutor  # Alias for BaseAgent
-from .research_agent import ResearchExecutor, create_research_executor  # Aliases
-from .content_agent import ContentExecutor, create_content_executor  # Aliases
-from .reporting_agent import ReportingExecutor, create_reporting_executor  # Aliases
-from .thinking_partner_agent import ThinkingPartnerExecutor, create_thinking_partner_executor  # Aliases
-
 __all__ = [
-    # New pattern (preferred)
     "BaseAgent",
     "AgentContext",
     "ResearchAgent",
@@ -45,14 +36,4 @@ __all__ = [
     "create_reporting_agent",
     "ThinkingPartnerAgent",
     "create_thinking_partner_agent",
-    # Backward compatibility (deprecated)
-    "BaseAgentExecutor",
-    "ResearchExecutor",
-    "create_research_executor",
-    "ContentExecutor",
-    "create_content_executor",
-    "ReportingExecutor",
-    "create_reporting_executor",
-    "ThinkingPartnerExecutor",
-    "create_thinking_partner_executor",
 ]

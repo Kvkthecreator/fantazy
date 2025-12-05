@@ -414,8 +414,3 @@ def create_content_agent(
         user_jwt=user_jwt,
         **kwargs,
     )
-
-
-# Backward compatibility alias
-ContentExecutor = ContentAgent
-create_content_executor = create_content_agent

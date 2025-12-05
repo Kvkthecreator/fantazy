@@ -515,8 +515,3 @@ def create_reporting_agent(
         user_jwt=user_jwt,
         **kwargs,
     )
-
-
-# Backward compatibility alias
-ReportingExecutor = ReportingAgent
-create_reporting_executor = create_reporting_agent

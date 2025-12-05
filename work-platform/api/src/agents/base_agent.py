@@ -400,7 +400,3 @@ Relevant knowledge from substrate:
             ExecutionResult with response, outputs, and token usage
         """
         pass
-
-
-# Backward compatibility aliases
-BaseAgentExecutor = BaseAgent

@@ -280,8 +280,3 @@ def create_research_agent(
         user_jwt=user_jwt,
         **kwargs,
     )
-
-
-# Backward compatibility aliases
-ResearchExecutor = ResearchAgent
-create_research_executor = create_research_agent

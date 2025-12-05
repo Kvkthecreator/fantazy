@@ -400,8 +400,3 @@ def create_thinking_partner_agent(
         user_jwt=user_jwt,
         **kwargs,
     )
-
-
-# Backward compatibility alias
-ThinkingPartnerExecutor = ThinkingPartnerAgent
-create_thinking_partner_executor = create_thinking_partner_agent

@@ -7,7 +7,7 @@ Test Progression (run in order):
 1. test-anthropic-connection - Verify API key and basic connectivity
 2. test-tool-definition - Verify tool schemas are valid
 3. test-emit-work-output - Verify work output tool works end-to-end
-4. test-research-executor - Full ResearchExecutor workflow
+4. test-research-agent - Full ResearchAgent workflow
 5. test-streaming - Verify streaming responses work
 6. test-token-tracking - Verify cost/token analysis
 
@@ -308,16 +308,16 @@ Do NOT write any text. Just call the tool.""",
 
 
 # =============================================================================
-# Test 4: ResearchExecutor Full Workflow
+# Test 4: ResearchAgent Full Workflow
 # =============================================================================
 
-@router.post("/test-research-executor")
-async def test_research_executor() -> TestResult:
+@router.post("/test-research-agent")
+async def test_research_agent() -> TestResult:
     """
-    Test 4: Full ResearchExecutor workflow test.
+    Test 4: Full ResearchAgent workflow test.
 
     Validates:
-    - ResearchExecutor initializes correctly
+    - ResearchAgent initializes correctly
     - Context building works (substrate, prior outputs)
     - Research prompt construction
     - Agent execution produces outputs
@@ -326,10 +326,10 @@ async def test_research_executor() -> TestResult:
     This is the primary agent workflow test.
     """
     start_time = time.time()
-    test_name = "research_executor"
+    test_name = "research_agent"
 
     try:
-        from agents.research_executor import ResearchExecutor
+        from agents.research_agent import ResearchAgent
         from app.utils.supabase_client import supabase_admin_client as supabase
 
         # Get production basket
@@ -354,8 +354,8 @@ async def test_research_executor() -> TestResult:
         work_ticket_id = work_ticket_result.data[0]["id"]
         workspace_id = work_ticket_result.data[0].get("workspace_id", "test-workspace")
 
-        # Initialize executor
-        executor = ResearchExecutor(
+        # Initialize agent
+        agent = ResearchAgent(
             basket_id=production_basket_id,
             workspace_id=workspace_id,
             work_ticket_id=work_ticket_id,
@@ -363,7 +363,7 @@ async def test_research_executor() -> TestResult:
         )
 
         # Execute quick research task
-        result = await executor.execute(
+        result = await agent.execute(
             task="What is the current state of AI assistant technology? Provide 2 key findings.",
             research_scope="general",
             depth="quick",  # Minimal depth for fast testing
@@ -376,7 +376,7 @@ async def test_research_executor() -> TestResult:
             test_name=test_name,
             status="success" if len(result.work_outputs) > 0 else "warning",
             duration_ms=duration_ms,
-            message=f"ResearchExecutor completed with {len(result.work_outputs)} outputs",
+            message=f"ResearchAgent completed with {len(result.work_outputs)} outputs",
             details={
                 "outputs_created": len(result.work_outputs),
                 "work_outputs": result.work_outputs,
@@ -398,7 +398,7 @@ async def test_research_executor() -> TestResult:
             test_name=test_name,
             status="error",
             duration_ms=int((time.time() - start_time) * 1000),
-            message=f"ResearchExecutor test failed: {str(e)}",
+            message=f"ResearchAgent test failed: {str(e)}",
             details={
                 "error_type": type(e).__name__,
                 "error_message": str(e),
@@ -641,9 +641,9 @@ async def run_all_tests() -> TestSuiteResult:
     else:
         warnings += 1
 
-    # Test 4: ResearchExecutor
-    logger.info("Running test 4: research_executor")
-    result4 = await test_research_executor()
+    # Test 4: ResearchAgent
+    logger.info("Running test 4: research_agent")
+    result4 = await test_research_agent()
     results.append(result4)
     if result4.status == "success":
         passed += 1

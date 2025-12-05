@@ -2,6 +2,7 @@
 Recipe Tools for Thinking Partner Agent
 
 These tools allow TP to list available work recipes and trigger their execution.
+Recipes are loaded from the work_recipes database table (single source of truth).
 Recipe execution flows through the unified /api/work/queue endpoint.
 
 See:
@@ -46,13 +47,13 @@ Returns recipe slug, name, description, required context, and output types.""",
 The recipe will run asynchronously and produce work_outputs for review.
 You can check the status later or the user will see outputs in their supervision queue.
 
-Example: trigger_recipe(recipe_slug="deep_research", parameters={"topic": "AI agents"})""",
+Example: trigger_recipe(recipe_slug="research-deep-dive", parameters={"research_scope": "market trends"})""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "recipe_slug": {
                     "type": "string",
-                    "description": "The recipe identifier (e.g., 'deep_research', 'blog_post', 'competitor_analysis')"
+                    "description": "The recipe identifier (e.g., 'research-deep-dive', 'social-media-post', 'executive-summary-deck')"
                 },
                 "parameters": {
                     "type": "object",
@@ -67,76 +68,6 @@ Example: trigger_recipe(recipe_slug="deep_research", parameters={"topic": "AI ag
             "required": ["recipe_slug"]
         }
     }
-]
-
-# Available recipes (could be loaded from DB in future)
-AVAILABLE_RECIPES = [
-    {
-        "slug": "deep_research",
-        "name": "Deep Research",
-        "description": "Comprehensive research on a topic with web search and synthesis",
-        "category": "research",
-        "context_required": ["problem", "customer"],
-        "context_optional": ["competitor", "vision"],
-        "parameters": {
-            "topic": {"type": "string", "required": True, "description": "Research topic"},
-            "depth": {"type": "string", "enum": ["quick", "standard", "deep"], "default": "standard"},
-            "scope": {"type": "string", "enum": ["general", "competitor", "market", "technical"], "default": "general"},
-        },
-        "outputs": ["finding", "insight", "recommendation"],
-    },
-    {
-        "slug": "competitor_analysis",
-        "name": "Competitor Analysis",
-        "description": "Analyze a specific competitor's strengths, weaknesses, and positioning",
-        "category": "research",
-        "context_required": ["problem", "customer"],
-        "context_optional": ["competitor", "brand"],
-        "parameters": {
-            "competitor_name": {"type": "string", "required": True, "description": "Name of competitor to analyze"},
-            "focus_areas": {"type": "array", "items": {"type": "string"}, "description": "Specific areas to focus on"},
-        },
-        "outputs": ["finding", "insight", "competitor"],
-    },
-    {
-        "slug": "trend_digest",
-        "name": "Trend Digest",
-        "description": "Generate a digest of current trends in the user's market",
-        "category": "research",
-        "context_required": ["problem", "customer"],
-        "context_optional": ["competitor", "vision"],
-        "parameters": {
-            "timeframe": {"type": "string", "enum": ["week", "month", "quarter"], "default": "week"},
-        },
-        "outputs": ["trend_digest"],
-    },
-    {
-        "slug": "blog_post",
-        "name": "Blog Post",
-        "description": "Generate a blog post draft based on context and topic",
-        "category": "content",
-        "context_required": ["brand", "customer"],
-        "context_optional": ["problem", "vision"],
-        "parameters": {
-            "topic": {"type": "string", "required": True, "description": "Blog post topic"},
-            "tone": {"type": "string", "enum": ["professional", "casual", "technical"], "default": "professional"},
-            "length": {"type": "string", "enum": ["short", "medium", "long"], "default": "medium"},
-        },
-        "outputs": ["draft"],
-    },
-    {
-        "slug": "social_post",
-        "name": "Social Media Post",
-        "description": "Generate social media content for various platforms",
-        "category": "content",
-        "context_required": ["brand"],
-        "context_optional": ["customer", "problem"],
-        "parameters": {
-            "platform": {"type": "string", "enum": ["linkedin", "twitter", "facebook"], "required": True},
-            "topic": {"type": "string", "required": True},
-        },
-        "outputs": ["draft"],
-    },
 ]
 
 
@@ -186,37 +117,80 @@ async def list_recipes(
     category: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    List available work recipes.
+    List available work recipes from the database.
 
     Args:
-        category: Optional filter by category
+        category: Optional filter by category (research, content, reporting)
 
     Returns:
-        List of available recipes
+        List of available recipes with their metadata
     """
-    recipes = AVAILABLE_RECIPES
+    from app.utils.supabase_client import supabase_admin_client as supabase
 
-    if category:
-        recipes = [r for r in recipes if r["category"] == category]
+    try:
+        # Query work_recipes table
+        query = supabase.table("work_recipes").select(
+            "slug, name, description, category, agent_type, "
+            "context_requirements, configurable_parameters, "
+            "schedulable, default_frequency"
+        ).eq("status", "active")
 
-    # Format for agent consumption
-    formatted = []
-    for recipe in recipes:
-        formatted.append({
-            "slug": recipe["slug"],
-            "name": recipe["name"],
-            "description": recipe["description"],
-            "category": recipe["category"],
-            "context_required": recipe["context_required"],
-            "parameters": list(recipe["parameters"].keys()),
-            "outputs": recipe["outputs"],
-        })
+        if category:
+            query = query.eq("category", category)
 
-    return {
-        "recipes": formatted,
-        "count": len(formatted),
-        "categories": list(set(r["category"] for r in recipes)),
-    }
+        result = query.execute()
+
+        if not result.data:
+            return {
+                "recipes": [],
+                "count": 0,
+                "categories": [],
+                "message": "No recipes found. Recipes may need to be seeded in the database."
+            }
+
+        # Format for agent consumption
+        formatted = []
+        categories_seen = set()
+
+        for recipe in result.data:
+            categories_seen.add(recipe.get("category", ""))
+
+            # Extract context requirements
+            ctx_req = recipe.get("context_requirements", {}) or {}
+            required_context = ctx_req.get("required", [])
+            if isinstance(ctx_req.get("substrate_blocks"), dict):
+                # Some recipes use substrate_blocks format
+                required_context = ctx_req.get("substrate_blocks", {}).get("semantic_types", [])
+
+            # Extract parameter names
+            params = recipe.get("configurable_parameters", {}) or {}
+            param_names = list(params.keys())
+
+            formatted.append({
+                "slug": recipe["slug"],
+                "name": recipe["name"],
+                "description": recipe.get("description", ""),
+                "category": recipe.get("category", recipe.get("agent_type", "")),
+                "agent_type": recipe.get("agent_type", ""),
+                "context_required": required_context,
+                "parameters": param_names,
+                "schedulable": recipe.get("schedulable", True),
+                "default_frequency": recipe.get("default_frequency"),
+            })
+
+        return {
+            "recipes": formatted,
+            "count": len(formatted),
+            "categories": list(categories_seen),
+        }
+
+    except Exception as e:
+        logger.error(f"[list_recipes] Error loading recipes: {e}")
+        return {
+            "error": f"Failed to load recipes: {str(e)}",
+            "recipes": [],
+            "count": 0,
+        }
 
 
 async def trigger_recipe(
@@ -261,7 +235,7 @@ async def trigger_recipe(
             "priority": min(max(priority, 1), 10),
             "source": "schedule" if schedule_id else "thinking_partner",
             "tp_session_id": session_id,
-            "user_id": user_id,  # Required for service calls
+            "user_id": user_id,
             "workspace_id": workspace_id,
         }
 
@@ -273,7 +247,6 @@ async def trigger_recipe(
             }
 
         # Call unified queue endpoint
-        # Note: Using internal service auth (Bearer token from env)
         service_secret = os.getenv("SUBSTRATE_SERVICE_SECRET", "")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -294,28 +267,19 @@ async def trigger_recipe(
                 f"work_ticket={result.get('work_ticket_id')}"
             )
 
-            # Find recipe for display info
-            recipe = next((r for r in AVAILABLE_RECIPES if r["slug"] == recipe_slug), None)
-            recipe_name = recipe["name"] if recipe else recipe_slug
-
             return {
                 "success": True,
                 "work_request_id": result.get("work_request_id"),
                 "work_ticket_id": result.get("work_ticket_id"),
-                "recipe": {
-                    "slug": recipe_slug,
-                    "name": recipe_name,
-                },
+                "recipe_slug": recipe_slug,
                 "status": "queued",
                 "mode": mode,
                 "cycle_number": cycle_number if mode == "continuous" else None,
                 "schedule_id": schedule_id,
-                "message": result.get("message", f"Started {recipe_name}. The results will appear in your supervision queue when complete."),
-                "expected_outputs": recipe["outputs"] if recipe else [],
+                "message": result.get("message", f"Work queued. Results will appear in supervision queue."),
             }
 
         elif response.status_code == 400:
-            # Validation error (missing context, invalid params)
             error_data = response.json()
             return {
                 "error": error_data.get("detail", "Validation failed"),
@@ -325,14 +289,14 @@ async def trigger_recipe(
             }
 
         elif response.status_code == 404:
-            # Recipe not found
+            # Recipe not found - fetch available recipes for helpful error
+            available = await list_recipes()
             return {
                 "error": f"Recipe not found: {recipe_slug}",
-                "available_recipes": [r["slug"] for r in AVAILABLE_RECIPES],
+                "available_recipes": [r["slug"] for r in available.get("recipes", [])],
             }
 
         else:
-            # Other error
             logger.error(f"[trigger_recipe] Queue endpoint error: {response.status_code} - {response.text}")
             return {
                 "error": f"Failed to queue recipe: {response.status_code}",
@@ -340,13 +304,9 @@ async def trigger_recipe(
             }
 
     except httpx.TimeoutException:
-        logger.error(f"[trigger_recipe] Timeout calling queue endpoint")
+        logger.error("[trigger_recipe] Timeout calling queue endpoint")
         return {"error": "Request timed out. Please try again."}
 
     except Exception as e:
         logger.error(f"[trigger_recipe] Error: {e}")
         return {"error": f"Failed to trigger recipe: {str(e)}"}
-
-
-# Note: Context validation is now handled by the /api/work/queue endpoint
-# The _check_context_requirements function has been removed to avoid dual approaches

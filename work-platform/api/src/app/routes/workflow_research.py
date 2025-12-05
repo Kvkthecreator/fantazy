@@ -3,13 +3,13 @@ Deterministic Research Workflow Endpoint
 
 Part of Workflow-First Architecture:
 - Explicit parameters (no TP orchestration)
-- Direct specialist invocation via ResearchExecutor
+- Direct specialist invocation via ResearchAgent
 - Full context loading (on-demand substrate queries)
 - Auditable execution tracking
 - Optional recipe-driven execution (parameterized templates)
 
 Architecture (Post-SDK Removal):
-- Uses ResearchExecutor (direct Anthropic API, no Claude Agent SDK)
+- Uses ResearchAgent (direct Anthropic API, no Claude Agent SDK)
 - First-principled context: work-oriented, no conversation persistence
 - Tool execution via substrate-API HTTP calls
 """
@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 
 from app.utils.jwt import verify_jwt
 from app.utils.supabase_client import supabase_admin_client as supabase
-from agents.research_executor import ResearchExecutor, create_research_executor
+from agents.research_agent import ResearchAgent, create_research_agent
 from services.recipe_loader import RecipeLoader, RecipeValidationError
 import logging
 import time
@@ -226,7 +226,7 @@ async def execute_research_workflow(
             def execute_in_background():
                 try:
                     from app.utils.supabase_client import supabase_admin_client as bg_supabase
-                    from agents.research_executor import ResearchExecutor
+                    from agents.research_agent import ResearchAgent
 
                     # Update status to running
                     bg_supabase.table("work_tickets").update({
@@ -259,8 +259,8 @@ async def execute_research_workflow(
 {_execution_context.get('system_prompt_additions', '')}
 """
 
-                    # Create executor and run
-                    executor = ResearchExecutor(
+                    # Create agent and run
+                    agent = ResearchAgent(
                         basket_id=_basket_id,
                         workspace_id=_workspace_id,
                         work_ticket_id=_work_ticket_id,
@@ -269,7 +269,7 @@ async def execute_research_workflow(
                     )
 
                     start_time = time.time()
-                    result = bg_asyncio.run(executor.execute(
+                    result = bg_asyncio.run(agent.execute(
                         task=enhanced_task,
                         research_scope=_research_scope,
                         depth=_depth,
@@ -358,8 +358,8 @@ async def execute_research_workflow(
 {execution_context.get('system_prompt_additions', '')}
 """
 
-        # Create executor and run
-        executor = create_research_executor(
+        # Create agent and run
+        agent = create_research_agent(
             basket_id=request.basket_id,
             workspace_id=workspace_id,
             work_ticket_id=work_ticket_id,
@@ -368,7 +368,7 @@ async def execute_research_workflow(
         )
 
         start_time = time.time()
-        result = await executor.execute(
+        result = await agent.execute(
             task=enhanced_task,
             research_scope=request.research_scope,
             depth=request.depth,
