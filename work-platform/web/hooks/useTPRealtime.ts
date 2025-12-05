@@ -11,7 +11,7 @@
  * See: /docs/architecture/ADR_CONTEXT_ENTRIES.md
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createBrowserClient } from "@/lib/supabase/clients";
 
 // ============================================================================
@@ -51,6 +51,10 @@ export function useContextItemsRealtime(
   const [lastUpdate, setLastUpdate] = useState<RealtimeEvent<RealtimeContextItem> | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Use ref to avoid re-subscribing when callback changes
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
+
   useEffect(() => {
     if (!basketId) return;
 
@@ -76,7 +80,7 @@ export function useContextItemsRealtime(
           };
 
           setLastUpdate(event);
-          onUpdate?.(event);
+          onUpdateRef.current?.(event);
         }
       )
       .subscribe((status) => {
@@ -87,7 +91,7 @@ export function useContextItemsRealtime(
     return () => {
       channel.unsubscribe();
     };
-  }, [basketId, onUpdate]);
+  }, [basketId]); // Only depend on basketId, not the callback
 
   return {
     lastUpdate,
@@ -106,6 +110,10 @@ export function useWorkTicketsRealtime(
   const [lastUpdate, setLastUpdate] = useState<RealtimeEvent<RealtimeWorkTicket> | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [pendingTickets, setPendingTickets] = useState<RealtimeWorkTicket[]>([]);
+
+  // Use ref to avoid re-subscribing when callback changes
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
 
   useEffect(() => {
     if (!basketId) return;
@@ -133,7 +141,7 @@ export function useWorkTicketsRealtime(
 
           setLastUpdate(event);
           setPendingTickets(prev => [...prev, payload.new as RealtimeWorkTicket]);
-          onUpdate?.(event);
+          onUpdateRef.current?.(event);
         }
       )
       .on(
@@ -165,7 +173,7 @@ export function useWorkTicketsRealtime(
             );
           }
 
-          onUpdate?.(event);
+          onUpdateRef.current?.(event);
         }
       )
       .subscribe((status) => {
@@ -176,7 +184,7 @@ export function useWorkTicketsRealtime(
     return () => {
       channel.unsubscribe();
     };
-  }, [basketId, onUpdate]);
+  }, [basketId]); // Only depend on basketId, not the callback
 
   return {
     lastUpdate,
@@ -204,6 +212,10 @@ export function useTPMessagesRealtime(
 ) {
   const [isConnected, setIsConnected] = useState(false);
 
+  // Use ref to avoid re-subscribing when callback changes
+  const onNewMessageRef = useRef(onNewMessage);
+  onNewMessageRef.current = onNewMessage;
+
   useEffect(() => {
     if (!sessionId) return;
 
@@ -221,7 +233,7 @@ export function useTPMessagesRealtime(
         },
         (payload) => {
           console.log('[TPRealtime] New message:', payload.new);
-          onNewMessage?.(payload.new as RealtimeTPMessage);
+          onNewMessageRef.current?.(payload.new as RealtimeTPMessage);
         }
       )
       .subscribe((status) => {
@@ -232,7 +244,7 @@ export function useTPMessagesRealtime(
     return () => {
       channel.unsubscribe();
     };
-  }, [sessionId, onNewMessage]);
+  }, [sessionId]); // Only depend on sessionId, not the callback
 
   return {
     isConnected,
