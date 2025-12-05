@@ -102,3 +102,19 @@ services:
         value: https://www.yarnnn.com
       - key: CRON_SECRET
         sync: false
+
+  # Queue Processor - Cron job to execute pending work tickets
+  # Runs every 30 seconds, calls /api/work/process endpoint
+  # This is the unified execution engine for all work (manual, TP, scheduled)
+  - type: cron
+    name: yarnnn-queue-processor
+    env: node
+    schedule: "* * * * *"  # Every minute (Render minimum)
+    buildCommand: echo "No build needed"
+    startCommand: |
+      node -e "(async () => { const url = process.env.WORK_PLATFORM_URL + '/api/work/process'; const secret = process.env.CRON_SECRET; console.log('[QUEUE] Processing work queue at', new Date().toISOString()); try { const res = await fetch(url, { method: 'POST', headers: { 'Authorization': 'Bearer ' + secret, 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 5 }) }); const data = await res.json(); console.log('[QUEUE] Result:', JSON.stringify(data)); } catch (err) { console.error('[QUEUE] Error:', err.message); process.exit(1); } })();"
+    envVars:
+      - key: WORK_PLATFORM_URL
+        value: https://www.yarnnn.com
+      - key: CRON_SECRET
+        sync: false

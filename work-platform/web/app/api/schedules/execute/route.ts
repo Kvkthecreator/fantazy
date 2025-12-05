@@ -2,9 +2,11 @@
  * API Route: /api/schedules/execute
  *
  * Schedule executor endpoint - called by cron worker to process due schedules.
- * Creates work tickets for schedules where next_run_at <= now().
+ * Uses unified /api/work/queue endpoint to create work_request + work_ticket.
  *
  * Security: Requires CRON_SECRET header for authentication.
+ *
+ * See: /docs/architecture/ADR_UNIFIED_WORK_ORCHESTRATION.md
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -30,7 +32,55 @@ interface ScheduleRow {
   enabled: boolean;
   next_run_at: string;
   run_count: number;
-  work_recipes: WorkRecipe | null;  // Supabase single() relation
+  created_by: string | null;
+  work_recipes: WorkRecipe | null;
+}
+
+interface QueueResponse {
+  work_request_id: string;
+  work_ticket_id: string;
+  status: string;
+  message: string;
+}
+
+// Helper to call the unified queue endpoint
+async function queueWork(payload: {
+  basket_id: string;
+  recipe_slug: string;
+  parameters: Record<string, unknown>;
+  source: "schedule";
+  schedule_id: string;
+  user_id: string;
+  workspace_id: string;
+  scheduling_intent: { mode: "recurring" };
+}): Promise<{ success: boolean; data?: QueueResponse; error?: string }> {
+  try {
+    // Call our own queue endpoint internally
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000";
+
+    const serviceSecret = process.env.SUBSTRATE_SERVICE_SECRET || process.env.CRON_SECRET || "";
+
+    const response = await fetch(`${baseUrl}/api/work/queue`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${serviceSecret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (response.ok) {
+      const data = await response.json() as QueueResponse;
+      return { success: true, data };
+    } else {
+      const error = await response.json();
+      return { success: false, error: error.detail || `HTTP ${response.status}` };
+    }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
 }
 
 // POST /api/schedules/execute - Process all due schedules
@@ -72,6 +122,7 @@ export async function POST(request: NextRequest) {
         enabled,
         next_run_at,
         run_count,
+        created_by,
         work_recipes (
           id,
           slug,
@@ -103,7 +154,8 @@ export async function POST(request: NextRequest) {
 
     const results: Array<{
       schedule_id: string;
-      ticket_id?: string;
+      work_request_id?: string;
+      work_ticket_id?: string;
       status: "success" | "error";
       error?: string;
     }> = [];
@@ -137,53 +189,36 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Check for existing continuous ticket for this schedule
-        const { data: existingTicket } = await supabase
-          .from("work_tickets")
-          .select("id, cycle_number")
-          .eq("schedule_id", schedule.id)
-          .eq("mode", "continuous")
-          .order("cycle_number", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // Get user_id from schedule creator or basket owner
+        const userId = schedule.created_by || await getBasketOwner(supabase, schedule.basket_id);
 
-        const cycleNumber = existingTicket ? existingTicket.cycle_number + 1 : 1;
-
-        // Create work ticket
-        const ticketData = {
-          basket_id: schedule.basket_id,
-          workspace_id: basket.workspace_id,
-          agent_type: recipe.slug,
-          status: "pending",
-          priority: 5,
-          source: "schedule",
-          mode: "continuous",
-          schedule_id: schedule.id,
-          cycle_number: cycleNumber,
-          metadata: {
-            recipe_slug: recipe.slug,
-            recipe_name: recipe.name,
-            parameters: schedule.recipe_parameters,
-            context_required: recipe.context_requirements,
-            triggered_by: "schedule",
-            schedule_id: schedule.id,
-            triggered_at: now,
-            cycle_number: cycleNumber,
-          },
-        };
-
-        const { data: ticket, error: ticketError } = await supabase
-          .from("work_tickets")
-          .insert(ticketData)
-          .select("id")
-          .single();
-
-        if (ticketError) {
-          console.error(`[SCHEDULE EXECUTOR] Failed to create ticket for schedule ${schedule.id}:`, ticketError);
+        if (!userId) {
           results.push({
             schedule_id: schedule.id,
             status: "error",
-            error: ticketError.message,
+            error: "Could not determine user_id for schedule",
+          });
+          continue;
+        }
+
+        // Queue work via unified endpoint
+        const queueResult = await queueWork({
+          basket_id: schedule.basket_id,
+          recipe_slug: recipe.slug,
+          parameters: schedule.recipe_parameters || {},
+          source: "schedule",
+          schedule_id: schedule.id,
+          user_id: userId,
+          workspace_id: basket.workspace_id,
+          scheduling_intent: { mode: "recurring" },
+        });
+
+        if (!queueResult.success) {
+          console.error(`[SCHEDULE EXECUTOR] Failed to queue for schedule ${schedule.id}:`, queueResult.error);
+          results.push({
+            schedule_id: schedule.id,
+            status: "error",
+            error: queueResult.error,
           });
 
           // Update schedule with failure
@@ -204,7 +239,7 @@ export async function POST(request: NextRequest) {
           .update({
             last_run_at: now,
             last_run_status: "success",
-            last_run_ticket_id: ticket.id,
+            last_run_ticket_id: queueResult.data!.work_ticket_id,
             run_count: schedule.run_count + 1,
           })
           .eq("id", schedule.id);
@@ -213,11 +248,15 @@ export async function POST(request: NextRequest) {
           console.error(`[SCHEDULE EXECUTOR] Failed to update schedule ${schedule.id}:`, updateError);
         }
 
-        console.log(`[SCHEDULE EXECUTOR] Created ticket ${ticket.id} for schedule ${schedule.id} (cycle ${cycleNumber})`);
+        console.log(
+          `[SCHEDULE EXECUTOR] Queued work for schedule ${schedule.id}: ` +
+          `request=${queueResult.data!.work_request_id}, ticket=${queueResult.data!.work_ticket_id}`
+        );
 
         results.push({
           schedule_id: schedule.id,
-          ticket_id: ticket.id,
+          work_request_id: queueResult.data!.work_request_id,
+          work_ticket_id: queueResult.data!.work_ticket_id,
           status: "success",
         });
 
@@ -251,8 +290,22 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Helper to get basket owner
+async function getBasketOwner(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  basketId: string
+): Promise<string | null> {
+  const { data: basket } = await supabase
+    .from("baskets")
+    .select("created_by")
+    .eq("id", basketId)
+    .single();
+
+  return basket?.created_by || null;
+}
+
 // GET /api/schedules/execute - Health check / status
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = createServiceRoleClient();
 
@@ -269,10 +322,17 @@ export async function GET(request: NextRequest) {
       .select("*", { count: "exact", head: true })
       .eq("enabled", true);
 
+    // Count pending tickets in queue
+    const { count: pendingCount } = await supabase
+      .from("work_tickets")
+      .select("*", { count: "exact", head: true })
+      .eq("status", "pending");
+
     return NextResponse.json({
       status: "healthy",
       due_schedules: dueCount || 0,
       total_active_schedules: totalCount || 0,
+      pending_tickets: pendingCount || 0,
       checked_at: new Date().toISOString(),
     });
 

@@ -2,17 +2,22 @@
 Recipe Tools for Thinking Partner Agent
 
 These tools allow TP to list available work recipes and trigger their execution.
-Recipe execution creates work_tickets that are processed by the canonical queue.
+Recipe execution flows through the unified /api/work/queue endpoint.
 
-See: /docs/implementation/THINKING_PARTNER_IMPLEMENTATION_PLAN.md
+See:
+- /docs/architecture/ADR_UNIFIED_WORK_ORCHESTRATION.md
+- /docs/implementation/THINKING_PARTNER_IMPLEMENTATION_PLAN.md
 """
 
 import logging
-from datetime import datetime, timezone
+import os
 from typing import Any, Dict, List, Optional
-from uuid import uuid4
+import httpx
 
 logger = logging.getLogger(__name__)
+
+# Work Platform URL for internal API calls
+WORK_PLATFORM_URL = os.getenv("WORK_PLATFORM_URL", "http://localhost:3000")
 
 # Tool definitions for Anthropic API
 RECIPE_TOOLS = [
@@ -227,7 +232,10 @@ async def trigger_recipe(
     cycle_number: int = 1,
 ) -> Dict[str, Any]:
     """
-    Trigger a work recipe by creating a work_ticket.
+    Trigger a work recipe via the unified /api/work/queue endpoint.
+
+    This creates both a work_request (audit trail) and work_ticket (execution).
+    The queue processor will pick up pending tickets and execute them.
 
     Args:
         basket_id: Basket UUID
@@ -242,126 +250,103 @@ async def trigger_recipe(
         cycle_number: For continuous mode, which execution cycle this is
 
     Returns:
-        Result with work_ticket_id
+        Result with work_request_id and work_ticket_id
     """
-    from app.utils.supabase_client import supabase_admin_client as supabase
-
     try:
-        # Find recipe
-        recipe = next((r for r in AVAILABLE_RECIPES if r["slug"] == recipe_slug), None)
-
-        if not recipe:
-            available = [r["slug"] for r in AVAILABLE_RECIPES]
-            return {
-                "error": f"Unknown recipe: {recipe_slug}",
-                "available_recipes": available,
-            }
-
-        # Validate required parameters
-        missing_params = []
-        for param_name, param_def in recipe["parameters"].items():
-            if param_def.get("required") and param_name not in parameters:
-                missing_params.append(param_name)
-
-        if missing_params:
-            return {
-                "error": f"Missing required parameters: {missing_params}",
-                "recipe": recipe_slug,
-                "required_parameters": {
-                    k: v for k, v in recipe["parameters"].items()
-                    if v.get("required")
-                }
-            }
-
-        # Check context requirements
-        context_result = await _check_context_requirements(
-            supabase, basket_id, recipe["context_required"]
-        )
-
-        if context_result["missing"]:
-            return {
-                "error": f"Missing required context: {context_result['missing']}",
-                "recipe": recipe_slug,
-                "message": f"Please fill in {', '.join(context_result['missing'])} context before running this recipe.",
-                "suggestion": "Use write_context to add the missing context items."
-            }
-
-        # Determine source based on schedule
-        source = "schedule" if schedule_id else "thinking_partner"
-
-        # Create work ticket
-        ticket_data = {
+        # Build request payload for unified queue endpoint
+        queue_payload = {
             "basket_id": basket_id,
-            "workspace_id": workspace_id,
-            "agent_type": recipe_slug,  # Use recipe slug as agent type
-            "status": "pending",
+            "recipe_slug": recipe_slug,
+            "parameters": parameters,
             "priority": min(max(priority, 1), 10),
-            "source": source,
-            "mode": mode,
-            "cycle_number": cycle_number,
-            "metadata": {
-                "recipe_slug": recipe_slug,
-                "recipe_name": recipe["name"],
-                "parameters": parameters,
-                "context_required": recipe["context_required"],
-                "triggered_by": "schedule" if schedule_id else "thinking_partner",
-                "tp_session_id": session_id,
-                "triggered_at": datetime.now(timezone.utc).isoformat(),
-            }
+            "source": "schedule" if schedule_id else "thinking_partner",
+            "tp_session_id": session_id,
+            "user_id": user_id,  # Required for service calls
+            "workspace_id": workspace_id,
         }
 
-        # Add schedule_id if provided
+        # Add schedule info if provided
         if schedule_id:
-            ticket_data["schedule_id"] = schedule_id
+            queue_payload["schedule_id"] = schedule_id
+            queue_payload["scheduling_intent"] = {
+                "mode": "recurring" if mode == "continuous" else "one_shot",
+            }
 
-        result = supabase.table("work_tickets").insert(ticket_data).execute()
+        # Call unified queue endpoint
+        # Note: Using internal service auth (Bearer token from env)
+        service_secret = os.getenv("SUBSTRATE_SERVICE_SECRET", "")
 
-        if not result.data:
-            return {"error": "Failed to create work ticket"}
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{WORK_PLATFORM_URL}/api/work/queue",
+                json=queue_payload,
+                headers={
+                    "Authorization": f"Bearer {service_secret}",
+                    "Content-Type": "application/json",
+                },
+            )
 
-        ticket_id = result.data[0]["id"]
-        logger.info(f"[trigger_recipe] Created work_ticket {ticket_id} for {recipe_slug}")
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(
+                f"[trigger_recipe] Queued {recipe_slug}: "
+                f"work_request={result.get('work_request_id')}, "
+                f"work_ticket={result.get('work_ticket_id')}"
+            )
 
-        return {
-            "success": True,
-            "work_ticket_id": ticket_id,
-            "recipe": {
-                "slug": recipe_slug,
-                "name": recipe["name"],
-            },
-            "status": "queued",
-            "mode": mode,
-            "cycle_number": cycle_number if mode == "continuous" else None,
-            "schedule_id": schedule_id,
-            "message": f"Started {recipe['name']}. The results will appear in your supervision queue when complete.",
-            "expected_outputs": recipe["outputs"],
-        }
+            # Find recipe for display info
+            recipe = next((r for r in AVAILABLE_RECIPES if r["slug"] == recipe_slug), None)
+            recipe_name = recipe["name"] if recipe else recipe_slug
+
+            return {
+                "success": True,
+                "work_request_id": result.get("work_request_id"),
+                "work_ticket_id": result.get("work_ticket_id"),
+                "recipe": {
+                    "slug": recipe_slug,
+                    "name": recipe_name,
+                },
+                "status": "queued",
+                "mode": mode,
+                "cycle_number": cycle_number if mode == "continuous" else None,
+                "schedule_id": schedule_id,
+                "message": result.get("message", f"Started {recipe_name}. The results will appear in your supervision queue when complete."),
+                "expected_outputs": recipe["outputs"] if recipe else [],
+            }
+
+        elif response.status_code == 400:
+            # Validation error (missing context, invalid params)
+            error_data = response.json()
+            return {
+                "error": error_data.get("detail", "Validation failed"),
+                "recipe": recipe_slug,
+                "missing_context": error_data.get("missing_context"),
+                "suggestion": "Use write_context to add the missing context items." if error_data.get("missing_context") else None,
+            }
+
+        elif response.status_code == 404:
+            # Recipe not found
+            return {
+                "error": f"Recipe not found: {recipe_slug}",
+                "available_recipes": [r["slug"] for r in AVAILABLE_RECIPES],
+            }
+
+        else:
+            # Other error
+            logger.error(f"[trigger_recipe] Queue endpoint error: {response.status_code} - {response.text}")
+            return {
+                "error": f"Failed to queue recipe: {response.status_code}",
+                "details": response.text[:200] if response.text else None,
+            }
+
+    except httpx.TimeoutException:
+        logger.error(f"[trigger_recipe] Timeout calling queue endpoint")
+        return {"error": "Request timed out. Please try again."}
 
     except Exception as e:
         logger.error(f"[trigger_recipe] Error: {e}")
         return {"error": f"Failed to trigger recipe: {str(e)}"}
 
 
-async def _check_context_requirements(
-    supabase,
-    basket_id: str,
-    required_types: List[str],
-) -> Dict[str, Any]:
-    """Check if required context items exist."""
-    result = (
-        supabase.table("context_items")
-        .select("item_type")
-        .eq("basket_id", basket_id)
-        .in_("item_type", required_types)
-        .eq("status", "active")
-        .execute()
-    )
-
-    existing = {item["item_type"] for item in result.data or []}
-    missing = [t for t in required_types if t not in existing]
-
-    return {
-        "existing": list(existing),
-        "missing": missing,
-        "complete": len(missing) == 0,
-    }
+# Note: Context validation is now handled by the /api/work/queue endpoint
+# The _check_context_requirements function has been removed to avoid dual approaches
