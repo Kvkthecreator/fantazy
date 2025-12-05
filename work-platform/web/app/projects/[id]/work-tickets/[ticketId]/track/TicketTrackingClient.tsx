@@ -6,7 +6,7 @@ import { createBrowserClient } from "@/lib/supabase/clients";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { ArrowLeft, Download, RefreshCw, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText, Calendar, Bot, User, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Download, RefreshCw, CheckCircle2, XCircle, Loader2, Clock, AlertTriangle, FileText, Calendar, Bot, User, Sparkles, ChevronDown, ChevronUp, Image as ImageIcon, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -419,6 +419,22 @@ function OutputCard({ output, basketId, projectId }: { output: WorkOutput; baske
   const isPending = supervisionStatus === 'pending_review';
   const isApproved = supervisionStatus === 'approved';
 
+  // Check if this is an image asset (content_asset with image in body)
+  const isImageAsset = output.output_type === 'content_asset';
+  let imageUrl: string | null = null;
+  let parsedBody: Record<string, any> | null = null;
+
+  if (output.body) {
+    try {
+      parsedBody = JSON.parse(output.body);
+      if (parsedBody?.asset_type === 'image' && parsedBody?.url) {
+        imageUrl = parsedBody.url;
+      }
+    } catch {
+      // Not JSON
+    }
+  }
+
   const handleDownload = async () => {
     if (!isFileOutput) return;
 
@@ -523,8 +539,44 @@ function OutputCard({ output, basketId, projectId }: { output: WorkOutput; baske
         </div>
       </div>
 
-      {/* Preview body for text outputs */}
-      {!isFileOutput && output.body && (
+      {/* Image preview for content_asset with image */}
+      {imageUrl && (
+        <div className="space-y-2">
+          <div className="relative rounded-lg overflow-hidden bg-muted border">
+            <img
+              src={imageUrl}
+              alt={output.title}
+              className="w-full h-auto max-h-80 object-contain"
+              onError={(e) => {
+                // Hide broken image and show fallback
+                (e.target as HTMLImageElement).style.display = 'none';
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={imageUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Open in new tab
+            </a>
+            <a
+              href={imageUrl}
+              download={`${output.title}.png`}
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <Download className="h-3 w-3" />
+              Download image
+            </a>
+          </div>
+        </div>
+      )}
+
+      {/* Preview body for text outputs (skip if image already shown) */}
+      {!isFileOutput && output.body && !imageUrl && (
         <OutputBodyPreview body={output.body} />
       )}
 
