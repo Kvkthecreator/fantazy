@@ -1,16 +1,17 @@
 """
-Gemini Client - Text + Image Generation via Gemini 2.5 Flash
+Gemini Client - Text + Image Generation
 
 Supports:
-- Text generation (chat/completion)
-- Image generation from text prompts
+- Text generation (chat/completion) via gemini-2.5-flash
+- Image generation from text prompts via gemini-2.5-flash-image
 - Text + Image combined generation
 - Tool calling (function calling)
 
-Model: gemini-2.0-flash-preview-image-generation (gemini-2.0-flash with image generation)
-SDK: google-genai (Python)
+Models:
+- Text: gemini-2.5-flash (fast, high quality)
+- Image: gemini-2.5-flash-image (unified text + image output)
 
-Key Benefit: Single model for both text AND image generation.
+SDK: google-genai (Python)
 
 Usage:
     from clients.gemini_client import GeminiClient
@@ -41,9 +42,11 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Gemini model for text + image generation
-# Using gemini-2.0-flash which supports image generation via generateContent
-GEMINI_MODEL = "gemini-2.0-flash-preview-image-generation"
+# Gemini models
+# Text generation: gemini-2.5-flash (fast, high quality)
+# Image generation: gemini-2.5-flash-image (unified text + image output)
+GEMINI_TEXT_MODEL = "gemini-2.5-flash"
+GEMINI_IMAGE_MODEL = "gemini-2.5-flash-image"
 
 
 @dataclass
@@ -65,7 +68,7 @@ class GeminiExecutionResult:
     image: Optional[ImageResult] = None
     input_tokens: int = 0
     output_tokens: int = 0
-    model: str = GEMINI_MODEL
+    model: str = GEMINI_TEXT_MODEL
 
 
 class GeminiClient:
@@ -73,8 +76,8 @@ class GeminiClient:
     Gemini API client for text and image generation.
 
     Key Features:
-    - Text generation via generateContent
-    - Image generation via generateContent with response_modalities
+    - Text generation via generateContent (gemini-2.5-flash)
+    - Image generation via generateContent with response_modalities (gemini-2.0-flash-exp-image-generation)
     - Combined text + image generation for content workflows
     - Async-first design
     """
@@ -82,26 +85,29 @@ class GeminiClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = GEMINI_MODEL,
+        text_model: str = GEMINI_TEXT_MODEL,
+        image_model: str = GEMINI_IMAGE_MODEL,
     ):
         """
         Initialize Gemini client.
 
         Args:
             api_key: Gemini API key (from env if None)
-            model: Gemini model to use
+            text_model: Gemini model for text generation
+            image_model: Gemini model for image generation
         """
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY required")
 
-        self.model = model
+        self.text_model = text_model
+        self.image_model = image_model
 
         # Initialize Google GenAI client
         try:
             from google import genai
             self.client = genai.Client(api_key=self.api_key)
-            logger.info(f"GeminiClient initialized: model={model}")
+            logger.info(f"GeminiClient initialized: text={text_model}, image={image_model}")
         except ImportError:
             raise ImportError(
                 "google-genai package required. Install with: pip install google-genai"
@@ -137,7 +143,7 @@ class GeminiClient:
 
             # Generate content
             response = self.client.models.generate_content(
-                model=self.model,
+                model=self.text_model,
                 contents=prompt,
                 config=config,
             )
@@ -187,7 +193,7 @@ class GeminiClient:
 
             # Generate content with image
             response = self.client.models.generate_content(
-                model=self.model,
+                model=self.image_model,
                 contents=f"Generate an image: {prompt}. Aspect ratio: {aspect_ratio}.",
                 config=config,
             )
@@ -246,7 +252,7 @@ class GeminiClient:
             f"image={generate_image}"
         )
 
-        result = GeminiExecutionResult(model=self.model)
+        result = GeminiExecutionResult(model=self.text_model)
 
         # Generate text content
         result.text = await self.generate_text(

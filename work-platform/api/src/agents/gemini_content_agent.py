@@ -1,13 +1,15 @@
 """
 Gemini Content Agent - Text + Image Generation
 
-Uses Gemini 2.0 Flash for unified content creation:
+Uses Gemini models for unified content creation:
+- Text: gemini-2.5-flash (fast, high quality)
+- Image: gemini-2.5-flash-image (native image output)
+
+Content types:
 - Social media posts (LinkedIn, Twitter/X, Instagram)
 - Blog articles
 - Marketing content
-- Generated images for content
-
-Key Benefit: Single model generates both text AND images.
+- AI-generated images for content
 
 Architecture:
 - Uses GeminiClient for generation (not Anthropic)
