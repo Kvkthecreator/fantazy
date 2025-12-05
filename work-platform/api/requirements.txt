@@ -41,6 +41,7 @@ pre-commit
 
 # ── LLM integrations (using PyPI versions for stability) ──────────────
 openai>=1.66.5
+google-genai>=1.0.0  # Gemini for content agent (text + image generation)
 
 # ── Documentation tooling ─────────────────────────────────────────────  
 griffe>=1.5.6,<2

@@ -3,13 +3,15 @@ Deterministic Content Workflow Endpoint
 
 Part of Workflow-First Architecture:
 - Explicit parameters (no TP orchestration)
-- Direct specialist invocation via ContentAgent
+- Direct specialist invocation via ContentAgent or GeminiContentAgent
 - Full context loading (brand voice, prior content)
 - Auditable execution tracking
 - Optional recipe-driven execution (parameterized templates)
 
-Architecture (Post-SDK Removal):
-- Uses ContentAgent (direct Anthropic API, no Claude Agent SDK)
+Architecture:
+- Multi-provider support via get_content_agent() factory
+- Default: GeminiContentAgent (text + image generation)
+- Fallback: ContentAgent (Anthropic, text only)
 - Work-oriented context: brand voice, prior content, target audience
 - Tool execution via emit_work_output for supervision workflow
 """
@@ -22,7 +24,7 @@ from datetime import datetime, timezone
 
 from app.utils.jwt import verify_jwt
 from app.utils.supabase_client import supabase_admin_client as supabase
-from agents.content_agent import ContentAgent, create_content_agent
+from agents import get_content_agent
 from services.recipe_loader import RecipeLoader, RecipeValidationError
 import logging
 import time
@@ -43,6 +45,13 @@ class ContentWorkflowRequest(BaseModel):
     variant_count: Optional[int] = 2
     enable_web_search: Optional[bool] = False
     priority: Optional[int] = 5
+
+    # Image generation (Gemini only)
+    include_image: Optional[bool] = None  # Auto-determined if None
+    image_style: Optional[str] = "modern professional"  # Style for generated images
+
+    # Provider selection
+    provider: Optional[str] = None  # "gemini" (default) or "anthropic"
 
     # Recipe integration (optional)
     recipe_id: Optional[str] = None  # Recipe UUID or slug
@@ -230,6 +239,9 @@ async def execute_content_workflow(
             _create_variants = request.create_variants
             _variant_count = request.variant_count
             _enable_web_search = request.enable_web_search
+            _include_image = request.include_image  # Gemini image generation
+            _image_style = request.image_style
+            _provider = request.provider  # Provider selection (gemini/anthropic)
             _recipe = recipe
             _execution_context = execution_context
             _validated_params = validated_params
@@ -297,13 +309,16 @@ async def execute_content_workflow(
                         "activeForm": "Loading brand voice and prior content",
                     })
 
-                    # Create executor and run
-                    executor = ContentAgent(
+                    # Create executor via factory (Gemini or Anthropic)
+                    from agents import get_content_agent
+                    from agents.gemini_content_agent import GeminiContentAgent
+                    executor = get_content_agent(
                         basket_id=_basket_id,
                         workspace_id=_workspace_id,
                         work_ticket_id=_work_ticket_id,
                         user_id=_user_id,
                         user_jwt=_user_token,
+                        provider=_provider,
                     )
 
                     # Emit generation update
@@ -315,16 +330,31 @@ async def execute_content_workflow(
                     })
 
                     start_time = time.time()
-                    result = loop.run_until_complete(executor.execute(
-                        task=enhanced_task,
-                        content_type=_content_type,
-                        tone=_tone,
-                        target_audience=_target_audience,
-                        brand_voice=_brand_voice,
-                        create_variants=_create_variants,
-                        variant_count=_variant_count,
-                        enable_web_search=_enable_web_search,
-                    ))
+
+                    # Execute based on provider type
+                    if isinstance(executor, GeminiContentAgent):
+                        result = loop.run_until_complete(executor.execute(
+                            task=enhanced_task,
+                            content_type=_content_type,
+                            tone=_tone,
+                            target_audience=_target_audience,
+                            brand_voice=_brand_voice,
+                            include_image=_include_image,
+                            image_style=_image_style,
+                            create_variants=_create_variants,
+                            variant_count=_variant_count,
+                        ))
+                    else:
+                        result = loop.run_until_complete(executor.execute(
+                            task=enhanced_task,
+                            content_type=_content_type,
+                            tone=_tone,
+                            target_audience=_target_audience,
+                            brand_voice=_brand_voice,
+                            create_variants=_create_variants,
+                            variant_count=_variant_count,
+                            enable_web_search=_enable_web_search,
+                        ))
                     execution_time_ms = int((time.time() - start_time) * 1000)
 
                     # Emit completion update
@@ -439,26 +469,45 @@ async def execute_content_workflow(
 {execution_context.get('system_prompt_additions', '')}
 """
 
-        # Create executor and run
-        executor = create_content_agent(
+        # Create executor via factory (Gemini or Anthropic based on provider)
+        executor = get_content_agent(
             basket_id=request.basket_id,
             workspace_id=workspace_id,
             work_ticket_id=work_ticket_id,
             user_id=user_id,
             user_jwt=user_token,
+            provider=request.provider,
         )
 
         start_time = time.time()
-        result = await executor.execute(
-            task=enhanced_task,
-            content_type=request.content_type,
-            tone=request.tone,
-            target_audience=request.target_audience,
-            brand_voice=request.brand_voice,
-            create_variants=request.create_variants,
-            variant_count=request.variant_count,
-            enable_web_search=request.enable_web_search,
-        )
+
+        # Execute based on provider type
+        from agents.gemini_content_agent import GeminiContentAgent
+        if isinstance(executor, GeminiContentAgent):
+            # Gemini agent (text + image)
+            result = await executor.execute(
+                task=enhanced_task,
+                content_type=request.content_type,
+                tone=request.tone,
+                target_audience=request.target_audience,
+                brand_voice=request.brand_voice,
+                include_image=request.include_image,
+                image_style=request.image_style,
+                create_variants=request.create_variants,
+                variant_count=request.variant_count,
+            )
+        else:
+            # Anthropic agent (text only)
+            result = await executor.execute(
+                task=enhanced_task,
+                content_type=request.content_type,
+                tone=request.tone,
+                target_audience=request.target_audience,
+                brand_voice=request.brand_voice,
+                create_variants=request.create_variants,
+                variant_count=request.variant_count,
+                enable_web_search=request.enable_web_search,
+            )
         execution_time_ms = int((time.time() - start_time) * 1000)
 
         # Update to completed

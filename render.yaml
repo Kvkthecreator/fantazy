@@ -13,6 +13,8 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false  # Phase 4: For Claude Agent SDK
+      - key: GEMINI_API_KEY
+        sync: false  # For Gemini Content Agent (text + image)
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
