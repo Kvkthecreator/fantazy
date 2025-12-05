@@ -12,7 +12,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { ArrowLeft, FileText, FileSpreadsheet, Presentation, Search, PenTool, BarChart3 } from 'lucide-react';
+import { ArrowLeft, FileText, FileSpreadsheet, Presentation, Search, PenTool, BarChart3, ImageIcon } from 'lucide-react';
 import { cn } from "@/lib/utils";
 
 interface PageProps {
@@ -26,6 +26,7 @@ const FORMAT_ICONS = {
   xlsx: FileSpreadsheet,
   markdown: FileText,
   docx: FileText,
+  'TXT+IMG': ImageIcon,
 } as const;
 
 const COLOR_STYLES = {
@@ -89,6 +90,7 @@ export default async function WorkRecipeGalleryPage({ params }: PageProps) {
     'pptx': 'PPTX',
     'markdown': 'MD',
     'text': 'TXT',
+    'text+image': 'TXT+IMG',
     'brand_guidelines': 'DOC',
     'competitive_analysis': 'DOC',
     'structured_analysis': 'DOC',

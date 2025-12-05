@@ -89,6 +89,7 @@ export default async function RecipeConfigurePage({ params, searchParams }: Page
     'pptx': 'PPTX',
     'markdown': 'MD',
     'text': 'TXT',
+    'text+image': 'TXT+IMG',
     'brand_guidelines': 'DOC',
     'competitive_analysis': 'DOC',
     'structured_analysis': 'DOC',
