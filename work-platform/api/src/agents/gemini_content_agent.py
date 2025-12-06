@@ -88,6 +88,7 @@ class GeminiAgentResult:
     text_content: str = ""
     image_url: Optional[str] = None
     image_asset_id: Optional[str] = None
+    image_storage_path: Optional[str] = None  # Permanent path for on-demand URL generation
     work_outputs: List[Dict[str, Any]] = field(default_factory=list)
     input_tokens: int = 0
     output_tokens: int = 0
@@ -226,13 +227,14 @@ class GeminiContentAgent:
         # Store image if generated
         if gemini_result.image and gemini_result.image.base64_data:
             try:
-                image_url, asset_id = await self._store_generated_image(
+                image_url, asset_id, storage_path = await self._store_generated_image(
                     gemini_result.image.base64_data,
                     gemini_result.image.mime_type,
                 )
                 result.image_url = image_url
                 result.image_asset_id = asset_id
-                logger.info(f"[GEMINI CONTENT] Image stored: {asset_id}")
+                result.image_storage_path = storage_path
+                logger.info(f"[GEMINI CONTENT] Image stored: {storage_path}")
             except Exception as e:
                 logger.warning(f"[GEMINI CONTENT] Image storage failed: {e}")
 
@@ -241,6 +243,7 @@ class GeminiContentAgent:
             text_content=gemini_result.text,
             content_type=content_type,
             image_url=result.image_url,
+            image_storage_path=result.image_storage_path,
             image_comment=gemini_result.image.model_comment if gemini_result.image else None,
         )
         result.work_outputs = work_outputs
@@ -401,7 +404,7 @@ Blog Article:
         self,
         image_data: bytes | str,
         mime_type: str,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, str, str]:
         """
         Store generated image in Supabase Storage.
 
@@ -410,7 +413,10 @@ Blog Article:
             mime_type: Image MIME type
 
         Returns:
-            Tuple of (signed_url, asset_id)
+            Tuple of (signed_url, asset_id, storage_path)
+            - signed_url: Short-lived URL for immediate display
+            - asset_id: Unique ID for the asset
+            - storage_path: Permanent path in storage (use this for persistent references)
         """
         from app.utils.supabase_client import supabase_admin_client as supabase
 
@@ -442,7 +448,8 @@ Blog Article:
                 },
             )
 
-            # Get signed URL (1 hour expiry)
+            # Get signed URL (1 hour expiry) for immediate display
+            # NOTE: For persistent storage, use storage_path and generate fresh URLs on-demand
             signed_result = supabase.storage.from_(STORAGE_BUCKET).create_signed_url(
                 path=storage_path,
                 expires_in=3600,
@@ -451,7 +458,7 @@ Blog Article:
             signed_url = signed_result.get("signedURL") or signed_result.get("signedUrl")
 
             logger.info(f"[GEMINI CONTENT] Image uploaded: {storage_path}")
-            return signed_url, asset_id
+            return signed_url, asset_id, storage_path
 
         except Exception as e:
             logger.error(f"[GEMINI CONTENT] Image upload failed: {e}")
@@ -462,6 +469,7 @@ Blog Article:
         text_content: str,
         content_type: str,
         image_url: Optional[str],
+        image_storage_path: Optional[str],
         image_comment: Optional[str],
     ) -> List[Dict[str, Any]]:
         """
@@ -470,7 +478,8 @@ Blog Article:
         Args:
             text_content: Generated text content
             content_type: Content type
-            image_url: Optional generated image URL
+            image_url: Optional generated image URL (short-lived, for immediate display)
+            image_storage_path: Optional storage path (permanent, for on-demand URL generation)
             image_comment: Optional model comment about image
 
         Returns:
@@ -495,13 +504,15 @@ Blog Article:
             work_outputs.append(content_output)
 
         # Image output (if generated)
-        if image_url:
+        if image_url or image_storage_path:
             image_output = await self._emit_work_output(
                 output_type="content_asset",
                 title="Generated Image",
                 body={
                     "asset_type": "image",
-                    "url": image_url,
+                    "url": image_url,  # Short-lived signed URL for immediate display
+                    "storage_path": image_storage_path,  # Permanent path for on-demand URL generation
+                    "storage_bucket": STORAGE_BUCKET,  # Bucket name for URL generation
                     "model_comment": image_comment,
                     "generated_by": "gemini",
                     "for_content_type": content_type,

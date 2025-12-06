@@ -414,6 +414,8 @@ function OutputCard({ output, basketId, projectId }: { output: WorkOutput; baske
   const isFileOutput = output.file_id && output.file_format;
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [refreshingUrl, setRefreshingUrl] = useState(false);
+  const [freshImageUrl, setFreshImageUrl] = useState<string | null>(null);
 
   const supervisionStatus = output.supervision_status || 'pending_review';
   const isPending = supervisionStatus === 'pending_review';
@@ -421,19 +423,47 @@ function OutputCard({ output, basketId, projectId }: { output: WorkOutput; baske
 
   // Check if this is an image asset (content_asset with image in body)
   const isImageAsset = output.output_type === 'content_asset';
-  let imageUrl: string | null = null;
   let parsedBody: Record<string, any> | null = null;
 
   if (output.body) {
     try {
       parsedBody = JSON.parse(output.body);
-      if (parsedBody?.asset_type === 'image' && parsedBody?.url) {
-        imageUrl = parsedBody.url;
-      }
     } catch {
       // Not JSON
     }
   }
+
+  // Use fresh URL if available, otherwise use original
+  const imageUrl = freshImageUrl || (parsedBody?.asset_type === 'image' ? parsedBody?.url : null);
+  const storagePath = parsedBody?.storage_path;
+  const storageBucket = parsedBody?.storage_bucket || 'yarnnn-assets';
+
+  // Handle image load error - fetch fresh signed URL if storage_path available
+  const handleImageError = async () => {
+    if (storagePath && !refreshingUrl && !freshImageUrl) {
+      setRefreshingUrl(true);
+      try {
+        const response = await fetch('/api/storage/signed-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            storage_path: storagePath,
+            bucket: storageBucket,
+            expires_in: 3600,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setFreshImageUrl(data.signed_url);
+        }
+      } catch (err) {
+        console.error('[OutputCard] Failed to refresh image URL:', err);
+      } finally {
+        setRefreshingUrl(false);
+      }
+    }
+  };
 
   const handleDownload = async () => {
     if (!isFileOutput) return;
@@ -540,38 +570,44 @@ function OutputCard({ output, basketId, projectId }: { output: WorkOutput; baske
       </div>
 
       {/* Image preview for content_asset with image */}
-      {imageUrl && (
+      {(imageUrl || refreshingUrl) && (
         <div className="space-y-2">
           <div className="relative rounded-lg overflow-hidden bg-muted border">
-            <img
-              src={imageUrl}
-              alt={output.title}
-              className="w-full h-auto max-h-80 object-contain"
-              onError={(e) => {
-                // Hide broken image and show fallback
-                (e.target as HTMLImageElement).style.display = 'none';
-              }}
-            />
+            {refreshingUrl ? (
+              <div className="flex items-center justify-center h-40 text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <span className="text-sm">Refreshing image...</span>
+              </div>
+            ) : (
+              <img
+                src={imageUrl!}
+                alt={output.title}
+                className="w-full h-auto max-h-80 object-contain"
+                onError={handleImageError}
+              />
+            )}
           </div>
-          <div className="flex items-center gap-2">
-            <a
-              href={imageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Open in new tab
-            </a>
-            <a
-              href={imageUrl}
-              download={`${output.title}.png`}
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-            >
-              <Download className="h-3 w-3" />
-              Download image
-            </a>
-          </div>
+          {imageUrl && !refreshingUrl && (
+            <div className="flex items-center gap-2">
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Open in new tab
+              </a>
+              <a
+                href={imageUrl}
+                download={`${output.title}.png`}
+                className="text-xs text-primary hover:underline flex items-center gap-1"
+              >
+                <Download className="h-3 w-3" />
+                Download image
+              </a>
+            </div>
+          )}
         </div>
       )}
 
