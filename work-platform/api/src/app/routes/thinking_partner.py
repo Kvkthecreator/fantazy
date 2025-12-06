@@ -255,7 +255,8 @@ def _build_context_prompt(context: Dict[str, Any]) -> str:
     if context["working"]:
         working_items = []
         for item in context["working"]:
-            item_str = f"- {item['title'] or item['type'].title()} (completeness: {int(item['completeness'] * 100)}%)"
+            completeness = item.get('completeness') or 0
+            item_str = f"- {item['title'] or item['type'].title()} (completeness: {int(completeness * 100)}%)"
             working_items.append(item_str)
 
         sections.append(
