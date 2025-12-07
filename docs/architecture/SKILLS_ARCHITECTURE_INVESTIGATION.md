@@ -1,467 +1,455 @@
-# Skills Architecture Investigation - Complete Findings
+# Skills Architecture - Implementation Guide
 
-**Date**: 2025-11-24
-**Context**: Investigating why PPTX generation via Skills is not working in production
-**Objective**: Determine correct path to enable Anthropic pre-built Skills in Claude Agent SDK
+**Date**: 2025-12-07 (Updated)
+**Status**: VERIFIED WORKING
+**Context**: Claude Skills API for document generation (PDF, XLSX, DOCX, PPTX)
 
 ---
-
-URLS to check in future:
-https://platform.claude.com/docs/en/agent-sdk/skills
-https://code.claude.com/docs/en/skills
-https://github.com/anthropics/claude-cookbooks/tree/main/skills
-https://claude.com/blog/how-to-create-skills-key-steps-limitations-and-examples
-
 
 ## Executive Summary
 
-**CONFIRMED**: The Claude Agent SDK (v0.1.8) does NOT have built-in access to Anthropic's pre-built document skills (pptx, pdf, xlsx, docx). These skills are only available via:
+**CONFIRMED WORKING**: Claude's Skills API generates real files (PDF, XLSX, DOCX, PPTX) via the Anthropic API with proper beta headers. Files are downloaded via a separate Files API endpoint.
 
-1. **Claude API** (Messages/Completions) - Direct access via `container` parameter
-2. **Claude.ai** - Pre-built skills available to paid subscribers
-3. **Claude Code** - Can install via plugin marketplace: `/plugin install document-skills@anthropic-agent-skills`
+**Key Discovery**: The Skills API returns `file_id` references, not raw file bytes. You must use the Files API (`files-api-2025-04-14` beta) to download the actual file content.
 
-**Our Current Stack**: Claude Agent SDK v0.1.8 with `ClaudeSDKClient` (correct for session management, subagents, MCP tools)
-
-**The Solution**: Install document-skills as filesystem-based custom skills in production environment
+**Implementation**: See `ReportingAgent` in `work-platform/api/src/agents/reporting_agent.py`
 
 ---
 
-## 1. Technical Investigation Results
+## 1. API Architecture
 
-### 1.1 What Each Platform Supports
+### 1.1 Required Beta Headers
 
-| Platform | Pre-built Skills (pptx/pdf/xlsx/docx) | Custom Skills (filesystem) | Session Management | MCP Tools |
-|----------|--------------------------------------|----------------------------|-------------------|-----------|
-| **Claude API** | ✅ Via `container` parameter | ❌ No | ❌ No | ❌ No |
-| **Claude Agent SDK** | ❌ Not built-in | ✅ Via `.claude/skills/` | ✅ Yes | ✅ Yes |
-| **Claude Code** | ✅ Via plugins | ✅ Via `.claude/skills/` | ✅ Yes | ✅ Yes |
-| **Claude.ai** | ✅ Built-in for paid users | ✅ Can upload | N/A | N/A |
+| Beta Header | Purpose | Required For |
+|-------------|---------|--------------|
+| `code-execution-2025-08-25` | Enables code execution in container | Skills execution |
+| `skills-2025-10-02` | Enables Skills API | Skill invocation |
+| `files-api-2025-04-14` | Enables Files API | File download |
 
-### 1.2 The Document-Skills Plugin
+### 1.2 Complete Flow
 
-**Source**: https://github.com/anthropics/skills/tree/main/document-skills
-
-**Structure**:
 ```
-document-skills/
-├── docx/
-│   ├── SKILL.md          # Skill manifest
-│   ├── unpack.py         # Extract .docx to XML
-│   ├── pack.py           # Repack XML to .docx
-│   └── [other scripts]
-├── pptx/
-│   ├── SKILL.md
-│   ├── unpack.py
-│   ├── pack.py
-│   ├── html2pptx.js      # HTML → PowerPoint conversion
-│   ├── thumbnail.py      # Visual validation
-│   └── [other scripts]
-├── pdf/
-│   └── [similar structure]
-└── xlsx/
-    └── [similar structure]
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        SKILLS FILE GENERATION FLOW                       │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  1. SKILLS API CALL                                                      │
+│     ┌──────────────────────────────────────────────────────────────┐    │
+│     │ client.beta.messages.create(                                  │    │
+│     │     betas=["code-execution-2025-08-25", "skills-2025-10-02"], │    │
+│     │     container={"skills": [{"type": "anthropic",               │    │
+│     │                            "skill_id": "pdf",                 │    │
+│     │                            "version": "latest"}]},            │    │
+│     │     tools=[{"type": "code_execution_20250825",                │    │
+│     │             "name": "code_execution"}],                       │    │
+│     │ )                                                             │    │
+│     └──────────────────────────────────────────────────────────────┘    │
+│                              ▼                                           │
+│  2. CLAUDE EXECUTES CODE IN CONTAINER                                    │
+│     - Reads skill instructions from /skills/{skill_id}/SKILL.md          │
+│     - Runs Python/Node scripts to generate file                          │
+│     - File saved to container filesystem                                 │
+│                              ▼                                           │
+│  3. RESPONSE CONTAINS file_id                                            │
+│     ┌──────────────────────────────────────────────────────────────┐    │
+│     │ response.content = [                                          │    │
+│     │   TextBlock(type="text", ...),                                │    │
+│     │   BetaBashCodeExecutionToolResultBlock(                       │    │
+│     │     type="bash_code_execution_tool_result",                   │    │
+│     │     content=BetaBashCodeExecutionResultBlock(                 │    │
+│     │       content=[                                               │    │
+│     │         BetaBashCodeExecutionOutputBlock(                     │    │
+│     │           file_id="file_011CVrmSNAuFpgG3RAtWzYEF",  ◄──────── │    │
+│     │           type="bash_code_execution_output"                   │    │
+│     │         )                                                     │    │
+│     │       ]                                                       │    │
+│     │     )                                                         │    │
+│     │   )                                                           │    │
+│     │ ]                                                             │    │
+│     └──────────────────────────────────────────────────────────────┘    │
+│                              ▼                                           │
+│  4. FILES API DOWNLOAD                                                   │
+│     ┌──────────────────────────────────────────────────────────────┐    │
+│     │ file_response = client.beta.files.download(                   │    │
+│     │     file_id="file_011CVrmSNAuFpgG3RAtWzYEF",                  │    │
+│     │     betas=["files-api-2025-04-14"]                            │    │
+│     │ )                                                             │    │
+│     │ file_bytes = await file_response.read()  # Raw PDF/XLSX/etc  │    │
+│     └──────────────────────────────────────────────────────────────┘    │
+│                              ▼                                           │
+│  5. STORE IN SUPABASE STORAGE                                            │
+│     - Upload to: generated-files/work_outputs/{basket_id}/{file_id}.pdf  │
+│     - Generate signed URL for user download                              │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Key Insight**: These are **filesystem-based custom skills** that use code execution tools to manipulate files, NOT magic API endpoints.
+### 1.3 Response Block Types
 
-### 1.3 How PPTX Skill Actually Works
+The Skills API returns different block types than the standard Messages API:
 
-Based on the SKILL.md analysis:
+| Block Type | When Returned | Contains |
+|------------|--------------|----------|
+| `text` | Always | Claude's text response |
+| `server_tool_use` | When Claude uses a tool | Tool name, input |
+| `bash_code_execution_tool_result` | After bash execution | `file_id` for generated files |
+| `text_editor_code_execution_tool_result` | After file editing | File modification results |
 
-1. **Creates presentations using `html2pptx.js` workflow**:
-   - Agent designs content-informed color palettes
-   - Creates HTML files for each slide
-   - Runs Node.js script to convert HTML → .pptx
-   - Validates with thumbnail grids
-
-2. **Requires code_execution tool**:
-   - All scripts (unpack.py, pack.py, html2pptx.js) run via code execution
-   - Files are manipulated in-memory during execution
-   - Final .pptx file is returned to user
-
-3. **Key Scripts**:
-   - `html2pptx.js` - Core conversion (Node.js)
-   - `unpack.py` / `pack.py` - ZIP/XML manipulation (Python)
-   - `validate.py` - Verify .pptx structure (Python)
-   - `thumbnail.py` - Visual preview (Python)
+**Critical**: Extract `file_id` from nested structure:
+```python
+block.content.content[].file_id  # NOT block.content[].file_id
+```
 
 ---
 
-## 2. Production Environment Analysis
+## 2. Implementation
 
-### 2.1 Current Production Setup ✅
+### 2.1 ReportingAgent Configuration
 
-**Dockerfile** ([Dockerfile:1-41](work-platform/api/Dockerfile)):
-- ✅ Base: `python:3.10-slim`
-- ✅ Node.js 18.x installed (for Claude Code CLI)
-- ✅ `claude-agent-sdk>=0.1.8` in requirements.txt
-- ✅ Working directory: `/app`
-- ✅ PYTHONPATH includes `/app/src`
-
-**Requirements** ([requirements.txt:28](work-platform/api/requirements.txt#L28)):
 ```python
-claude-agent-sdk>=0.1.8  # Official Anthropic SDK (Nov 19, 2025)
+# work-platform/api/src/agents/reporting_agent.py
+
+# Beta headers for Skills API
+SKILLS_BETAS = ["code-execution-2025-08-25", "skills-2025-10-02"]
+
+# Beta header for Files API (downloading generated files)
+FILES_API_BETA = "files-api-2025-04-14"
+
+# MIME types for generated files
+FILE_MIME_TYPES = {
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
 ```
 
-**Render Deployment**:
-- Service ID: `srv-d4duig9r0fns73bbtl4g`
-- Production logs confirm: `claude-agent-sdk-0.1.8` downloaded (65.2MB wheel)
-- Node.js available (required for html2pptx.js)
+### 2.2 Skills API Call
 
-### 2.2 Current Agent Configuration ✅
-
-**ReportingAgentSDK** ([reporting_agent_sdk.py:218-232](work-platform/api/src/agents_sdk/reporting_agent_sdk.py#L218-L232)):
 ```python
-self._options = ClaudeAgentOptions(
-    model=self.model,
-    system_prompt=self._build_system_prompt(),
-    mcp_servers={"shared_tools": shared_tools},
-    allowed_tools=[
-        "mcp__shared_tools__emit_work_output",
-        "Skill",              # ✅ Present
-        "code_execution"      # ✅ Present (REQUIRED for document-skills)
+response = await client.beta.messages.create(
+    model="claude-sonnet-4-20250514",
+    max_tokens=8192,
+    betas=SKILLS_BETAS,
+    system="Create requested documents.",
+    container={
+        "skills": [
+            {"type": "anthropic", "skill_id": "pdf", "version": "latest"}
+        ]
+    },
+    messages=[{
+        "role": "user",
+        "content": "Create a PDF report about AI capabilities."
+    }],
+    tools=[
+        {"type": "code_execution_20250825", "name": "code_execution"}
     ],
-    setting_sources=["user", "project"],  # ✅ Required for Skills
 )
 ```
 
-**Status**: Configuration is CORRECT for Skills support!
-
-### 2.3 What's Missing ❌
-
-**Empty .claude directory**:
-```bash
-/Users/macbook/yarnnn-app-fullstack/work-platform/api/.claude/
-# Empty directory - no skills installed
-```
-
-**Production doesn't have**:
-- No `.claude/skills/pptx/` directory
-- No SKILL.md manifests
-- No helper scripts (html2pptx.js, pack.py, etc.)
-
----
-
-## 3. Local Environment Issues
-
-### 3.1 Why Confusion Occurred
-
-**Local environment had wrong SDK**:
-- Local: `claude-agent-sdk` v0.2.0 (custom internal version)
-- Production: `claude-agent-sdk` v0.1.8 (official Anthropic)
-
-**This caused**:
-- Checking local packages gave wrong API signatures
-- Assumed production had different capabilities
-- User feedback: *"most likely your checking on local information caused massive confusion"*
-
-### 3.2 Local Environment Fix
-
-**DO NOT install claude-agent-sdk locally** - it conflicts with Claude Code's environment.
-
-**Instead**:
-1. All Agent SDK testing should happen in production-equivalent Docker container
-2. Use Render MCP to check production behavior
-3. Local development for non-SDK code only
-
----
-
-## 4. Recommended Solution: Install Document-Skills Plugin
-
-### 4.1 Installation Approach
-
-**Option A: Manual Installation** (Recommended for production control)
-
-1. **Clone the skills repository**:
-   ```bash
-   git clone https://github.com/anthropics/skills.git /tmp/skills
-   ```
-
-2. **Copy document-skills to production**:
-   ```bash
-   mkdir -p work-platform/api/.claude/skills/
-   cp -r /tmp/skills/document-skills/pptx work-platform/api/.claude/skills/pptx
-   cp -r /tmp/skills/document-skills/pdf work-platform/api/.claude/skills/pdf
-   cp -r /tmp/skills/document-skills/xlsx work-platform/api/.claude/skills/xlsx
-   cp -r /tmp/skills/document-skills/docx work-platform/api/.claude/skills/docx
-   ```
-
-3. **Add to Dockerfile** (ensure skills persist in production):
-   ```dockerfile
-   # Copy application code
-   COPY . .
-
-   # Copy Skills (if not in git)
-   COPY .claude /app/.claude
-   ```
-
-4. **Commit and deploy**:
-   ```bash
-   git add .claude/skills/
-   git commit -m "Add Anthropic document-skills (pptx, pdf, xlsx, docx)"
-   git push
-   ```
-
-**Option B: Git Submodule** (Alternative approach)
-
-```bash
-cd work-platform/api/.claude/
-git submodule add https://github.com/anthropics/skills.git skills-repo
-ln -s skills-repo/document-skills/pptx skills/pptx
-# Repeat for pdf, xlsx, docx
-```
-
-### 4.2 Expected Behavior After Installation
-
-1. **Agent discovers skills**:
-   - `setting_sources=["user", "project"]` loads from `.claude/skills/`
-   - Each skill's SKILL.md appears in agent context when invoked
-
-2. **Agent uses Skill tool**:
-   ```
-   User: "Create a PowerPoint presentation about Q4 results"
-   Agent: [Uses Skill tool with skill_id="pptx"]
-   Agent: [Skill loads instructions from .claude/skills/pptx/SKILL.md]
-   Agent: [Uses code_execution to run html2pptx.js]
-   Agent: [Generates .pptx file]
-   Agent: [Calls emit_work_output with file_id, generation_method="skill"]
-   ```
-
-3. **Work output created**:
-   - `file_id`: Generated file ID
-   - `file_format`: "pptx"
-   - `generation_method`: "skill"
-   - `body`: Description of file contents
-
----
-
-## 5. Alternative Approaches (Not Recommended)
-
-### 5.1 Hybrid Approach (SDK + Messages API)
-
-**Concept**: Use Agent SDK normally, switch to Messages API only for file generation
-
-**Problems**:
-- Loses session continuity (can't switch mid-conversation)
-- Would need separate conversation for each file generation
-- Complex state management between two API patterns
-- No access to MCP tools during file generation
-
-**Verdict**: ❌ Architecturally complex, loses key SDK benefits
-
-### 5.2 Custom Skill Implementation
-
-**Concept**: Write our own PPTX generation skill from scratch
-
-**Problems**:
-- Anthropic already built and tested these skills
-- Reinventing the wheel (1000+ lines of code per skill)
-- Maintenance burden (keep up with .pptx format changes)
-- Quality/reliability of Anthropic's version is production-proven
-
-**Verdict**: ❌ Unnecessary effort when official solution exists
-
-### 5.3 Switch to Messages API Only
-
-**Concept**: Abandon Agent SDK, use Messages API throughout
-
-**Problems**:
-- ❌ Lose session management (ClaudeSDKClient)
-- ❌ Lose subagent delegation
-- ❌ Lose MCP tools integration
-- ❌ Would need to rebuild all existing infrastructure
-
-**Verdict**: ❌ User explicitly wants to keep Agent SDK as default stack
-
----
-
-## 6. Testing Plan
-
-### 6.1 Validation Script
-
-Create `work-platform/api/test_pptx_skill.py`:
+### 2.3 File ID Extraction
 
 ```python
-"""
-Test PPTX Skill - Verify document-skills integration
+def extract_file_ids(response):
+    """Extract file_ids from Skills API response."""
+    file_ids = []
+    for block in response.content:
+        block_type = getattr(block, "type", "")
 
-This tests:
-1. Skill discovery from .claude/skills/pptx/
-2. Agent invokes "Skill" tool with skill_id="pptx"
-3. code_execution runs html2pptx.js
-4. .pptx file generated successfully
-"""
+        # Current format: bash_code_execution_tool_result
+        if block_type == "bash_code_execution_tool_result":
+            result_block = getattr(block, "content", None)
+            if result_block:
+                inner_content = getattr(result_block, "content", [])
+                if isinstance(inner_content, list):
+                    for item in inner_content:
+                        file_id = getattr(item, "file_id", None)
+                        if file_id:
+                            file_ids.append(file_id)
 
-import asyncio
-import os
-from claude_agent_sdk import query, ClaudeAgentOptions
-
-async def test_pptx_skill():
-    """Test that PPTX skill works end-to-end."""
-    print("=" * 60)
-    print("Testing PPTX Skill Integration")
-    print("=" * 60)
-    print()
-
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        print("❌ ANTHROPIC_API_KEY not set")
-        return False
-
-    # Check skill exists
-    skill_path = ".claude/skills/pptx/SKILL.md"
-    if not os.path.exists(skill_path):
-        print(f"❌ Skill not found at {skill_path}")
-        print("   Run: cp -r /path/to/skills/document-skills/pptx .claude/skills/")
-        return False
-
-    print(f"✅ Found skill at {skill_path}")
-    print()
-
-    try:
-        result = await query(
-            prompt="Create a simple PowerPoint presentation with 3 slides about the importance of testing.",
-            options=ClaudeAgentOptions(
-                max_turns=10,
-                allowed_tools=["Skill", "code_execution"],
-                setting_sources=["user", "project"]
-            )
-        )
-
-        response_text = ""
-        async for message in result:
-            if hasattr(message, 'text'):
-                response_text += message.text
-                print(f"Agent: {message.text}")
-
-        print()
-
-        # Check if skill was used
-        if "pptx" in response_text.lower() or "powerpoint" in response_text.lower():
-            print("✅ Test passed: PPTX skill invoked")
-            return True
-        else:
-            print(f"❌ Test failed: Skill not used")
-            print(f"   Response: {response_text[:500]}")
-            return False
-
-    except Exception as e:
-        print(f"❌ Test failed with error: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-if __name__ == "__main__":
-    success = asyncio.run(test_pptx_skill())
-    exit(0 if success else 1)
+    return file_ids
 ```
 
-### 6.2 Deployment Testing
+### 2.4 File Download
 
-1. **After installing skills**:
-   ```bash
-   # Local test (in Docker container)
-   ANTHROPIC_API_KEY=sk-... python work-platform/api/test_pptx_skill.py
-   ```
+```python
+async def download_file(client, file_id: str) -> bytes:
+    """Download file bytes from Claude Files API."""
+    file_response = await client.beta.files.download(
+        file_id=file_id,
+        betas=["files-api-2025-04-14"]
+    )
+    return await file_response.read()
+```
 
-2. **Production test**:
-   - Deploy with skills installed
-   - Create work ticket with format="pptx"
-   - Check logs via Render MCP: `mcp__render__list_logs`
-   - Verify work_output has `generation_method="skill"` and `file_id` populated
+### 2.5 Storage Upload
 
----
+Uses the same `yarnnn-assets` bucket and path convention as `reference_assets`:
 
-## 7. Action Plan
+```python
+async def upload_to_storage(file_bytes: bytes, file_id: str, format: str):
+    """Upload to Supabase Storage and return signed URL."""
+    from app.utils.supabase_client import supabase_admin_client as supabase
 
-### Immediate Next Steps
+    # Bucket: yarnnn-assets (shared with reference_assets)
+    STORAGE_BUCKET = "yarnnn-assets"
 
-1. ✅ **Investigation Complete** - Document findings (this file)
+    # Path matches work_outputs.storage_path constraint:
+    # baskets/{basket_id}/work_outputs/{work_ticket_id}/{filename}
+    storage_path = f"baskets/{basket_id}/work_outputs/{work_ticket_id}/{file_id}.{format}"
+    mime_type = FILE_MIME_TYPES.get(format)
 
-2. ⏭️ **Install Document-Skills**:
-   ```bash
-   # Clone skills repo
-   git clone https://github.com/anthropics/skills.git /tmp/skills
+    supabase.storage.from_(STORAGE_BUCKET).upload(
+        path=storage_path,
+        file=file_bytes,
+        file_options={"content-type": mime_type, "cache-control": "3600", "upsert": "true"}
+    )
 
-   # Copy to project
-   mkdir -p work-platform/api/.claude/skills/
-   cp -r /tmp/skills/document-skills/* work-platform/api/.claude/skills/
+    signed_url = supabase.storage.from_(STORAGE_BUCKET).create_signed_url(
+        path=storage_path,
+        expires_in=3600,  # 1 hour
+    )
 
-   # Commit
-   git add work-platform/api/.claude/skills/
-   git commit -m "Add Anthropic document-skills for PPTX/PDF/XLSX/DOCX generation"
-   ```
-
-3. ⏭️ **Test Locally** (in Docker):
-   ```bash
-   cd work-platform/api
-   docker build -t yarnnn-api .
-   docker run -it --rm \
-     -e ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY \
-     yarnnn-api \
-     python test_pptx_skill.py
-   ```
-
-4. ⏭️ **Deploy to Production**:
-   ```bash
-   git push
-   # Monitor deployment via Render MCP
-   ```
-
-5. ⏭️ **End-to-End Test**:
-   - Create work ticket with `format="pptx"`
-   - Check work_outputs table for `generation_method="skill"`
-   - Verify file_id populated
-   - Test file download in frontend
-
-### Documentation Updates Needed
-
-- ✅ This investigation document
-- ⏭️ Update `CLAUDE_SDK_IMPLEMENTATION.md` with Skills installation instructions
-- ⏭️ Add Skills testing to deployment checklist
-- ⏭️ Document local environment setup (use Docker, not local Python)
+    return signed_url
+```
 
 ---
 
-## 8. Key Learnings
+## 3. Available Skills
 
-### For Future Development
+### 3.1 Anthropic Pre-built Skills
 
-1. **Always check production first** - Use Render MCP, not local environment
-2. **Local environment !== Production** - Different SDK versions cause confusion
-3. **Agent SDK Skills are filesystem-based** - Not magic API endpoints
-4. **Document-skills are custom skills** - They use code_execution, not special APIs
-5. **Pre-built skills are Messages API only** - Agent SDK requires plugin installation
+| Skill ID | Description | Output Format |
+|----------|-------------|---------------|
+| `pdf` | PDF generation using reportlab/pypdf | `.pdf` |
+| `xlsx` | Excel with openpyxl, formulas, charts | `.xlsx` |
+| `docx` | Word documents with python-docx | `.docx` |
+| `pptx` | PowerPoint via html2pptx workflow | `.pptx` |
 
-### Architecture Decisions Validated
+### 3.2 Skill Documentation Location
 
-✅ **Keep Agent SDK as default stack** - Correct for our needs
-✅ **Use document-skills plugin** - Official, tested, maintained by Anthropic
-✅ **Session management via ClaudeSDKClient** - Required for our chat UX
-✅ **MCP tools for custom functionality** - emit_work_output, substrate access
+When Skills API runs, Claude has access to skill instructions at:
+```
+/skills/{skill_id}/SKILL.md
+```
+
+These are provided by Anthropic's container environment, not your codebase.
+
+### 3.3 Local Skill Documentation (Optional)
+
+For reference, we maintain copies in `.claude/skills/`:
+```
+work-platform/api/.claude/skills/
+├── pdf/SKILL.md
+├── xlsx/SKILL.md
+├── docx/SKILL.md
+└── pptx/SKILL.md
+```
 
 ---
 
-## 9. References
+## 4. Testing
 
-- **Agent SDK Documentation**: https://platform.claude.com/docs/en/agent-sdk/python
-- **Skills Documentation**: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview
-- **Document-Skills Source**: https://github.com/anthropics/skills/tree/main/document-skills
-- **Skills Quickstart**: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/quickstart
-- **Best Practices**: https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices
+### 4.1 Unit Tests (No API Calls)
+
+```bash
+cd work-platform/api
+pytest tests/integration/test_skills_file_generation.py -v -k "not Live"
+```
+
+Tests:
+- `SKILLS_BETAS` contains correct beta headers
+- `FILES_API_BETA` is defined
+- All 4 output formats supported
+- File ID extraction logic
+
+### 4.2 Live API Tests (Costs Money)
+
+```bash
+# Generate all file types
+pytest tests/integration/test_skills_file_generation.py -v -s -k "Live"
+
+# Full flow: Skills → Files API → Download
+pytest tests/integration/test_skills_file_generation.py -v -s -k "test_files_api_download_live"
+```
+
+### 4.3 Quick Manual Test
+
+```python
+import asyncio
+import anthropic
+
+async def test():
+    client = anthropic.AsyncAnthropic()
+
+    # Generate PDF
+    response = await client.beta.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=4096,
+        betas=["code-execution-2025-08-25", "skills-2025-10-02"],
+        container={"skills": [{"type": "anthropic", "skill_id": "pdf", "version": "latest"}]},
+        messages=[{"role": "user", "content": "Create a simple PDF with title 'Test'."}],
+        tools=[{"type": "code_execution_20250825", "name": "code_execution"}],
+    )
+
+    # Extract file_id
+    for block in response.content:
+        if getattr(block, "type", "") == "bash_code_execution_tool_result":
+            result = getattr(block, "content", None)
+            if result:
+                for item in getattr(result, "content", []):
+                    file_id = getattr(item, "file_id", None)
+                    if file_id:
+                        print(f"Generated: {file_id}")
+
+                        # Download
+                        file_bytes = await (await client.beta.files.download(
+                            file_id=file_id,
+                            betas=["files-api-2025-04-14"]
+                        )).read()
+
+                        print(f"Downloaded {len(file_bytes)} bytes")
+                        print(f"Valid PDF: {file_bytes[:4] == b'%PDF'}")
+
+asyncio.run(test())
+```
 
 ---
 
-## 10. Conclusion
+## 5. File Validation
 
-**Problem**: PPTX generation not working because skills not installed
+### 5.1 Magic Bytes
 
-**Root Cause**: Agent SDK requires filesystem-based skills in `.claude/skills/` directory
+| Format | Magic Bytes | Notes |
+|--------|-------------|-------|
+| PDF | `%PDF` (0x25504446) | ASCII header |
+| XLSX | `PK` (0x504B) | ZIP format |
+| DOCX | `PK` (0x504B) | ZIP format |
+| PPTX | `PK` (0x504B) | ZIP format |
 
-**Solution**: Install document-skills plugin from Anthropic's official repository
+### 5.2 Validation Code
 
-**Impact**: ZERO architecture changes needed - just add skill files to project
+```python
+VALID_MAGIC = {
+    "pdf": b"%PDF",
+    "xlsx": b"PK",
+    "docx": b"PK",
+    "pptx": b"PK",
+}
 
-**Confidence**: HIGH - This is the documented, supported approach for Agent SDK
+def validate_file(file_bytes: bytes, format: str) -> bool:
+    expected = VALID_MAGIC.get(format.lower())
+    return file_bytes[:len(expected)] == expected if expected else True
+```
 
-**Next Action**: Install skills and test (awaiting user approval to proceed)
+---
+
+## 6. Work Output Schema
+
+When ReportingAgent generates a file, the work_output includes:
+
+```json
+{
+  "output_type": "document",
+  "title": "Generated PDF",
+  "body": null,
+  "file_id": "file_011CVrmSNAuFpgG3RAtWzYEF",
+  "file_format": "pdf",
+  "file_size_bytes": 1626,
+  "mime_type": "application/pdf",
+  "storage_path": "baskets/{basket_id}/work_outputs/{work_ticket_id}/file_011CVrmSNAuFpgG3RAtWzYEF.pdf",
+  "generation_method": "skill",
+  "skill_metadata": {
+    "skill_id": "pdf",
+    "block_type": "bash_code_execution"
+  },
+  "confidence": 0.95
+}
+```
+
+**Note**: Per the `work_outputs_content_type` constraint, `body` and `file_id` are mutually exclusive - file outputs have `body=NULL` and `file_id` set.
+
+---
+
+## 7. Supabase Storage Setup
+
+### 7.1 Existing Bucket
+
+Uses the existing `yarnnn-assets` bucket (shared with `reference_assets`).
+
+### 7.2 Storage Path Convention
+
+Per the `work_outputs_storage_path_format` constraint:
+```sql
+storage_path LIKE 'baskets/' || basket_id::TEXT || '/work_outputs/%'
+```
+
+Path format: `baskets/{basket_id}/work_outputs/{work_ticket_id}/{filename}`
+
+### 7.3 Existing Bucket Policies
+
+The `yarnnn-assets` bucket already has policies for workspace access. Work outputs inherit these policies since they follow the `baskets/{basket_id}/...` path convention.
+
+---
+
+## 8. Error Handling
+
+### 8.1 Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `No file_id found` | Wrong block type extraction | Check for `bash_code_execution_tool_result` |
+| `Files API 404` | File expired or invalid ID | Files are ephemeral, download immediately |
+| `Magic bytes mismatch` | Corrupted or wrong format | Retry generation |
+| `Storage upload failed` | Bucket doesn't exist | Create `generated-files` bucket |
+
+### 8.2 Retry Strategy
+
+```python
+async def generate_with_retry(task, format, max_retries=2):
+    for attempt in range(max_retries + 1):
+        try:
+            result = await agent.execute(task=task, output_format=format)
+            if result.work_outputs and result.work_outputs[0].get("metadata", {}).get("download_url"):
+                return result
+        except Exception as e:
+            if attempt == max_retries:
+                raise
+            await asyncio.sleep(2 ** attempt)
+```
+
+---
+
+## 9. Key Learnings
+
+### 9.1 What Works
+
+1. **Skills API generates real files** - PDF, XLSX, DOCX, PPTX all work
+2. **Files API downloads actual bytes** - Not base64, raw binary
+3. **File IDs are ephemeral** - Download immediately after generation
+4. **Supabase Storage works** - For persistent storage and signed URLs
+
+### 9.2 What Doesn't Work
+
+1. **Direct file URLs from Skills API** - Only `file_id` references returned
+2. **Legacy `code_execution_result` blocks** - Now uses `bash_code_execution_tool_result`
+3. **Single beta header** - Need both Skills AND Files API betas
+
+### 9.3 Architecture Decisions
+
+| Decision | Rationale |
+|----------|-----------|
+| Use Skills API directly | Simpler than Agent SDK for file generation |
+| Separate Files API call | Required - Skills doesn't return bytes |
+| Store in Supabase | Persistent storage with signed URLs |
+| AsyncAnthropic client | Non-blocking for production use |
+
+---
+
+## 10. References
+
+- **Skills API**: Uses container-based code execution
+- **Files API**: Beta endpoint for file download
+- **Anthropic Python SDK**: `anthropic>=0.40.0` required for beta APIs
+- **Test File**: `work-platform/api/tests/integration/test_skills_file_generation.py`
+- **Implementation**: `work-platform/api/src/agents/reporting_agent.py`

@@ -28,6 +28,8 @@ interface TPChatInterfaceProps {
   basketId: string;
   workspaceId: string;
   className?: string;
+  /** Hide the internal header (when parent provides its own header) */
+  hideHeader?: boolean;
   onTPStateChange?: (phase: string) => void;
   onContextChange?: (changes: TPContextChange[]) => void;
   onWorkOutput?: (outputs: WorkOutput[]) => void;
@@ -38,10 +40,21 @@ interface TPChatInterfaceProps {
   onViewAllContext?: () => void;
 }
 
+/** Session info exposed for parent header rendering */
+export interface TPSessionControls {
+  sessionId: string | null;
+  sessionTitle: string | null;
+  sessionsCount: number;
+  showSessionList: boolean;
+  setShowSessionList: (show: boolean) => void;
+  handleNewSession: () => Promise<void>;
+}
+
 export function TPChatInterface({
   basketId,
   workspaceId,
   className,
+  hideHeader = false,
   onTPStateChange,
   onContextChange,
   onWorkOutput,
@@ -211,88 +224,90 @@ export function TPChatInterface({
 
   return (
     <div className={cn('flex h-full flex-col bg-background', className)}>
-      {/* Header */}
-      <div className="border-b border-border bg-card p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              Thinking Partner
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Chat to manage context and orchestrate work
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Session indicator */}
-            {sessionId && (
-              <div className="text-xs text-muted-foreground">
-                {session?.title || `Session ${sessionId.slice(0, 8)}...`}
-              </div>
-            )}
-
-            {/* Session history button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSessionList(!showSessionList)}
-              className="relative"
-            >
-              <History className="h-4 w-4" />
-              {sessions.length > 1 && (
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
-                  {sessions.length}
-                </span>
+      {/* Header - only shown when not hidden by parent */}
+      {!hideHeader && (
+        <div className="border-b border-border bg-card p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">
+                Thinking Partner
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Chat to manage context and orchestrate work
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Session indicator */}
+              {sessionId && (
+                <div className="text-xs text-muted-foreground">
+                  {session?.title || `Session ${sessionId.slice(0, 8)}...`}
+                </div>
               )}
-            </Button>
 
-            {/* New session button */}
-            <Button variant="ghost" size="sm" onClick={handleNewSession}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Session list dropdown */}
-        {showSessionList && sessions.length > 0 && (
-          <div className="absolute right-4 top-16 z-50 w-64 rounded-lg border border-border bg-card shadow-lg">
-            <div className="flex items-center justify-between border-b border-border p-3">
-              <span className="text-sm font-medium">Recent Sessions</span>
+              {/* Session history button */}
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 w-6 p-0"
-                onClick={() => setShowSessionList(false)}
+                onClick={() => setShowSessionList(!showSessionList)}
+                className="relative"
               >
-                <X className="h-4 w-4" />
+                <History className="h-4 w-4" />
+                {sessions.length > 1 && (
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                    {sessions.length}
+                  </span>
+                )}
+              </Button>
+
+              {/* New session button */}
+              <Button variant="ghost" size="sm" onClick={handleNewSession}>
+                <Plus className="h-4 w-4" />
               </Button>
             </div>
-            <div className="max-h-64 overflow-y-auto">
-              {sessions.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => handleSwitchSession(s.id)}
-                  className={cn(
-                    'flex w-full items-start gap-3 p-3 text-left hover:bg-muted/50',
-                    s.id === sessionId && 'bg-muted'
-                  )}
+          </div>
+
+          {/* Session list dropdown */}
+          {showSessionList && sessions.length > 0 && (
+            <div className="absolute right-4 top-16 z-50 w-64 rounded-lg border border-border bg-card shadow-lg">
+              <div className="flex items-center justify-between border-b border-border p-3">
+                <span className="text-sm font-medium">Recent Sessions</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0"
+                  onClick={() => setShowSessionList(false)}
                 >
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm font-medium">
-                      {s.title || `Session ${s.id.slice(0, 8)}...`}
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                {sessions.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => handleSwitchSession(s.id)}
+                    className={cn(
+                      'flex w-full items-start gap-3 p-3 text-left hover:bg-muted/50',
+                      s.id === sessionId && 'bg-muted'
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {s.title || `Session ${s.id.slice(0, 8)}...`}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {s.message_count} messages
+                      </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {s.message_count} messages
+                      {new Date(s.updated_at).toLocaleDateString()}
                     </div>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(s.updated_at).toLocaleDateString()}
-                  </div>
-                </button>
-              ))}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4">
