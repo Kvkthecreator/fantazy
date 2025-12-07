@@ -259,31 +259,41 @@ async def write_context(
 
     try:
         # Get schema to determine tier and validate
+        # Use limit(1) instead of single() to avoid PGRST116 error when schema doesn't exist
         schema_result = (
             supabase.table("context_entry_schemas")
             .select("category, is_singleton, field_schema")
             .eq("anchor_role", item_type)
-            .single()
+            .limit(1)
             .execute()
         )
 
-        if not schema_result.data:
-            return {"error": f"Unknown item type: {item_type}"}
+        # If schema exists, use it for validation and tier determination
+        schema_exists = schema_result.data and len(schema_result.data) > 0
 
-        schema = schema_result.data
-        category = schema.get("category", "market")
-        is_singleton = schema.get("is_singleton", True)
+        if schema_exists:
+            schema = schema_result.data[0]
+            category = schema.get("category", "market")
+            is_singleton = schema.get("is_singleton", True)
+            field_schema = schema.get("field_schema", {})
 
-        # Map category to tier
-        tier = "foundation" if category == "foundation" else "working"
+            # Map category to tier
+            tier = "foundation" if category == "foundation" else "working"
 
-        # For singleton types, item_key must be null
-        if is_singleton:
-            item_key = None
+            # For singleton types, item_key must be null
+            if is_singleton:
+                item_key = None
 
-        # Calculate completeness
-        field_schema = schema.get("field_schema", {})
-        completeness = _calculate_completeness(content, field_schema)
+            # Calculate completeness against schema
+            completeness = _calculate_completeness(content, field_schema)
+        else:
+            # Schema doesn't exist - allow write to working tier with no validation
+            # This enables agent-generated content types like analysis, finding, insight
+            logger.info(f"[write_context] No schema for item_type '{item_type}', using working tier")
+            tier = "working"
+            is_singleton = False  # Allow multiple items with item_key
+            # Treat as 100% complete since no schema to validate against
+            completeness = {"score": 1.0, "required_fields": 0, "filled_fields": 0, "missing_fields": []}
 
         # Foundation tier → check governance settings
         if tier == "foundation":
@@ -315,7 +325,7 @@ async def write_context(
             "item_key": item_key,
             "title": title,
             "content": content,
-            "schema_id": item_type,
+            "schema_id": item_type if schema_exists else None,  # Only set if schema exists (FK constraint)
             "completeness_score": completeness["score"],
             "status": "active",
             "created_by": f"agent:thinking_partner",
@@ -558,37 +568,39 @@ async def _check_governance_auto_approve(supabase, basket_id: str) -> bool:
     """
     try:
         # Get workspace_id from basket
+        # Use limit(1) instead of single() to avoid PGRST116 error when row doesn't exist
         basket_result = (
             supabase.table("baskets")
             .select("workspace_id")
             .eq("id", basket_id)
-            .single()
+            .limit(1)
             .execute()
         )
 
-        if not basket_result.data:
+        if not basket_result.data or len(basket_result.data) == 0:
             logger.warning(f"[_check_governance_auto_approve] Basket {basket_id} not found, defaulting to auto-approve")
             return True
 
-        workspace_id = basket_result.data.get("workspace_id")
+        workspace_id = basket_result.data[0].get("workspace_id")
         if not workspace_id:
             logger.warning(f"[_check_governance_auto_approve] No workspace_id for basket {basket_id}, defaulting to auto-approve")
             return True
 
         # Get workspace governance settings
+        # Use limit(1) instead of single() to avoid PGRST116 error when row doesn't exist
         settings_result = (
             supabase.table("workspace_governance_settings")
             .select("ep_manual_edit")
             .eq("workspace_id", workspace_id)
-            .single()
+            .limit(1)
             .execute()
         )
 
-        if not settings_result.data:
+        if not settings_result.data or len(settings_result.data) == 0:
             logger.info(f"[_check_governance_auto_approve] No governance settings for workspace {workspace_id}, defaulting to auto-approve")
             return True
 
-        ep_manual_edit = settings_result.data.get("ep_manual_edit", "direct")
+        ep_manual_edit = settings_result.data[0].get("ep_manual_edit", "direct")
 
         # 'direct' = auto-approve, 'proposal' = require approval, 'hybrid' = auto-approve (for now)
         auto_approve = ep_manual_edit in ("direct", "hybrid")
