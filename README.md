@@ -1,123 +1,221 @@
-# 🧶 YARNNN Monorepo
+# Clearinghouse
 
-**YARNNN is an AI Work Platform where deep context understanding enables superior agent supervision.**
+**IP Licensing Infrastructure for the AI Era**
 
-We integrate what others separate: context management + agent work orchestration. The result? Deploy autonomous agents with confidence, not fear.
+Clearinghouse is a platform for registering intellectual property rights, managing AI training permissions, and licensing creative works with complete provenance tracking.
 
-### What Makes YARNNN Different
+## Core Capabilities
 
-- **Separated Governance**: Work supervision (quality) + substrate governance (integrity) = clear boundaries
-- **Context-Powered Reasoning**: Agents access deep substrate, not just retrieval
-- **Multi-Checkpoint Supervision**: Iterative feedback beats binary approve/reject
-- **Complete Provenance**: Every substrate change traces to work session and reasoning
+- **Rights Registry**: Register musical works, sound recordings, voice likenesses, character IP, and visual works with industry-standard identifiers (ISRC, ISWC, etc.)
+- **AI Permissions**: Define granular permissions for AI training, generation, style transfer, voice cloning, and derivative works
+- **Governance Pipeline**: Proposal-based workflow for rights changes with configurable auto-approval rules
+- **License Management**: Create license templates, grant licenses to platforms, and track usage
+- **Complete Provenance**: Immutable timeline of all events with before/after states and full audit trail
 
-**See**: [Platform Canon v4.0](docs/canon/YARNNN_PLATFORM_CANON_V4.md) for complete philosophy
+## Architecture
 
----
-
-## Architecture (v4.1 - Two-Layer with BFF Pattern)
-
-YARNNN is built on a two-layer architecture with separated governance:
-
-| Layer | Responsibility | Key Components |
-|-------|---------------|----------------|
-| **Layer 2: Work Orchestration** | Agent sessions, work supervision, tickets | PostgreSQL + FastAPI (work-platform) |
-| **Layer 1: Substrate Core** | Blocks, documents, semantic layer, substrate governance | PostgreSQL + FastAPI (substrate-API) |
-
-**Governance Separation**:
-- **Work Supervision** (Layer 2): Reviews work output quality (work-platform)
-- **Substrate Governance** (Layer 1): P1 proposals pipeline with semantic dedup (substrate-API)
-
-### Technology Stack
-
-- **Frontend**: Next.js on Vercel
-- **Backend**: FastAPI on Render
-- **Database**: PostgreSQL (Supabase)
-- **Auth**: Supabase Auth
-- **Realtime**: Supabase Realtime
-
-**See**: [Layered Architecture v4.0](docs/architecture/YARNNN_LAYERED_ARCHITECTURE_V4.md) for complete system design
-
----
-
-## Local Development  
-
-Most tasks require only the frontend:
-
-./start-dev.sh
-If you need to work on the backend:
-
-cd api
-source $(poetry env info --path)/bin/activate
-export PYTHONPATH=src
-uvicorn app.agent_server:app --reload
-Set `NEXT_PUBLIC_API_BASE_URL` in `web/.env.local` to point to your backend instance.
-After updating the variable, redeploy the Next.js frontend so runtime route handlers pick up the new value.
-You can verify the configuration by requesting /api/baskets/<id>/change-queue; the backend logs should show a GET request and a non-500 response.
-
-The /agent endpoint handles agent requests and remains stable across deployments.
-
-When deploying on Render, ensure the `SUPABASE_SERVICE_ROLE_KEY` environment
-variable is set. Without it, Supabase requests will fail.
-
-## Testing
-
-yarnnn uses an **Agent-Operable Test Pipeline** for comprehensive testing:
-
-```bash
-# Run all tests (recommended)
-npm run agent:test -- --subset=all
-
-# Run specific test subsets
-npm run agent:test -- --subset=canon        # Canon compliance tests
-npm run agent:test -- --subset=features     # Feature E2E tests  
-npm run agent:test -- --subset=unit         # Unit tests
-npm run agent:test -- --subset=contracts    # Contract validation
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Frontend (Next.js)                    │
+│                    substrate-api/web                     │
+└─────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────┐
+│                   API Layer (FastAPI)                    │
+│                 substrate-api/api/src/app                │
+│  ┌─────────┐ ┌──────────┐ ┌────────┐ ┌────────────────┐ │
+│  │Workspaces│ │ Catalogs │ │Entities│ │   Proposals    │ │
+│  └─────────┘ └──────────┘ └────────┘ └────────────────┘ │
+│  ┌─────────┐ ┌──────────┐ ┌────────────────────────────┐│
+│  │Licenses │ │ Timeline │ │        Health              ││
+│  └─────────┘ └──────────┘ └────────────────────────────┘│
+└─────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────┐
+│                 Database (PostgreSQL)                    │
+│                      Supabase                            │
+│  ┌───────────────────────────────────────────────────┐  │
+│  │ Core: workspaces, catalogs, rights_entities       │  │
+│  │ Schemas: rights_schemas (extensible IP types)     │  │
+│  │ Governance: proposals, governance_rules           │  │
+│  │ Licensing: license_templates, grants, usage       │  │
+│  │ Audit: timeline_events (immutable log)            │  │
+│  └───────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
 ```
 
-The pipeline generates structured reports in `artifacts/` and is designed for agent automation. See `docs/TEST_ARCHITECTURE_AUDIT.md` for complete documentation.
+## Supported IP Types
 
-## Canon Documentation (v4.0)
+Schema-driven architecture supports any intellectual property type. Pre-configured schemas:
 
-Core philosophy and architectural decisions are governed by canon documents:
+| Category | IP Type | Key Fields |
+|----------|---------|------------|
+| Music | `musical_work` | ISWC, writers, publishers, genres |
+| Music | `sound_recording` | ISRC, artist, label, duration |
+| Voice | `voice_likeness` | talent_name, agency, union_affiliation |
+| Character | `character_ip` | character_name, franchise, visual_assets |
+| Visual | `visual_work` | artist, medium, dimensions, style |
 
-### Philosophy
-- **[Platform Canon v4.0](docs/canon/YARNNN_PLATFORM_CANON_V4.md)** - Core identity and principles
-- **[Work Platform Thesis](docs/canon/YARNNN_WORK_PLATFORM_THESIS.md)** - Why context + work integration matters
-- **[Governance Philosophy v4.0](docs/canon/YARNNN_GOVERNANCE_PHILOSOPHY_V4.md)** - ⚠️ Vision document (implementation uses separated governance)
+## Technology Stack
 
-### Architecture
-- **[Work Orchestration Layer](docs/WORK_ORCHESTRATION_LAYER.md)** - Layer 2 specification
-- **[Substrate Canon V3](docs/YARNNN_SUBSTRATE_CANON_V3.md)** - Layer 1 specification
+- **Frontend**: Next.js 14 + Tailwind CSS
+- **Backend**: FastAPI (Python)
+- **Database**: PostgreSQL via Supabase
+- **Auth**: Supabase Auth + JWT
 
-### Legacy (v3.1)
-- **[Architecture Canon](docs/YARNNN_ARCHITECTURE_CANON.md)** - Pre-v4.0 architecture (being updated)
-- **[Governance Canon V5](docs/YARNNN_GOVERNANCE_CANON_V5.md)** - Superseded by v4.0
-- See [Archive](docs/archive/) for historical documentation
+## Repository Structure
 
-## Repository Layout
+```
+clearinghouse/
+├── substrate-api/
+│   ├── api/src/app/          # FastAPI application
+│   │   ├── routes/           # API endpoints
+│   │   ├── deps.py           # Database connection
+│   │   └── main.py           # Application entry point
+│   └── web/                  # Next.js frontend
+│       ├── app/              # App router pages
+│       └── package.json
+├── supabase/
+│   └── migrations/           # Database schema
+│       ├── 00001_core_schema.sql
+│       ├── 00002_rights_entities.sql
+│       ├── 00003_governance.sql
+│       ├── 00004_licensing.sql
+│       ├── 00005_audit_trail.sql
+│       └── 00006_seed_schemas.sql
+├── docs/
+│   ├── CLEARINGHOUSE_INFRASTRUCTURE.md
+│   ├── DOMAIN_MODEL.md
+│   └── MIGRATION_CHECKLIST.md
+└── scripts/
+```
 
-api/   FastAPI backend
-web/   Next.js frontend
-tests/ Agent-operable test suites (canon/features/contracts)
-scripts/ Agent test orchestration and seeding
-codex/ Codex automation tasks
-Quick Summary
+## Quick Start
 
-Component	Local	Hosted
-Frontend	✅	Vercel
-Backend	optional	Render
-DB/Auth	Hosted only	Supabase
-## Developer Notes
+### Prerequisites
 
-### \ud83d\udd27 Data Fetching Architecture
+- Python 3.11+
+- Node.js 18+
+- Supabase account
 
-Yarnnn uses a strict separation between server-side and client-side data fetching:
+### Environment Setup
 
-| Folder | Usage | SSR Safe | Auth-safe via Supabase |
-|----------------------|--------------------|----------|-------------------------|
-| `lib/server/*` | \u2705 Server components | \u2705 Yes | \u2705 Yes (via cookies) |
-| `lib/api/*` | \u2705 Client components | \u274c No | \u2705 Yes (browser fetch) |
-| `app/api/...` routes | Optional proxy | \u2705 N/A | Use sparingly; mostly deprecated |
+1. Copy environment template:
+```bash
+cp .env.example .env
+```
 
-\ud83d\udc49 Never use `fetch('/api/…')` inside server components. Always use `lib/server/*` helpers.
+2. Configure Supabase credentials in `.env`:
+```
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DATABASE_URL=postgresql://...
+```
+
+### Run Migrations
+
+See [SQL Direct Execution](#sql-direct-execution) for running migrations against Supabase.
+
+### Start Development
+
+**Frontend:**
+```bash
+cd substrate-api/web
+npm install
+npm run dev
+```
+
+**Backend:**
+```bash
+cd substrate-api/api
+poetry install
+poetry run uvicorn app.main:app --reload
+```
+
+## SQL Direct Execution
+
+Migrations are run directly against Supabase PostgreSQL using `psql`.
+
+### Connection Setup
+
+Use the session pooler connection string (IPv4 compatible):
+```bash
+PG_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
+```
+
+### Running Migrations
+
+Execute migrations in order:
+```bash
+# Run a single migration
+psql "$PG_URL" -f supabase/migrations/00001_core_schema.sql
+
+# Run all migrations in sequence
+for f in supabase/migrations/*.sql; do
+  echo "Running $f..."
+  psql "$PG_URL" -f "$f"
+done
+```
+
+### Verify Tables
+
+```bash
+psql "$PG_URL" -c "\dt"
+```
+
+Expected tables:
+- `workspaces`, `workspace_memberships`
+- `catalogs`, `rights_schemas`, `rights_entities`, `reference_assets`
+- `proposals`, `proposal_comments`, `governance_rules`
+- `license_templates`, `licensees`, `license_grants`, `usage_records`
+- `timeline_events`
+
+## API Endpoints
+
+### Health
+- `GET /health` - API health check
+- `GET /health/db` - Database connectivity
+- `GET /health/tables` - Schema validation
+
+### Workspaces
+- `GET /api/v1/workspaces` - List user's workspaces
+- `POST /api/v1/workspaces` - Create workspace
+- `GET /api/v1/workspaces/{id}` - Get workspace details
+
+### Catalogs
+- `GET /api/v1/workspaces/{id}/catalogs` - List catalogs
+- `POST /api/v1/workspaces/{id}/catalogs` - Create catalog
+
+### Rights Entities
+- `GET /api/v1/rights-schemas` - List IP type schemas
+- `GET /api/v1/catalogs/{id}/entities` - List entities in catalog
+- `POST /api/v1/catalogs/{id}/entities` - Create entity (governance-aware)
+- `GET /api/v1/entities/{id}` - Get entity details
+- `PATCH /api/v1/entities/{id}` - Update entity (governance-aware)
+
+### Governance
+- `GET /api/v1/catalogs/{id}/proposals` - List proposals
+- `POST /api/v1/catalogs/{id}/proposals` - Create proposal
+- `POST /api/v1/proposals/{id}/review` - Approve/reject proposal
+
+### Licensing
+- `GET /api/v1/workspaces/{id}/license-templates` - List templates
+- `POST /api/v1/entities/{id}/licenses` - Grant license
+- `POST /api/v1/licenses/{id}/usage` - Report usage
+
+### Timeline
+- `GET /api/v1/workspaces/{id}/timeline` - Workspace events
+- `GET /api/v1/entities/{id}/timeline` - Entity history
+
+## Documentation
+
+- [Infrastructure Overview](docs/CLEARINGHOUSE_INFRASTRUCTURE.md) - System design and architecture
+- [Domain Model](docs/DOMAIN_MODEL.md) - Core entities and relationships
+- [Migration Checklist](docs/MIGRATION_CHECKLIST.md) - Setup and deployment guide
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
