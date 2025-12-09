@@ -1,10 +1,14 @@
 """Processing jobs management endpoints."""
+import logging
 from typing import Optional, List
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi import APIRouter, HTTPException, Request, Query, BackgroundTasks
 from pydantic import BaseModel
 
 from app.deps import get_db
+from app.services.embeddings import process_entity_embedding
+
+log = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
 
@@ -353,3 +357,74 @@ async def update_job_internal(request: Request, job_id: UUID, payload: JobUpdate
         raise HTTPException(status_code=404, detail="Job not found")
 
     return {"updated": True, "job_id": job_id}
+
+
+@router.post("/internal/jobs/{job_id}/process")
+async def process_job(request: Request, job_id: UUID, background_tasks: BackgroundTasks):
+    """
+    Process a job immediately (instead of waiting for worker).
+    This endpoint can be called to trigger immediate processing.
+    """
+    db = await get_db()
+
+    # Get job details
+    job = await db.fetch_one("""
+        SELECT id, job_type, rights_entity_id, asset_id, config, status, created_by
+        FROM processing_jobs
+        WHERE id = :job_id
+    """, {"job_id": str(job_id)})
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job["status"] not in ("queued", "processing"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot process job with status '{job['status']}'"
+        )
+
+    # Mark as processing
+    await db.execute("""
+        UPDATE processing_jobs
+        SET status = 'processing', started_at = now(), updated_at = now()
+        WHERE id = :job_id
+    """, {"job_id": str(job_id)})
+
+    # Process based on job type
+    try:
+        if job["job_type"] == "embedding_generation" and job["rights_entity_id"]:
+            result = await process_entity_embedding(
+                db,
+                UUID(job["rights_entity_id"]),
+                job["created_by"]
+            )
+
+            # Update job as completed
+            await db.execute("""
+                UPDATE processing_jobs
+                SET status = 'completed',
+                    completed_at = now(),
+                    result = :result,
+                    updated_at = now()
+                WHERE id = :job_id
+            """, {"job_id": str(job_id), "result": result})
+
+            return {"processed": True, "job_id": job_id, "result": result}
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported job type: {job['job_type']}"
+            )
+
+    except Exception as e:
+        log.error(f"Job {job_id} failed: {e}")
+        await db.execute("""
+            UPDATE processing_jobs
+            SET status = 'failed',
+                completed_at = now(),
+                error_message = :error,
+                updated_at = now()
+            WHERE id = :job_id
+        """, {"job_id": str(job_id), "error": str(e)})
+
+        raise HTTPException(status_code=500, detail=f"Job processing failed: {str(e)}")
