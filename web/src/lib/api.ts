@@ -492,6 +492,6 @@ export const imports = {
     return response.json() as Promise<BulkImportResponse>
   },
 
-  getTemplate: (catalogId: string, rightsType: string, token: string) =>
+  getTemplate: (catalogId: string, rightsType: string) =>
     `${API_URL}/api/v1/catalogs/${catalogId}/import/template?rights_type=${rightsType}`,
 }
