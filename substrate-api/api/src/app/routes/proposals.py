@@ -1,5 +1,5 @@
 """Governance proposal endpoints."""
-from typing import Optional, List
+from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel
@@ -67,7 +67,7 @@ async def list_proposals(
         SELECT p.id, p.proposal_type, p.target_entity_id, p.status, p.priority,
                p.auto_approved, p.created_by, p.created_at, p.reviewed_at,
                re.title as entity_title, re.rights_type
-        FROM clearinghouse_proposals p
+        FROM proposals p
         LEFT JOIN rights_entities re ON re.id = p.target_entity_id
         WHERE {' AND '.join(where_clauses)}
         ORDER BY
@@ -85,7 +85,7 @@ async def list_proposals(
     count_params = {k: v for k, v in params.items() if k not in ("limit", "offset")}
     count_result = await db.fetch_one(f"""
         SELECT COUNT(*) as total
-        FROM clearinghouse_proposals
+        FROM proposals
         WHERE {' AND '.join(where_clauses)}
     """, count_params)
 
@@ -133,21 +133,25 @@ async def create_proposal(request: Request, catalog_id: UUID, payload: ProposalC
             raise HTTPException(status_code=404, detail="Target entity not found in this catalog")
 
     # Check governance rules for auto-approval
+    # governance_rules is at workspace level, uses conditions JSONB and action TEXT
     governance = await db.fetch_one("""
-        SELECT auto_approve_types
-        FROM governance_rules
-        WHERE catalog_id = :catalog_id AND is_active = true
-    """, {"catalog_id": str(catalog_id)})
+        SELECT gr.conditions, gr.action
+        FROM governance_rules gr
+        WHERE gr.workspace_id = :workspace_id
+        AND gr.is_active = true
+        AND gr.conditions->>'proposal_type' = :proposal_type
+        ORDER BY gr.priority DESC
+        LIMIT 1
+    """, {"workspace_id": str(catalog["workspace_id"]), "proposal_type": payload.proposal_type})
 
     auto_approve = False
     auto_reason = None
-    if governance and governance["auto_approve_types"]:
-        if payload.proposal_type in governance["auto_approve_types"]:
-            auto_approve = True
-            auto_reason = f"Auto-approved: {payload.proposal_type} in auto_approve_types"
+    if governance and governance["action"] == "auto_approve":
+        auto_approve = True
+        auto_reason = f"Auto-approved by governance rule"
 
     proposal = await db.fetch_one("""
-        INSERT INTO clearinghouse_proposals (
+        INSERT INTO proposals (
             catalog_id, proposal_type, target_entity_id,
             payload, reasoning, priority, status,
             auto_approved, auto_approval_reason, created_by
@@ -168,7 +172,7 @@ async def create_proposal(request: Request, catalog_id: UUID, payload: ProposalC
         "status": "approved" if auto_approve else "pending",
         "auto_approved": auto_approve,
         "auto_approval_reason": auto_reason,
-        "created_by": user_id
+        "created_by": f"user:{user_id}"
     })
 
     # If auto-approved and it's a CREATE, create the entity
@@ -192,7 +196,7 @@ async def _apply_create_proposal(db, catalog_id: UUID, payload: dict, user_id: s
         VALUES (
             :catalog_id, :rights_type, :title, :entity_key,
             :content, :ai_permissions, :ownership_chain,
-            'active', :user_id
+            'active', :created_by
         )
     """, {
         "catalog_id": str(catalog_id),
@@ -202,7 +206,7 @@ async def _apply_create_proposal(db, catalog_id: UUID, payload: dict, user_id: s
         "content": payload.get("content", {}),
         "ai_permissions": payload.get("ai_permissions", {}),
         "ownership_chain": payload.get("ownership_chain", []),
-        "user_id": user_id
+        "created_by": f"user:{user_id}"
     })
 
 
@@ -215,7 +219,7 @@ async def get_proposal(request: Request, proposal_id: UUID):
     proposal = await db.fetch_one("""
         SELECT p.*, re.title as entity_title, re.rights_type,
                c.name as catalog_name
-        FROM clearinghouse_proposals p
+        FROM proposals p
         JOIN catalogs c ON c.id = p.catalog_id
         JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
         LEFT JOIN rights_entities re ON re.id = p.target_entity_id
@@ -248,7 +252,7 @@ async def review_proposal(request: Request, proposal_id: UUID, payload: Proposal
     # Get proposal and check admin access
     proposal = await db.fetch_one("""
         SELECT p.id, p.catalog_id, p.proposal_type, p.target_entity_id, p.payload, p.status
-        FROM clearinghouse_proposals p
+        FROM proposals p
         JOIN catalogs c ON c.id = p.catalog_id
         JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
         WHERE p.id = :proposal_id AND wm.user_id = :user_id
@@ -265,9 +269,9 @@ async def review_proposal(request: Request, proposal_id: UUID, payload: Proposal
         raise HTTPException(status_code=400, detail="Status must be 'approved' or 'rejected'")
 
     async with db.transaction():
-        # Update proposal
+        # Update proposal - reviewed_by is UUID type
         await db.execute("""
-            UPDATE clearinghouse_proposals
+            UPDATE proposals
             SET status = :status,
                 reviewed_by = :user_id,
                 reviewed_at = now(),
@@ -305,7 +309,7 @@ async def _apply_proposal(db, proposal: dict, user_id: str):
             VALUES (
                 :catalog_id, :rights_type, :title, :entity_key,
                 :content, :ai_permissions, :ownership_chain,
-                'active', :user_id
+                'active', :created_by
             )
         """, {
             "catalog_id": str(catalog_id),
@@ -315,12 +319,12 @@ async def _apply_proposal(db, proposal: dict, user_id: str):
             "content": payload.get("content", {}),
             "ai_permissions": payload.get("ai_permissions", {}),
             "ownership_chain": payload.get("ownership_chain", []),
-            "user_id": user_id
+            "created_by": f"user:{user_id}"
         })
 
     elif p_type == "UPDATE":
         updates = []
-        params = {"entity_id": str(target_id), "user_id": user_id}
+        params = {"entity_id": str(target_id), "updated_by": f"user:{user_id}"}
 
         for key in ["title", "content", "ai_permissions", "ownership_chain"]:
             if key in payload:
@@ -329,7 +333,7 @@ async def _apply_proposal(db, proposal: dict, user_id: str):
 
         if updates:
             updates.append("version = version + 1")
-            updates.append("updated_by = :user_id")
+            updates.append("updated_by = :updated_by")
             await db.execute(f"""
                 UPDATE rights_entities
                 SET {', '.join(updates)}, updated_at = now()
@@ -339,16 +343,16 @@ async def _apply_proposal(db, proposal: dict, user_id: str):
     elif p_type == "ARCHIVE":
         await db.execute("""
             UPDATE rights_entities
-            SET status = 'archived', updated_by = :user_id, updated_at = now()
+            SET status = 'archived', updated_by = :updated_by, updated_at = now()
             WHERE id = :entity_id
-        """, {"entity_id": str(target_id), "user_id": user_id})
+        """, {"entity_id": str(target_id), "updated_by": f"user:{user_id}"})
 
     elif p_type == "RESTORE":
         await db.execute("""
             UPDATE rights_entities
-            SET status = 'active', updated_by = :user_id, updated_at = now()
+            SET status = 'active', updated_by = :updated_by, updated_at = now()
             WHERE id = :entity_id
-        """, {"entity_id": str(target_id), "user_id": user_id})
+        """, {"entity_id": str(target_id), "updated_by": f"user:{user_id}"})
 
 
 @router.post("/proposals/{proposal_id}/comments")
@@ -360,7 +364,7 @@ async def add_comment(request: Request, proposal_id: UUID, payload: ProposalComm
     # Check access
     proposal = await db.fetch_one("""
         SELECT p.id
-        FROM clearinghouse_proposals p
+        FROM proposals p
         JOIN catalogs c ON c.id = p.catalog_id
         JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
         WHERE p.id = :proposal_id AND wm.user_id = :user_id
@@ -390,12 +394,12 @@ async def cancel_proposal(request: Request, proposal_id: UUID):
     db = await get_db()
 
     result = await db.execute("""
-        UPDATE clearinghouse_proposals
+        UPDATE proposals
         SET status = 'cancelled', updated_at = now()
         WHERE id = :proposal_id
-        AND created_by = :user_id
+        AND created_by = :created_by
         AND status = 'pending'
-    """, {"proposal_id": str(proposal_id), "user_id": user_id})
+    """, {"proposal_id": str(proposal_id), "created_by": f"user:{user_id}"})
 
     if result == 0:
         raise HTTPException(

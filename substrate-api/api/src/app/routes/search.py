@@ -1,11 +1,15 @@
-"""Semantic search endpoints."""
+"""Semantic search endpoints.
+
+Note: This module requires entity_embeddings table and embedding_status column
+on rights_entities which are not yet implemented in the schema.
+All endpoints return 501 Not Implemented until the schema is extended.
+"""
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel, Field
 
 from app.deps import get_db
-from app.services.embeddings import get_embedding_service
 
 router = APIRouter()
 
@@ -19,18 +23,8 @@ class SemanticSearchRequest(BaseModel):
     query: str = Field(..., min_length=1, max_length=2000)
     catalog_ids: List[UUID] = Field(default_factory=list)
     rights_types: List[str] = Field(default_factory=list)
-
-    # Permission filters
     training_allowed: Optional[bool] = None
     commercial_allowed: Optional[bool] = None
-
-    # Metadata filters
-    mood: List[str] = Field(default_factory=list)
-    min_energy: Optional[float] = Field(None, ge=0.0, le=1.0)
-    max_energy: Optional[float] = Field(None, ge=0.0, le=1.0)
-    language: Optional[str] = None
-
-    # Pagination
     limit: int = Field(20, ge=1, le=100)
     offset: int = Field(0, ge=0)
 
@@ -51,28 +45,6 @@ class PermissionsSummary(BaseModel):
     commercial_allowed: bool = False
     generation_allowed: bool = False
     requires_attribution: bool = True
-
-
-class SearchResult(BaseModel):
-    """Individual search result."""
-    entity_id: UUID
-    title: str
-    rights_type: str
-    catalog_id: UUID
-    catalog_name: Optional[str] = None
-    similarity_score: float
-    snippet: Optional[str] = None
-    permissions_summary: PermissionsSummary
-    semantic_metadata: Optional[Dict[str, Any]] = None
-
-
-class SearchResponse(BaseModel):
-    """Search response with results and metadata."""
-    results: List[SearchResult]
-    total: int
-    limit: int
-    offset: int
-    query: Optional[str] = None
 
 
 # =============================================================================
@@ -96,332 +68,52 @@ def extract_permissions_summary(ai_permissions: Dict[str, Any]) -> PermissionsSu
     )
 
 
-def build_permission_filter_sql(
-    training_allowed: Optional[bool],
-    commercial_allowed: Optional[bool]
-) -> tuple[str, Dict[str, Any]]:
-    """Build SQL WHERE clauses for permission filtering."""
-    clauses = []
-    params = {}
-
-    if training_allowed is not None:
-        clauses.append(
-            "(re.ai_permissions->>'training' IS NULL OR "
-            "(re.ai_permissions->'training'->>'allowed')::boolean = :training_allowed)"
-        )
-        params["training_allowed"] = training_allowed
-
-    if commercial_allowed is not None:
-        clauses.append(
-            "(re.ai_permissions->>'commercial' IS NULL OR "
-            "(re.ai_permissions->'commercial'->>'commercial_use_allowed')::boolean = :commercial_allowed)"
-        )
-        params["commercial_allowed"] = commercial_allowed
-
-    return " AND ".join(clauses) if clauses else "", params
-
-
 # =============================================================================
 # Endpoints
 # =============================================================================
 
-@router.post("/search/semantic", response_model=SearchResponse)
+@router.post("/search/semantic")
 async def semantic_search(request: Request, payload: SemanticSearchRequest):
     """
     Perform semantic search across rights entities.
 
-    Searches using vector similarity on text embeddings.
+    Note: This endpoint requires the entity_embeddings table which is not yet
+    implemented. Semantic search functionality will be available in a future release.
     """
-    user_id = request.state.user_id
-    db = await get_db()
-
-    # Get embedding for search query
-    service = get_embedding_service()
-    query_embedding = await service.generate_text_embedding(payload.query)
-
-    if query_embedding is None:
-        raise HTTPException(
-            status_code=503,
-            detail="Embedding service unavailable. Please try again later."
-        )
-
-    # Build query
-    where_clauses = ["re.status = 'active'", "re.embedding_status = 'ready'"]
-    params: Dict[str, Any] = {
-        "user_id": user_id,
-        "query_embedding": f"[{','.join(map(str, query_embedding))}]",
-        "limit": payload.limit,
-        "offset": payload.offset
-    }
-
-    # Catalog access check - user must be member of workspace
-    if payload.catalog_ids:
-        where_clauses.append("re.catalog_id = ANY(:catalog_ids)")
-        params["catalog_ids"] = [str(cid) for cid in payload.catalog_ids]
-
-    # Rights type filter
-    if payload.rights_types:
-        where_clauses.append("re.rights_type = ANY(:rights_types)")
-        params["rights_types"] = payload.rights_types
-
-    # Permission filters
-    perm_sql, perm_params = build_permission_filter_sql(
-        payload.training_allowed,
-        payload.commercial_allowed
-    )
-    if perm_sql:
-        where_clauses.append(perm_sql)
-        params.update(perm_params)
-
-    # Semantic metadata filters
-    if payload.mood:
-        where_clauses.append("re.semantic_metadata->'mood' ?| :mood_tags")
-        params["mood_tags"] = payload.mood
-
-    if payload.min_energy is not None:
-        where_clauses.append(
-            "(re.semantic_metadata->>'energy')::float >= :min_energy"
-        )
-        params["min_energy"] = payload.min_energy
-
-    if payload.max_energy is not None:
-        where_clauses.append(
-            "(re.semantic_metadata->>'energy')::float <= :max_energy"
-        )
-        params["max_energy"] = payload.max_energy
-
-    if payload.language:
-        where_clauses.append("re.semantic_metadata->>'language' = :language")
-        params["language"] = payload.language
-
-    # Main search query using pgvector
-    query = f"""
-        WITH accessible_catalogs AS (
-            SELECT c.id, c.name
-            FROM catalogs c
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE wm.user_id = :user_id
-        ),
-        search_results AS (
-            SELECT
-                re.id as entity_id,
-                re.title,
-                re.rights_type,
-                re.catalog_id,
-                ac.name as catalog_name,
-                re.ai_permissions,
-                re.semantic_metadata,
-                re.content,
-                1 - (ee.embedding <=> :query_embedding::vector) as similarity_score
-            FROM rights_entities re
-            JOIN accessible_catalogs ac ON ac.id = re.catalog_id
-            JOIN entity_embeddings ee ON ee.rights_entity_id = re.id
-            WHERE ee.embedding_type = 'text'
-            AND {' AND '.join(where_clauses)}
-            ORDER BY ee.embedding <=> :query_embedding::vector
-            LIMIT :limit OFFSET :offset
-        )
-        SELECT * FROM search_results
-    """
-
-    results = await db.fetch_all(query, params)
-
-    # Get total count (without pagination)
-    count_query = f"""
-        WITH accessible_catalogs AS (
-            SELECT c.id
-            FROM catalogs c
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE wm.user_id = :user_id
-        )
-        SELECT COUNT(*) as total
-        FROM rights_entities re
-        JOIN accessible_catalogs ac ON ac.id = re.catalog_id
-        JOIN entity_embeddings ee ON ee.rights_entity_id = re.id
-        WHERE ee.embedding_type = 'text'
-        AND {' AND '.join(where_clauses)}
-    """
-
-    count_params = {k: v for k, v in params.items() if k not in ("limit", "offset")}
-    count_result = await db.fetch_one(count_query, count_params)
-
-    # Format results
-    formatted_results = []
-    for row in results:
-        content = row["content"] or {}
-        snippet = None
-        if content.get("description"):
-            snippet = content["description"][:200]
-        elif content.get("lyrics"):
-            snippet = content["lyrics"][:200]
-
-        formatted_results.append(SearchResult(
-            entity_id=row["entity_id"],
-            title=row["title"],
-            rights_type=row["rights_type"],
-            catalog_id=row["catalog_id"],
-            catalog_name=row["catalog_name"],
-            similarity_score=round(row["similarity_score"], 4),
-            snippet=snippet,
-            permissions_summary=extract_permissions_summary(row["ai_permissions"]),
-            semantic_metadata=row["semantic_metadata"]
-        ))
-
-    return SearchResponse(
-        results=formatted_results,
-        total=count_result["total"] if count_result else 0,
-        limit=payload.limit,
-        offset=payload.offset,
-        query=payload.query
+    raise HTTPException(
+        status_code=501,
+        detail="Semantic search is not yet implemented. Requires entity_embeddings schema."
     )
 
 
-@router.post("/search/similar", response_model=SearchResponse)
+@router.post("/search/similar")
 async def find_similar(request: Request, payload: SimilarSearchRequest):
     """
     Find entities similar to a given entity.
 
-    Uses vector similarity on the entity's embedding.
+    Note: This endpoint requires the entity_embeddings table which is not yet
+    implemented. Similar search functionality will be available in a future release.
     """
-    user_id = request.state.user_id
-    db = await get_db()
-
-    # Get the source entity's embedding
-    source = await db.fetch_one("""
-        SELECT re.id, re.catalog_id, ee.embedding
-        FROM rights_entities re
-        JOIN catalogs c ON c.id = re.catalog_id
-        JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-        JOIN entity_embeddings ee ON ee.rights_entity_id = re.id
-        WHERE re.id = :entity_id
-        AND wm.user_id = :user_id
-        AND ee.embedding_type = 'text'
-    """, {"entity_id": str(payload.entity_id), "user_id": user_id})
-
-    if not source:
-        raise HTTPException(
-            status_code=404,
-            detail="Entity not found or no embedding available"
-        )
-
-    # Build query
-    where_clauses = [
-        "re.status = 'active'",
-        "re.embedding_status = 'ready'",
-        "re.id != :source_entity_id"
-    ]
-    params: Dict[str, Any] = {
-        "user_id": user_id,
-        "source_entity_id": str(payload.entity_id),
-        "source_embedding": str(source["embedding"]),
-        "limit": payload.limit,
-        "offset": payload.offset
-    }
-
-    if payload.exclude_same_catalog:
-        where_clauses.append("re.catalog_id != :source_catalog_id")
-        params["source_catalog_id"] = str(source["catalog_id"])
-
-    if payload.catalog_ids:
-        where_clauses.append("re.catalog_id = ANY(:catalog_ids)")
-        params["catalog_ids"] = [str(cid) for cid in payload.catalog_ids]
-
-    if payload.rights_types:
-        where_clauses.append("re.rights_type = ANY(:rights_types)")
-        params["rights_types"] = payload.rights_types
-
-    query = f"""
-        WITH accessible_catalogs AS (
-            SELECT c.id, c.name
-            FROM catalogs c
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE wm.user_id = :user_id
-        )
-        SELECT
-            re.id as entity_id,
-            re.title,
-            re.rights_type,
-            re.catalog_id,
-            ac.name as catalog_name,
-            re.ai_permissions,
-            re.semantic_metadata,
-            re.content,
-            1 - (ee.embedding <=> :source_embedding::vector) as similarity_score
-        FROM rights_entities re
-        JOIN accessible_catalogs ac ON ac.id = re.catalog_id
-        JOIN entity_embeddings ee ON ee.rights_entity_id = re.id
-        WHERE ee.embedding_type = 'text'
-        AND {' AND '.join(where_clauses)}
-        ORDER BY ee.embedding <=> :source_embedding::vector
-        LIMIT :limit OFFSET :offset
-    """
-
-    results = await db.fetch_all(query, params)
-
-    # Get total count
-    count_query = f"""
-        WITH accessible_catalogs AS (
-            SELECT c.id
-            FROM catalogs c
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE wm.user_id = :user_id
-        )
-        SELECT COUNT(*) as total
-        FROM rights_entities re
-        JOIN accessible_catalogs ac ON ac.id = re.catalog_id
-        JOIN entity_embeddings ee ON ee.rights_entity_id = re.id
-        WHERE ee.embedding_type = 'text'
-        AND {' AND '.join(where_clauses)}
-    """
-
-    count_params = {k: v for k, v in params.items() if k not in ("limit", "offset")}
-    count_result = await db.fetch_one(count_query, count_params)
-
-    # Format results
-    formatted_results = []
-    for row in results:
-        content = row["content"] or {}
-        snippet = None
-        if content.get("description"):
-            snippet = content["description"][:200]
-
-        formatted_results.append(SearchResult(
-            entity_id=row["entity_id"],
-            title=row["title"],
-            rights_type=row["rights_type"],
-            catalog_id=row["catalog_id"],
-            catalog_name=row["catalog_name"],
-            similarity_score=round(row["similarity_score"], 4),
-            snippet=snippet,
-            permissions_summary=extract_permissions_summary(row["ai_permissions"]),
-            semantic_metadata=row["semantic_metadata"]
-        ))
-
-    return SearchResponse(
-        results=formatted_results,
-        total=count_result["total"] if count_result else 0,
-        limit=payload.limit,
-        offset=payload.offset
+    raise HTTPException(
+        status_code=501,
+        detail="Similar search is not yet implemented. Requires entity_embeddings schema."
     )
 
 
 @router.post("/search/filter")
 async def filter_search(
     request: Request,
-    catalog_ids: List[UUID] = [],
+    catalog_ids: List[UUID] = Query(default=[]),
     rights_types: List[str] = Query(default=[]),
     training_allowed: Optional[bool] = None,
     commercial_allowed: Optional[bool] = None,
-    mood: List[str] = Query(default=[]),
-    min_energy: Optional[float] = Query(None, ge=0.0, le=1.0),
-    max_energy: Optional[float] = Query(None, ge=0.0, le=1.0),
     limit: int = Query(50, ge=1, le=200),
     offset: int = 0
 ):
     """
     Filter entities by metadata and permissions (no semantic search).
 
-    Use this for browsing/filtering without a search query.
+    This endpoint provides basic filtering without vector similarity search.
     """
     user_id = request.state.user_id
     db = await get_db()
@@ -442,23 +134,19 @@ async def filter_search(
         params["rights_types"] = rights_types
 
     # Permission filters
-    perm_sql, perm_params = build_permission_filter_sql(training_allowed, commercial_allowed)
-    if perm_sql:
-        where_clauses.append(perm_sql)
-        params.update(perm_params)
+    if training_allowed is not None:
+        where_clauses.append(
+            "(re.ai_permissions->>'training' IS NULL OR "
+            "(re.ai_permissions->'training'->>'allowed')::boolean = :training_allowed)"
+        )
+        params["training_allowed"] = training_allowed
 
-    # Metadata filters
-    if mood:
-        where_clauses.append("re.semantic_metadata->'mood' ?| :mood_tags")
-        params["mood_tags"] = mood
-
-    if min_energy is not None:
-        where_clauses.append("(re.semantic_metadata->>'energy')::float >= :min_energy")
-        params["min_energy"] = min_energy
-
-    if max_energy is not None:
-        where_clauses.append("(re.semantic_metadata->>'energy')::float <= :max_energy")
-        params["max_energy"] = max_energy
+    if commercial_allowed is not None:
+        where_clauses.append(
+            "(re.ai_permissions->>'commercial' IS NULL OR "
+            "(re.ai_permissions->'commercial'->>'commercial_use_allowed')::boolean = :commercial_allowed)"
+        )
+        params["commercial_allowed"] = commercial_allowed
 
     query = f"""
         WITH accessible_catalogs AS (
@@ -473,9 +161,7 @@ async def filter_search(
             re.rights_type,
             re.catalog_id,
             ac.name as catalog_name,
-            re.ai_permissions,
-            re.semantic_metadata,
-            re.embedding_status
+            re.ai_permissions
         FROM rights_entities re
         JOIN accessible_catalogs ac ON ac.id = re.catalog_id
         WHERE {' AND '.join(where_clauses)}
@@ -510,9 +196,7 @@ async def filter_search(
                 "rights_type": row["rights_type"],
                 "catalog_id": row["catalog_id"],
                 "catalog_name": row["catalog_name"],
-                "embedding_status": row["embedding_status"],
-                "permissions_summary": extract_permissions_summary(row["ai_permissions"]).model_dump(),
-                "semantic_metadata": row["semantic_metadata"]
+                "permissions_summary": extract_permissions_summary(row["ai_permissions"]).model_dump()
             }
             for row in results
         ],

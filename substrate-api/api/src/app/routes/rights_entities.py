@@ -185,15 +185,20 @@ async def create_rights_entity(request: Request, catalog_id: UUID, payload: Righ
         raise HTTPException(status_code=400, detail=f"Invalid rights_type: {payload.rights_type}")
 
     # Check governance rules for auto-approval
+    # governance_rules uses workspace_id and conditions JSONB with action TEXT
     governance = await db.fetch_one("""
-        SELECT auto_approve_types
-        FROM governance_rules
-        WHERE catalog_id = :catalog_id AND is_active = true
-    """, {"catalog_id": str(catalog_id)})
+        SELECT gr.conditions, gr.action
+        FROM governance_rules gr
+        WHERE gr.workspace_id = :workspace_id
+        AND gr.is_active = true
+        AND gr.conditions->>'proposal_type' = 'CREATE'
+        ORDER BY gr.priority DESC
+        LIMIT 1
+    """, {"workspace_id": str(catalog["workspace_id"])})
 
     auto_approve = False
-    if governance and governance["auto_approve_types"]:
-        auto_approve = "CREATE" in governance["auto_approve_types"]
+    if governance and governance["action"] == "auto_approve":
+        auto_approve = True
 
     async with db.transaction():
         # Create entity (as draft if requires approval)
@@ -224,24 +229,25 @@ async def create_rights_entity(request: Request, catalog_id: UUID, payload: Righ
         # Create proposal if not auto-approved
         if not auto_approve:
             await db.execute("""
-                INSERT INTO clearinghouse_proposals (
+                INSERT INTO proposals (
                     catalog_id, proposal_type, target_entity_id,
-                    proposed_changes, status, created_by
+                    payload, reasoning, priority, status, created_by
                 )
                 VALUES (
                     :catalog_id, 'CREATE', :entity_id,
-                    :proposed_changes, 'pending', :user_id
+                    :payload, :reasoning, 'normal', 'pending', :created_by
                 )
             """, {
                 "catalog_id": str(catalog_id),
-                "entity_id": entity["id"],
-                "proposed_changes": {
+                "entity_id": str(entity["id"]),
+                "payload": {
                     "title": payload.title,
                     "rights_type": payload.rights_type,
                     "content": payload.content,
                     "ai_permissions": payload.ai_permissions
                 },
-                "user_id": user_id
+                "reasoning": f"Create new {payload.rights_type} entity: {payload.title}",
+                "created_by": f"user:{user_id}"
             })
 
     return {
@@ -290,15 +296,24 @@ async def update_rights_entity(request: Request, entity_id: UUID, payload: Right
         raise HTTPException(status_code=404, detail="Entity not found")
 
     # Check governance for auto-approval
-    governance = await db.fetch_one("""
-        SELECT auto_approve_types
-        FROM governance_rules
-        WHERE catalog_id = :catalog_id AND is_active = true
+    # Need to get workspace_id from catalog first
+    catalog = await db.fetch_one("""
+        SELECT workspace_id FROM catalogs WHERE id = :catalog_id
     """, {"catalog_id": str(entity["catalog_id"])})
 
+    governance = await db.fetch_one("""
+        SELECT gr.conditions, gr.action
+        FROM governance_rules gr
+        WHERE gr.workspace_id = :workspace_id
+        AND gr.is_active = true
+        AND gr.conditions->>'proposal_type' = 'UPDATE'
+        ORDER BY gr.priority DESC
+        LIMIT 1
+    """, {"workspace_id": str(catalog["workspace_id"])}) if catalog else None
+
     auto_approve = False
-    if governance and governance["auto_approve_types"]:
-        auto_approve = "UPDATE" in governance["auto_approve_types"]
+    if governance and governance["action"] == "auto_approve":
+        auto_approve = True
 
     # Build proposed changes
     proposed_changes = {}
@@ -338,19 +353,20 @@ async def update_rights_entity(request: Request, entity_id: UUID, payload: Right
     else:
         # Create proposal
         await db.execute("""
-            INSERT INTO clearinghouse_proposals (
+            INSERT INTO proposals (
                 catalog_id, proposal_type, target_entity_id,
-                proposed_changes, status, created_by
+                payload, reasoning, priority, status, created_by
             )
             VALUES (
                 :catalog_id, 'UPDATE', :entity_id,
-                :proposed_changes, 'pending', :user_id
+                :payload, :reasoning, 'normal', 'pending', :created_by
             )
         """, {
             "catalog_id": str(entity["catalog_id"]),
             "entity_id": str(entity_id),
-            "proposed_changes": proposed_changes,
-            "user_id": user_id
+            "payload": proposed_changes,
+            "reasoning": f"Update entity fields: {', '.join(proposed_changes.keys())}",
+            "created_by": f"user:{user_id}"
         })
 
         return {"updated": False, "requires_approval": True}

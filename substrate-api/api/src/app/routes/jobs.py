@@ -1,14 +1,13 @@
-"""Processing jobs management endpoints."""
-import logging
-from typing import Optional, List
+"""Processing jobs management endpoints.
+
+Note: This module requires the processing_jobs table which is not yet
+implemented in the schema. All endpoints return 501 Not Implemented
+until the schema is extended with background job support.
+"""
+from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, HTTPException, Request, Query, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Request, Query
 from pydantic import BaseModel
-
-from app.deps import get_db
-from app.services.embeddings import process_entity_embedding
-
-log = logging.getLogger("uvicorn.error")
 
 router = APIRouter()
 
@@ -26,405 +25,87 @@ class JobCreate(BaseModel):
     config: dict = {}
 
 
-class JobUpdate(BaseModel):
-    """Update job (for internal/worker use)."""
-    status: Optional[str] = None
-    error_message: Optional[str] = None
-    result: Optional[dict] = None
-
-
 VALID_JOB_TYPES = [
     'embedding_generation', 'asset_analysis', 'metadata_extraction',
     'fingerprint_generation', 'batch_import'
 ]
 
-VALID_JOB_STATUSES = ['queued', 'processing', 'completed', 'failed', 'cancelled']
-
 
 # =============================================================================
-# Job Routes
+# Job Routes - All return 501 Not Implemented
 # =============================================================================
 
 @router.get("/jobs")
 async def list_jobs(
     request: Request,
-    status: Optional[str] = Query(None, enum=VALID_JOB_STATUSES),
+    status: Optional[str] = None,
     job_type: Optional[str] = None,
     limit: int = Query(50, le=200),
     offset: int = 0
 ):
-    """List processing jobs (filtered by accessible entities)."""
-    user_id = request.state.user_id
-    db = await get_db()
+    """
+    List processing jobs.
 
-    # Build query - only show jobs for entities the user can access
-    where_clauses = ["""
-        (pj.rights_entity_id IS NULL OR EXISTS (
-            SELECT 1 FROM rights_entities re
-            JOIN catalogs c ON c.id = re.catalog_id
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE re.id = pj.rights_entity_id AND wm.user_id = :user_id
-        ))
-    """]
-    params = {"user_id": user_id, "limit": limit, "offset": offset}
-
-    if status:
-        where_clauses.append("pj.status = :status")
-        params["status"] = status
-
-    if job_type:
-        if job_type not in VALID_JOB_TYPES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid job_type. Must be one of: {VALID_JOB_TYPES}"
-            )
-        where_clauses.append("pj.job_type = :job_type")
-        params["job_type"] = job_type
-
-    jobs = await db.fetch_all(f"""
-        SELECT pj.id, pj.job_type, pj.rights_entity_id, pj.asset_id,
-               pj.status, pj.priority, pj.started_at, pj.completed_at,
-               pj.error_message, pj.retry_count, pj.created_at,
-               re.title as entity_title
-        FROM processing_jobs pj
-        LEFT JOIN rights_entities re ON re.id = pj.rights_entity_id
-        WHERE {' AND '.join(where_clauses)}
-        ORDER BY pj.priority DESC, pj.created_at DESC
-        LIMIT :limit OFFSET :offset
-    """, params)
-
-    # Get count
-    count_params = {k: v for k, v in params.items() if k not in ("limit", "offset")}
-    count_result = await db.fetch_one(f"""
-        SELECT COUNT(*) as total
-        FROM processing_jobs pj
-        WHERE {' AND '.join(where_clauses)}
-    """, count_params)
-
-    return {
-        "jobs": [dict(j) for j in jobs],
-        "total": count_result["total"],
-        "limit": limit,
-        "offset": offset
-    }
+    Note: This endpoint requires the processing_jobs table which is not yet
+    implemented. Background job processing will be available in a future release.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="Processing jobs are not yet implemented. Requires processing_jobs schema."
+    )
 
 
 @router.get("/jobs/{job_id}")
 async def get_job(request: Request, job_id: UUID):
-    """Get job details."""
-    user_id = request.state.user_id
-    db = await get_db()
+    """
+    Get job details.
 
-    job = await db.fetch_one("""
-        SELECT pj.*, re.title as entity_title
-        FROM processing_jobs pj
-        LEFT JOIN rights_entities re ON re.id = pj.rights_entity_id
-        LEFT JOIN catalogs c ON c.id = re.catalog_id
-        LEFT JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-        WHERE pj.id = :job_id
-        AND (pj.rights_entity_id IS NULL OR wm.user_id = :user_id)
-    """, {"job_id": str(job_id), "user_id": user_id})
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return {"job": dict(job)}
+    Note: This endpoint requires the processing_jobs table which is not yet
+    implemented. Background job processing will be available in a future release.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="Processing jobs are not yet implemented. Requires processing_jobs schema."
+    )
 
 
 @router.post("/jobs")
 async def create_job(request: Request, payload: JobCreate):
-    """Create a new processing job."""
-    user_id = request.state.user_id
-    db = await get_db()
+    """
+    Create a new processing job.
 
-    # Validate job type
-    if payload.job_type not in VALID_JOB_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid job_type. Must be one of: {VALID_JOB_TYPES}"
-        )
-
-    # If entity_id provided, verify access
-    if payload.rights_entity_id:
-        entity = await db.fetch_one("""
-            SELECT re.id
-            FROM rights_entities re
-            JOIN catalogs c ON c.id = re.catalog_id
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE re.id = :entity_id AND wm.user_id = :user_id
-        """, {"entity_id": str(payload.rights_entity_id), "user_id": user_id})
-
-        if not entity:
-            raise HTTPException(status_code=404, detail="Entity not found")
-
-    # If asset_id provided, verify access
-    if payload.asset_id:
-        asset = await db.fetch_one("""
-            SELECT ra.id
-            FROM reference_assets ra
-            JOIN rights_entities re ON re.id = ra.rights_entity_id
-            JOIN catalogs c ON c.id = re.catalog_id
-            JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-            WHERE ra.id = :asset_id AND wm.user_id = :user_id
-        """, {"asset_id": str(payload.asset_id), "user_id": user_id})
-
-        if not asset:
-            raise HTTPException(status_code=404, detail="Asset not found")
-
-    job = await db.fetch_one("""
-        INSERT INTO processing_jobs (
-            job_type, rights_entity_id, asset_id,
-            status, priority, config, created_by
-        )
-        VALUES (
-            :job_type, :entity_id, :asset_id,
-            'queued', :priority, :config, :user_id
-        )
-        RETURNING id, job_type, status, priority, created_at
-    """, {
-        "job_type": payload.job_type,
-        "entity_id": str(payload.rights_entity_id) if payload.rights_entity_id else None,
-        "asset_id": str(payload.asset_id) if payload.asset_id else None,
-        "priority": payload.priority,
-        "config": payload.config,
-        "user_id": user_id
-    })
-
-    return {"job": dict(job)}
+    Note: This endpoint requires the processing_jobs table which is not yet
+    implemented. Background job processing will be available in a future release.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="Processing jobs are not yet implemented. Requires processing_jobs schema."
+    )
 
 
 @router.post("/jobs/{job_id}/cancel")
 async def cancel_job(request: Request, job_id: UUID):
-    """Cancel a queued or processing job."""
-    user_id = request.state.user_id
-    db = await get_db()
+    """
+    Cancel a queued or processing job.
 
-    # Verify job exists and user has access
-    job = await db.fetch_one("""
-        SELECT pj.id, pj.status
-        FROM processing_jobs pj
-        LEFT JOIN rights_entities re ON re.id = pj.rights_entity_id
-        LEFT JOIN catalogs c ON c.id = re.catalog_id
-        LEFT JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-        WHERE pj.id = :job_id
-        AND (pj.rights_entity_id IS NULL OR wm.user_id = :user_id)
-    """, {"job_id": str(job_id), "user_id": user_id})
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    if job["status"] not in ("queued", "processing"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot cancel job with status '{job['status']}'"
-        )
-
-    await db.execute("""
-        UPDATE processing_jobs
-        SET status = 'cancelled', updated_at = now()
-        WHERE id = :job_id
-    """, {"job_id": str(job_id)})
-
-    return {"cancelled": True, "job_id": job_id}
+    Note: This endpoint requires the processing_jobs table which is not yet
+    implemented. Background job processing will be available in a future release.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="Processing jobs are not yet implemented. Requires processing_jobs schema."
+    )
 
 
 @router.post("/jobs/{job_id}/retry")
 async def retry_job(request: Request, job_id: UUID):
-    """Retry a failed job."""
-    user_id = request.state.user_id
-    db = await get_db()
-
-    job = await db.fetch_one("""
-        SELECT pj.id, pj.status, pj.retry_count, pj.max_retries
-        FROM processing_jobs pj
-        LEFT JOIN rights_entities re ON re.id = pj.rights_entity_id
-        LEFT JOIN catalogs c ON c.id = re.catalog_id
-        LEFT JOIN workspace_memberships wm ON wm.workspace_id = c.workspace_id
-        WHERE pj.id = :job_id
-        AND (pj.rights_entity_id IS NULL OR wm.user_id = :user_id)
-    """, {"job_id": str(job_id), "user_id": user_id})
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    if job["status"] != "failed":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Can only retry failed jobs. Current status: '{job['status']}'"
-        )
-
-    await db.execute("""
-        UPDATE processing_jobs
-        SET status = 'queued',
-            error_message = NULL,
-            retry_count = retry_count + 1,
-            updated_at = now()
-        WHERE id = :job_id
-    """, {"job_id": str(job_id)})
-
-    return {"retried": True, "job_id": job_id}
-
-
-# =============================================================================
-# Internal/Worker Routes (for background processing)
-# =============================================================================
-
-@router.get("/internal/jobs/next")
-async def get_next_job(
-    request: Request,
-    job_types: Optional[List[str]] = Query(None)
-):
     """
-    Get the next queued job for processing.
-    Used by background workers. Returns the highest priority queued job.
+    Retry a failed job.
+
+    Note: This endpoint requires the processing_jobs table which is not yet
+    implemented. Background job processing will be available in a future release.
     """
-    db = await get_db()
-
-    where_clauses = ["status = 'queued'"]
-    params = {}
-
-    if job_types:
-        for jt in job_types:
-            if jt not in VALID_JOB_TYPES:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid job_type: {jt}"
-                )
-        where_clauses.append("job_type = ANY(:job_types)")
-        params["job_types"] = job_types
-
-    # Atomic claim: update and return in one query
-    job = await db.fetch_one(f"""
-        UPDATE processing_jobs
-        SET status = 'processing',
-            started_at = now(),
-            updated_at = now()
-        WHERE id = (
-            SELECT id FROM processing_jobs
-            WHERE {' AND '.join(where_clauses)}
-            ORDER BY priority DESC, created_at ASC
-            LIMIT 1
-            FOR UPDATE SKIP LOCKED
-        )
-        RETURNING id, job_type, rights_entity_id, asset_id, config
-    """, params)
-
-    if not job:
-        return {"job": None, "message": "No jobs available"}
-
-    return {"job": dict(job)}
-
-
-@router.patch("/internal/jobs/{job_id}")
-async def update_job_internal(request: Request, job_id: UUID, payload: JobUpdate):
-    """
-    Update job status (for background workers).
-    """
-    db = await get_db()
-
-    updates = ["updated_at = now()"]
-    params = {"job_id": str(job_id)}
-
-    if payload.status:
-        if payload.status not in VALID_JOB_STATUSES:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid status. Must be one of: {VALID_JOB_STATUSES}"
-            )
-        updates.append("status = :status")
-        params["status"] = payload.status
-
-        if payload.status == "completed":
-            updates.append("completed_at = now()")
-        elif payload.status == "failed":
-            updates.append("completed_at = now()")
-
-    if payload.error_message is not None:
-        updates.append("error_message = :error_message")
-        params["error_message"] = payload.error_message
-
-    if payload.result is not None:
-        updates.append("result = :result")
-        params["result"] = payload.result
-
-    result = await db.execute(f"""
-        UPDATE processing_jobs
-        SET {', '.join(updates)}
-        WHERE id = :job_id
-    """, params)
-
-    if result == 0:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    return {"updated": True, "job_id": job_id}
-
-
-@router.post("/internal/jobs/{job_id}/process")
-async def process_job(request: Request, job_id: UUID, background_tasks: BackgroundTasks):
-    """
-    Process a job immediately (instead of waiting for worker).
-    This endpoint can be called to trigger immediate processing.
-    """
-    db = await get_db()
-
-    # Get job details
-    job = await db.fetch_one("""
-        SELECT id, job_type, rights_entity_id, asset_id, config, status, created_by
-        FROM processing_jobs
-        WHERE id = :job_id
-    """, {"job_id": str(job_id)})
-
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-
-    if job["status"] not in ("queued", "processing"):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot process job with status '{job['status']}'"
-        )
-
-    # Mark as processing
-    await db.execute("""
-        UPDATE processing_jobs
-        SET status = 'processing', started_at = now(), updated_at = now()
-        WHERE id = :job_id
-    """, {"job_id": str(job_id)})
-
-    # Process based on job type
-    try:
-        if job["job_type"] == "embedding_generation" and job["rights_entity_id"]:
-            result = await process_entity_embedding(
-                db,
-                UUID(job["rights_entity_id"]),
-                job["created_by"]
-            )
-
-            # Update job as completed
-            await db.execute("""
-                UPDATE processing_jobs
-                SET status = 'completed',
-                    completed_at = now(),
-                    result = :result,
-                    updated_at = now()
-                WHERE id = :job_id
-            """, {"job_id": str(job_id), "result": result})
-
-            return {"processed": True, "job_id": job_id, "result": result}
-        else:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported job type: {job['job_type']}"
-            )
-
-    except Exception as e:
-        log.error(f"Job {job_id} failed: {e}")
-        await db.execute("""
-            UPDATE processing_jobs
-            SET status = 'failed',
-                completed_at = now(),
-                error_message = :error,
-                updated_at = now()
-            WHERE id = :job_id
-        """, {"job_id": str(job_id), "error": str(e)})
-
-        raise HTTPException(status_code=500, detail=f"Job processing failed: {str(e)}")
+    raise HTTPException(
+        status_code=501,
+        detail="Processing jobs are not yet implemented. Requires processing_jobs schema."
+    )

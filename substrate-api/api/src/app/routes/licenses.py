@@ -377,7 +377,7 @@ async def create_license_grant(request: Request, entity_id: UUID, payload: Licen
             :terms, :ai_terms, :territory,
             :start_date, :end_date, :status,
             :usage_tracking_enabled, :usage_reporting_frequency,
-            :pricing, :requires_approval, :user_id
+            :pricing, :requires_approval, :created_by
         )
         RETURNING id, status, territory, start_date, end_date, created_at
     """, {
@@ -394,7 +394,7 @@ async def create_license_grant(request: Request, entity_id: UUID, payload: Licen
         "usage_reporting_frequency": payload.usage_reporting_frequency,
         "pricing": payload.pricing,
         "requires_approval": payload.requires_approval,
-        "user_id": user_id
+        "created_by": f"user:{user_id}"
     })
 
     return {"license": dict(license_grant)}
