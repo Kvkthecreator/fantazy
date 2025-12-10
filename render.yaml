@@ -28,3 +28,30 @@ services:
       # Optional: OpenAI for embeddings
       - key: OPENAI_API_KEY
         sync: false
+
+  # Clearinghouse Worker - Background Job Processing
+  - type: worker
+    name: clearinghouse-worker
+    runtime: python
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: cd src && python -m worker.main
+    rootDir: substrate-api/api
+    envVars:
+      # Database (same as API)
+      - key: DATABASE_URL
+        sync: false
+      # OpenAI for embedding generation
+      - key: OPENAI_API_KEY
+        sync: false
+      # Supabase for storage access
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Worker configuration
+      - key: WORKER_POLL_INTERVAL
+        value: "10"
+      - key: WORKER_MAX_CONCURRENT
+        value: "3"
+      - key: LOG_LEVEL
+        value: INFO

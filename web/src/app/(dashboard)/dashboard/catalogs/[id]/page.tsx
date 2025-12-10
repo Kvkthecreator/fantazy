@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { catalogs, entities, schemas, imports, type Catalog, type RightsEntity, type RightsSchema, type BulkImportResponse } from '@/lib/api'
 import Link from 'next/link'
 import { EmbeddingStatusBadge } from '@/components/ProcessingStatus'
+import { BulkImportDialog } from '@/components/BulkImportDialog'
 
 export default function CatalogDetailPage() {
   const params = useParams()
@@ -21,10 +22,7 @@ export default function CatalogDetailPage() {
   const [newEntityTitle, setNewEntityTitle] = useState('')
   const [newEntityType, setNewEntityType] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-  const [importFile, setImportFile] = useState<File | null>(null)
-  const [importType, setImportType] = useState('')
-  const [isImporting, setIsImporting] = useState(false)
-  const [importResult, setImportResult] = useState<BulkImportResponse | null>(null)
+  const [token, setToken] = useState<string | null>(null)
   const supabase = createClient()
 
   const loadData = useCallback(async () => {
@@ -45,6 +43,7 @@ export default function CatalogDetailPage() {
       setCatalog(catResult.catalog)
       setEntities(entResult.entities)
       setSchemas(schemaResult.schemas)
+      setToken(session.access_token)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load catalog')
     } finally {
@@ -81,28 +80,16 @@ export default function CatalogDetailPage() {
     }
   }
 
-  const handleBulkImport = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!importFile || !importType) return
-
-    setIsImporting(true)
-    setError(null)
-    setImportResult(null)
-
+  const handleImportSuccess = async (result: BulkImportResponse) => {
+    // Refresh entities list after successful import
     try {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const result = await imports.csv(catalogId, importFile, importType, session.access_token, true)
-      setImportResult(result)
-
-      // Refresh entities list
-      const entResult = await entities.list(catalogId, session.access_token, { status: 'all' })
-      setEntities(entResult.entities)
+      if (session) {
+        const entResult = await entities.list(catalogId, session.access_token, { status: 'all' })
+        setEntities(entResult.entities)
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Import failed')
-    } finally {
-      setIsImporting(false)
+      console.error('Failed to refresh entities:', err)
     }
   }
 
@@ -179,86 +166,14 @@ export default function CatalogDetailPage() {
         </div>
       )}
 
-      {/* Import Result */}
-      {importResult && (
-        <div className={`mb-6 p-4 rounded-lg border ${importResult.failed > 0 ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-          <h4 className="font-medium mb-2">Import Complete</h4>
-          <p className="text-sm">
-            {importResult.successful} of {importResult.total} entities imported successfully.
-            {importResult.failed > 0 && ` ${importResult.failed} failed.`}
-          </p>
-          {importResult.job_id && (
-            <p className="text-sm mt-1 text-slate-600">
-              Processing job queued (ID: {importResult.job_id.slice(0, 8)}...)
-            </p>
-          )}
-          <button
-            onClick={() => { setImportResult(null); setShowBulkImport(false); }}
-            className="text-sm mt-2 text-slate-600 hover:text-slate-900"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {/* Bulk Import Form */}
-      {showBulkImport && !importResult && (
-        <div className="mb-6 bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <h3 className="font-semibold text-slate-900 mb-4">Bulk Import from CSV</h3>
-          <form onSubmit={handleBulkImport} className="space-y-4">
-            <div>
-              <label htmlFor="importType" className="block text-sm font-medium text-slate-700 mb-1">
-                Entity Type (all imported entities will use this type)
-              </label>
-              <select
-                id="importType"
-                value={importType}
-                onChange={(e) => setImportType(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none"
-              >
-                <option value="">Select a type...</option>
-                {availableSchemas.map((schema) => (
-                  <option key={schema.id} value={schema.id}>
-                    {schema.display_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label htmlFor="csvFile" className="block text-sm font-medium text-slate-700 mb-1">
-                CSV File
-              </label>
-              <input
-                type="file"
-                id="csvFile"
-                accept=".csv"
-                onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-                required
-                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none"
-              />
-              <p className="text-xs text-slate-500 mt-1">
-                CSV must have a &quot;title&quot; column. Optional: entity_key, content (JSON), ai_permissions (JSON)
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                type="submit"
-                disabled={isImporting || !importFile || !importType}
-                className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 disabled:opacity-50"
-              >
-                {isImporting ? 'Importing...' : 'Import'}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowBulkImport(false); setImportFile(null); setImportType(''); }}
-                className="px-4 py-2 text-slate-600 text-sm font-medium hover:text-slate-900"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+      {/* Bulk Import Dialog */}
+      {showBulkImport && token && (
+        <BulkImportDialog
+          catalogId={catalogId}
+          token={token}
+          onSuccess={handleImportSuccess}
+          onClose={() => setShowBulkImport(false)}
+        />
       )}
 
       {/* New Entity Form */}

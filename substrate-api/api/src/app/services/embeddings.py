@@ -1,6 +1,8 @@
 """Embedding generation service using OpenAI."""
 import os
+import json
 import logging
+import hashlib
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 import httpx
@@ -206,29 +208,32 @@ async def process_entity_embedding(db, entity_id: UUID, user_id: str) -> Dict[st
         return {"status": "failed", "reason": "embedding_generation_failed"}
 
     # Store embedding in database
+    source_hash = hashlib.sha256(text.encode()).hexdigest()[:32]
+
     async with db.transaction():
-        # Delete existing text embeddings for this entity
+        # Delete existing content embeddings for this entity
         await db.execute("""
             DELETE FROM entity_embeddings
-            WHERE rights_entity_id = :entity_id AND embedding_type = 'text'
+            WHERE rights_entity_id = :entity_id AND embedding_type = 'content'
         """, {"entity_id": str(entity_id)})
 
         # Insert new embedding
         await db.execute("""
             INSERT INTO entity_embeddings (
-                rights_entity_id, embedding_type, model_id, model_version,
-                embedding, metadata
+                rights_entity_id, embedding_type, model_id,
+                embedding, source_text, source_hash, metadata
             )
             VALUES (
-                :entity_id, 'text', :model_id, :model_version,
-                :embedding, :metadata
+                :entity_id, 'content', :model_id,
+                :embedding, :source_text, :source_hash, :metadata
             )
         """, {
             "entity_id": str(entity_id),
             "model_id": EMBEDDING_MODEL,
-            "model_version": "1",
             "embedding": f"[{','.join(map(str, embedding))}]",
-            "metadata": {"text_length": len(text), "text_preview": text[:200]}
+            "source_text": text[:2000],  # Store truncated source for reference
+            "source_hash": source_hash,
+            "metadata": json.dumps({"text_length": len(text), "text_preview": text[:200]})
         })
 
         # Update entity status

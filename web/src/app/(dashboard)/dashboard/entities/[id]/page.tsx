@@ -1,40 +1,34 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { entities, assets, jobs, type RightsEntity, type Asset, type ProcessingJob } from '@/lib/api'
 import Link from 'next/link'
-import { ProcessingStatus, EmbeddingStatusBadge } from '@/components/ProcessingStatus'
-
-const ASSET_TYPES = [
-  { value: 'audio_master', label: 'Audio Master' },
-  { value: 'audio_preview', label: 'Audio Preview' },
-  { value: 'audio_stem', label: 'Audio Stem' },
-  { value: 'lyrics', label: 'Lyrics' },
-  { value: 'sheet_music', label: 'Sheet Music' },
-  { value: 'artwork', label: 'Artwork' },
-  { value: 'photo', label: 'Photo' },
-  { value: 'contract', label: 'Contract' },
-  { value: 'certificate', label: 'Certificate' },
-  { value: 'other', label: 'Other' },
-]
+import { ProcessingStatus, ProcessingStatusWithJobs, EmbeddingStatusBadge } from '@/components/ProcessingStatus'
+import { AssetUploader } from '@/components/AssetUploader'
+import { AssetGallery } from '@/components/AssetGallery'
+import { useEntityJobPolling } from '@/hooks/useJobPolling'
 
 export default function EntityDetailPage() {
   const params = useParams()
   const router = useRouter()
   const entityId = params.id as string
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [entity, setEntity] = useState<RightsEntity | null>(null)
   const [entityAssets, setAssets] = useState<Asset[]>([])
-  const [entityJobs, setJobs] = useState<ProcessingJob[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [uploadType, setUploadType] = useState('audio_master')
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [assetRefreshKey, setAssetRefreshKey] = useState(0)
   const supabase = createClient()
+
+  // Job polling
+  const { jobs: entityJobs, isLoading: jobsLoading, refetch: refetchJobs, hasActiveJobs } = useEntityJobPolling(
+    entityId,
+    token || undefined,
+    { enabled: !!token, stopOnComplete: false }
+  )
 
   const loadData = useCallback(async () => {
     try {
@@ -45,15 +39,14 @@ export default function EntityDetailPage() {
         return
       }
 
-      const [entityResult, assetsResult, jobsResult] = await Promise.all([
+      const [entityResult, assetsResult] = await Promise.all([
         entities.get(entityId, session.access_token),
         assets.list(entityId, session.access_token),
-        jobs.listForEntity(entityId, session.access_token, { limit: 10 })
       ])
 
       setEntity(entityResult.entity)
       setAssets(assetsResult.assets)
-      setJobs(jobsResult.jobs)
+      setToken(session.access_token)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load entity')
     } finally {
@@ -65,42 +58,16 @@ export default function EntityDetailPage() {
     loadData()
   }, [loadData])
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const handleAssetUpload = async (asset: Asset) => {
+    // Refresh asset list when new asset is uploaded
+    setAssetRefreshKey(k => k + 1)
 
-    setIsUploading(true)
-    setUploadProgress(`Uploading ${file.name}...`)
-    setError(null)
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError('Not authenticated')
-        return
-      }
-
-      const result = await assets.upload(entityId, file, uploadType, session.access_token)
-      setAssets([result.asset, ...entityAssets])
-      setUploadProgress(null)
-
-      // Trigger processing
+    // Trigger processing for the new asset
+    if (token) {
       try {
-        await assets.triggerProcessing(result.asset.id, session.access_token)
-        // Refresh assets to get updated status
-        const assetsResult = await assets.list(entityId, session.access_token)
-        setAssets(assetsResult.assets)
+        await assets.triggerProcessing(asset.id, token)
       } catch {
-        // Processing trigger failed, but upload succeeded
         console.warn('Asset uploaded but processing trigger failed')
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed')
-    } finally {
-      setIsUploading(false)
-      setUploadProgress(null)
-      if (fileInputRef.current) {
-        fileInputRef.current.value = ''
       }
     }
   }
@@ -112,30 +79,32 @@ export default function EntityDetailPage() {
 
       await entities.triggerProcessing(entityId, session.access_token)
 
-      // Refresh data
+      // Refresh jobs and entity
       await loadData()
+      refetchJobs()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to trigger processing')
     }
   }
 
-  const handleDownload = async (assetId: string) => {
+  const handleJobRetry = async (jobId: string) => {
+    if (!token) return
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-
-      const result = await assets.getDownloadUrl(assetId, session.access_token)
-      window.open(result.url, '_blank')
+      await jobs.retry(jobId, token)
+      refetchJobs()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get download URL')
+      setError(err instanceof Error ? err.message : 'Failed to retry job')
     }
   }
 
-  const formatFileSize = (bytes?: number) => {
-    if (!bytes) return 'Unknown size'
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  const handleJobCancel = async (jobId: string) => {
+    if (!token) return
+    try {
+      await jobs.cancel(jobId, token)
+      refetchJobs()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel job')
+    }
   }
 
   if (isLoading) {
@@ -209,97 +178,32 @@ export default function EntityDetailPage() {
         </div>
       )}
 
-      {uploadProgress && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
-          {uploadProgress}
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-6">
           {/* Assets Section */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-            <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Assets</h2>
-              <span className="text-sm text-slate-500">{entityAssets.length} files</span>
-            </div>
-
-            {/* Upload Area */}
-            <div className="p-6 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-4">
-                <select
-                  value={uploadType}
-                  onChange={(e) => setUploadType(e.target.value)}
-                  className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none"
-                >
-                  {ASSET_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileSelect}
-                  disabled={isUploading}
-                  className="hidden"
-                  id="file-upload"
+            <div className="p-6 border-b border-slate-200">
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Assets</h2>
+              {token && (
+                <AssetUploader
+                  entityId={entityId}
+                  token={token}
+                  onUploadComplete={handleAssetUpload}
                 />
-                <label
-                  htmlFor="file-upload"
-                  className={`px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg cursor-pointer transition-colors ${
-                    isUploading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800'
-                  }`}
-                >
-                  {isUploading ? 'Uploading...' : 'Upload File'}
-                </label>
-              </div>
+              )}
             </div>
 
-            {/* Assets List */}
-            {entityAssets.length === 0 ? (
-              <div className="p-12 text-center">
-                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-slate-900 mb-2">No assets yet</h3>
-                <p className="text-slate-500">Upload files to attach to this entity.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-200">
-                {entityAssets.map((asset) => (
-                  <div key={asset.id} className="p-4 hover:bg-slate-50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="font-medium text-slate-900 text-sm">{asset.filename}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-xs text-slate-500">{asset.asset_type}</span>
-                            <span className="text-xs text-slate-400">{formatFileSize(asset.file_size_bytes)}</span>
-                            <ProcessingStatus status={asset.processing_status} size="sm" />
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleDownload(asset.id)}
-                        className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="p-6">
+              <h3 className="text-md font-medium text-slate-900 mb-4">Uploaded Files</h3>
+              {token && (
+                <AssetGallery
+                  key={assetRefreshKey}
+                  entityId={entityId}
+                  token={token}
+                />
+              )}
+            </div>
           </div>
 
           {/* AI Permissions */}
@@ -317,20 +221,23 @@ export default function EntityDetailPage() {
         <div className="space-y-6">
           {/* Processing Jobs */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-            <div className="p-4 border-b border-slate-200">
+            <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h3 className="font-semibold text-slate-900">Processing Jobs</h3>
+              {hasActiveJobs && (
+                <span className="text-xs text-blue-600 animate-pulse">Processing...</span>
+              )}
             </div>
             {entityJobs.length === 0 ? (
               <div className="p-6 text-center text-sm text-slate-500">
                 No processing jobs yet
               </div>
             ) : (
-              <div className="divide-y divide-slate-200">
+              <div className="divide-y divide-slate-200 max-h-80 overflow-auto">
                 {entityJobs.map((job) => (
                   <div key={job.id} className="p-4">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-slate-900">
-                        {job.job_type.replace('_', ' ')}
+                      <span className="text-sm font-medium text-slate-900 capitalize">
+                        {job.job_type.replace(/_/g, ' ')}
                       </span>
                       <ProcessingStatus status={job.status} size="sm" />
                     </div>
@@ -338,8 +245,29 @@ export default function EntityDetailPage() {
                       {new Date(job.created_at).toLocaleString()}
                     </p>
                     {job.error_message && (
-                      <p className="text-xs text-red-600 mt-1">{job.error_message}</p>
+                      <p className="text-xs text-red-600 mt-1 truncate" title={job.error_message}>
+                        {job.error_message}
+                      </p>
                     )}
+                    {/* Job actions */}
+                    <div className="flex gap-2 mt-2">
+                      {job.status === 'failed' && (
+                        <button
+                          onClick={() => handleJobRetry(job.id)}
+                          className="text-xs text-blue-600 hover:text-blue-700"
+                        >
+                          Retry
+                        </button>
+                      )}
+                      {(job.status === 'queued' || job.status === 'processing') && (
+                        <button
+                          onClick={() => handleJobCancel(job.id)}
+                          className="text-xs text-slate-500 hover:text-slate-700"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
