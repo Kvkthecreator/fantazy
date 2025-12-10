@@ -69,19 +69,17 @@ if USING_DATABASES_LIBRARY:
             if database_url.startswith("postgres://"):
                 database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-            # Disable prepared statement caching for pgbouncer compatibility
-            # Supabase uses pgbouncer in transaction mode which doesn't support prepared statements
-            # Add statement_cache_size=0 and prepared_statement_cache_size=0 to URL
-            separator = "&" if "?" in database_url else "?"
-            database_url += f"{separator}statement_cache_size=0&prepared_statement_cache_size=0"
-
             # Configure connection with longer timeout for cross-region connections
+            # Disable prepared statement caching for pgbouncer/Supavisor compatibility
+            # Supabase uses connection pooling in transaction mode which doesn't support prepared statements
             _db = Database(
                 database_url,
                 min_size=1,
                 max_size=5,
                 # Increase command timeout for cross-region latency
                 command_timeout=60,
+                # Critical: Disable statement cache for pgbouncer compatibility
+                statement_cache_size=0,
             )
 
             # Connect with extended timeout
