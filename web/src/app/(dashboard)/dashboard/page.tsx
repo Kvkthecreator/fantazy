@@ -1,9 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { workspaces, type Workspace } from '@/lib/api'
-import Link from 'next/link'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { ArrowRight, FolderKanban, Library, Shield } from 'lucide-react'
 
 export default function DashboardPage() {
   const [userWorkspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -35,123 +40,148 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {[1, 2, 3].map((item) => (
+            <Skeleton key={item} className="h-32 rounded-2xl" />
+          ))}
+        </div>
+        <Skeleton className="h-72 rounded-2xl" />
       </div>
     )
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-600 mt-1">Welcome to Clearinghouse - manage your IP and AI permissions</p>
+    <div className="space-y-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <Badge variant="outline">Overview</Badge>
+            <p className="text-sm text-muted-foreground">AI-native IP control</p>
+          </div>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">
+            Manage your catalogs, AI permissions, and licensing in one place.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/dashboard/workspaces/new">Create workspace</Link>
+        </Button>
       </div>
 
-      {/* Error */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
-        </div>
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive">Unable to load data</CardTitle>
+            <CardDescription className="text-destructive">
+              {error}
+            </CardDescription>
+          </CardHeader>
+        </Card>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-              </svg>
-            </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <p className="text-sm text-slate-500">Workspaces</p>
-              <p className="text-2xl font-bold text-slate-900">{userWorkspaces.length}</p>
+              <CardDescription>Workspaces</CardDescription>
+              <CardTitle className="text-3xl">{userWorkspaces.length}</CardTitle>
             </div>
-          </div>
-        </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <FolderKanban className="h-6 w-6" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2 text-sm text-muted-foreground">
+            Multi-tenant containers with RLS and governance-first controls.
+          </CardContent>
+        </Card>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-              </svg>
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <p className="text-sm text-slate-500">Protected Assets</p>
-              <p className="text-2xl font-bold text-slate-900">-</p>
+              <CardDescription>Protected assets</CardDescription>
+              <CardTitle className="text-3xl">—</CardTitle>
             </div>
-          </div>
-        </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+              <Shield className="h-6 w-6" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2 text-sm text-muted-foreground">
+            Reference files, embeddings, and semantic metadata coverage.
+          </CardContent>
+        </Card>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-              <svg className="w-6 h-6 text-purple-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
-              <p className="text-sm text-slate-500">Active Licenses</p>
-              <p className="text-2xl font-bold text-slate-900">-</p>
+              <CardDescription>Active licenses</CardDescription>
+              <CardTitle className="text-3xl">—</CardTitle>
             </div>
-          </div>
-        </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-500">
+              <Library className="h-6 w-6" />
+            </div>
+          </CardHeader>
+          <CardContent className="pt-2 text-sm text-muted-foreground">
+            Issue grants with AI permission templates and timeline tracking.
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Workspaces Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200">
-        <div className="p-6 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Your Workspaces</h2>
-          <Link
-            href="/dashboard/workspaces/new"
-            className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            Create Workspace
-          </Link>
-        </div>
-
-        {userWorkspaces.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-medium text-slate-900 mb-2">No workspaces yet</h3>
-            <p className="text-slate-500 mb-6">Create your first workspace to start managing your IP catalogs.</p>
-            <Link
-              href="/dashboard/workspaces/new"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Create Workspace
-            </Link>
+      <Card>
+        <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Your workspaces</CardTitle>
+            <CardDescription>Catalogs, rights entities, proposals, and licenses per tenant.</CardDescription>
           </div>
+          <Button variant="outline" asChild>
+            <Link href="/dashboard/workspaces/new">New workspace</Link>
+          </Button>
+        </CardHeader>
+        {userWorkspaces.length === 0 ? (
+          <CardContent className="flex flex-col items-center justify-center gap-3 py-14 text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <FolderKanban className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <div>
+              <p className="text-lg font-semibold">No workspaces yet</p>
+              <p className="text-sm text-muted-foreground">
+                Create your first workspace to begin onboarding catalogs.
+              </p>
+            </div>
+            <Button asChild>
+              <Link href="/dashboard/workspaces/new">
+                Create workspace
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="divide-y divide-border">
             {userWorkspaces.map((workspace) => (
               <Link
                 key={workspace.id}
                 href={`/dashboard/workspaces/${workspace.id}`}
-                className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors"
+                className="flex items-center justify-between px-6 py-5 transition-colors hover:bg-muted/60"
               >
                 <div>
-                  <h3 className="font-medium text-slate-900">{workspace.name}</h3>
-                  <p className="text-sm text-slate-500 mt-1">{workspace.description || 'No description'}</p>
+                  <p className="text-base font-semibold">{workspace.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {workspace.description || 'No description yet'}
+                  </p>
                 </div>
-                <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </Link>
             ))}
           </div>
         )}
-      </div>
+      </Card>
     </div>
   )
 }
