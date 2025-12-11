@@ -150,11 +150,16 @@ async def get_db() -> AsyncpgAdapter:
         database_url = os.getenv("DATABASE_URL")
         if not database_url:
             raise ValueError("DATABASE_URL environment variable is required")
-        
+
         # Handle Render.com DATABASE_URL format
         if database_url.startswith("postgres://"):
             database_url = database_url.replace("postgres://", "postgresql://", 1)
-        
+
+        # Strip query parameters (like ?pgbouncer=true) for compatibility
+        if "?" in database_url:
+            database_url = database_url.split("?")[0]
+            print("ℹ️  Stripped query parameters from DATABASE_URL for compatibility")
+
         # Create connection pool
         _pool = await asyncpg.create_pool(
             database_url,

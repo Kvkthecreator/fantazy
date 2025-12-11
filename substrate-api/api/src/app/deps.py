@@ -69,6 +69,13 @@ if USING_DATABASES_LIBRARY:
             if database_url.startswith("postgres://"):
                 database_url = database_url.replace("postgres://", "postgresql://", 1)
 
+            # Strip query parameters (like ?pgbouncer=true) that cause parsing issues
+            # The databases library doesn't handle these well, and we configure
+            # pgbouncer compatibility via statement_cache_size=0 below
+            if "?" in database_url:
+                database_url = database_url.split("?")[0]
+                print("ℹ️  Stripped query parameters from DATABASE_URL for compatibility")
+
             # Configure connection with longer timeout for cross-region connections
             # Disable prepared statement caching for pgbouncer/Supavisor compatibility
             # Supabase uses connection pooling in transaction mode which doesn't support prepared statements
