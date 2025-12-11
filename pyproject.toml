@@ -1,7 +1,7 @@
 [project]
-name = "clearinghouse"
+name = "fantazy"
 version = "0.1.0"
-description = "IP Licensing Infrastructure for the AI Era"
+description = "Cozy Companion Backend - AI characters that remember your story"
 readme = "README.md"
 requires-python = ">=3.11,<4.0"
 license = "MIT"
@@ -16,6 +16,7 @@ dependencies = [
     "databases>=0.9.0",
     "PyJWT>=2.8.0",
     "cryptography>=42.0.0",
+    "openai>=1.0.0",
 ]
 
 classifiers = [
@@ -30,8 +31,8 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage   = "https://github.com/Kvkthecreator/clearinghouse"
-Repository = "https://github.com/Kvkthecreator/clearinghouse"
+Homepage   = "https://github.com/Kvkthecreator/fantazy"
+Repository = "https://github.com/Kvkthecreator/fantazy"
 
 # -----------------------------------------------------------------
 # Dev / tooling

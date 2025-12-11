@@ -1,4 +1,0 @@
-title,entity_key,content,ai_permissions
-"Test Track 1","TEST-ISRC-001","{""artist_name"": ""Test Artist"", ""duration_seconds"": 180}","{""training_permitted"": true, ""generation_reference"": true}"
-"Test Track 2","TEST-ISRC-002","{""artist_name"": ""Test Artist"", ""duration_seconds"": 210}","{""training_permitted"": true, ""generation_reference"": true}"
-"Test Track 3","TEST-ISRC-003","{""artist_name"": ""Other Artist"", ""duration_seconds"": 195}","{""training_permitted"": false, ""generation_reference"": true}"

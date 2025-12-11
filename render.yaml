@@ -1,10 +1,10 @@
-# render.yaml - Clearinghouse API Configuration
-# IP Licensing Infrastructure for the AI Era
+# render.yaml - Fantazy API Configuration
+# Cozy Companion Backend - AI characters that remember your story
 
 services:
-  # Clearinghouse API - FastAPI Backend
+  # Fantazy API - FastAPI Backend
   - type: web
-    name: clearinghouse-api
+    name: fantazy-api
     runtime: python
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: cd src && uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -25,33 +25,6 @@ services:
       # CORS - Frontend origins (comma-separated)
       - key: CORS_ORIGINS
         sync: false
-      # Optional: OpenAI for embeddings
+      # Optional: OpenAI for AI features
       - key: OPENAI_API_KEY
         sync: false
-
-  # Clearinghouse Worker - Background Job Processing
-  - type: worker
-    name: clearinghouse-worker
-    runtime: python
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: cd src && python -m worker.main
-    rootDir: substrate-api/api
-    envVars:
-      # Database (same as API)
-      - key: DATABASE_URL
-        sync: false
-      # OpenAI for embedding generation
-      - key: OPENAI_API_KEY
-        sync: false
-      # Supabase for storage access
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      # Worker configuration
-      - key: WORKER_POLL_INTERVAL
-        value: "10"
-      - key: WORKER_MAX_CONCURRENT
-        value: "3"
-      - key: LOG_LEVEL
-        value: INFO
