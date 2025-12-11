@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Clearinghouse - IP Rights Management",
-  description: "AI-native IP rights clearinghouse for managing digital assets and licensing",
+  title: "Fantazy - Cozy AI Companions",
+  description: "Connect with AI characters who remember you, grow with you, and feel like real friends",
 };
 
 export const dynamic = 'force-dynamic';
