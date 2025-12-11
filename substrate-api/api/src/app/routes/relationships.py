@@ -23,8 +23,8 @@ async def list_relationships(
     db=Depends(get_db),
 ):
     """List all relationships for the current user."""
-    conditions = ["r.user_id = $1"]
-    values = [user_id]
+    conditions = ["r.user_id = :user_id"]
+    values = {"user_id": str(user_id)}
 
     if not include_archived:
         conditions.append("r.is_archived = FALSE")
@@ -54,8 +54,8 @@ async def create_relationship(
 ):
     """Create a new relationship with a character."""
     # Check if character exists
-    char_query = "SELECT id FROM characters WHERE id = $1 AND is_active = TRUE"
-    char_row = await db.fetch_one(char_query, [data.character_id])
+    char_query = "SELECT id FROM characters WHERE id = :character_id AND is_active = TRUE"
+    char_row = await db.fetch_one(char_query, {"character_id": str(data.character_id)})
 
     if not char_row:
         raise HTTPException(
@@ -66,9 +66,9 @@ async def create_relationship(
     # Check if relationship already exists
     existing_query = """
         SELECT id FROM relationships
-        WHERE user_id = $1 AND character_id = $2
+        WHERE user_id = :user_id AND character_id = :character_id
     """
-    existing = await db.fetch_one(existing_query, [user_id, data.character_id])
+    existing = await db.fetch_one(existing_query, {"user_id": str(user_id), "character_id": str(data.character_id)})
 
     if existing:
         raise HTTPException(
@@ -79,10 +79,10 @@ async def create_relationship(
     # Create relationship
     query = """
         INSERT INTO relationships (user_id, character_id)
-        VALUES ($1, $2)
+        VALUES (:user_id, :character_id)
         RETURNING *
     """
-    row = await db.fetch_one(query, [user_id, data.character_id])
+    row = await db.fetch_one(query, {"user_id": str(user_id), "character_id": str(data.character_id)})
     return Relationship(**dict(row))
 
 
@@ -95,9 +95,9 @@ async def get_relationship(
     """Get a specific relationship."""
     query = """
         SELECT * FROM relationships
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :relationship_id AND user_id = :user_id
     """
-    row = await db.fetch_one(query, [relationship_id, user_id])
+    row = await db.fetch_one(query, {"relationship_id": str(relationship_id), "user_id": str(user_id)})
 
     if not row:
         raise HTTPException(
@@ -117,9 +117,9 @@ async def get_relationship_by_character(
     """Get relationship with a specific character."""
     query = """
         SELECT * FROM relationships
-        WHERE user_id = $1 AND character_id = $2
+        WHERE user_id = :user_id AND character_id = :character_id
     """
-    row = await db.fetch_one(query, [user_id, character_id])
+    row = await db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
     if not row:
         raise HTTPException(
@@ -139,28 +139,23 @@ async def update_relationship(
 ):
     """Update a relationship."""
     updates = []
-    values = []
-    param_idx = 1
+    values = {"relationship_id": str(relationship_id), "user_id": str(user_id)}
 
     if data.nickname is not None:
-        updates.append(f"nickname = ${param_idx}")
-        values.append(data.nickname)
-        param_idx += 1
+        updates.append("nickname = :nickname")
+        values["nickname"] = data.nickname
 
     if data.is_favorite is not None:
-        updates.append(f"is_favorite = ${param_idx}")
-        values.append(data.is_favorite)
-        param_idx += 1
+        updates.append("is_favorite = :is_favorite")
+        values["is_favorite"] = data.is_favorite
 
     if data.is_archived is not None:
-        updates.append(f"is_archived = ${param_idx}")
-        values.append(data.is_archived)
-        param_idx += 1
+        updates.append("is_archived = :is_archived")
+        values["is_archived"] = data.is_archived
 
     if data.relationship_notes is not None:
-        updates.append(f"relationship_notes = ${param_idx}")
-        values.append(data.relationship_notes)
-        param_idx += 1
+        updates.append("relationship_notes = :relationship_notes")
+        values["relationship_notes"] = data.relationship_notes
 
     if not updates:
         raise HTTPException(
@@ -168,11 +163,10 @@ async def update_relationship(
             detail="No fields to update",
         )
 
-    values.extend([relationship_id, user_id])
     query = f"""
         UPDATE relationships
         SET {", ".join(updates)}, updated_at = NOW()
-        WHERE id = ${param_idx} AND user_id = ${param_idx + 1}
+        WHERE id = :relationship_id AND user_id = :user_id
         RETURNING *
     """
 

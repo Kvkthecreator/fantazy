@@ -23,9 +23,9 @@ async def list_messages(
     # Verify episode ownership
     episode_check = """
         SELECT id FROM episodes
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :episode_id AND user_id = :user_id
     """
-    episode_row = await db.fetch_one(episode_check, [episode_id, user_id])
+    episode_row = await db.fetch_one(episode_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
 
     if not episode_row:
         raise HTTPException(
@@ -34,23 +34,20 @@ async def list_messages(
         )
 
     # Build query
-    conditions = ["episode_id = $1"]
-    values = [episode_id]
-    param_idx = 2
+    conditions = ["episode_id = :episode_id"]
+    values = {"episode_id": str(episode_id), "limit": limit}
 
     if before_id:
-        conditions.append(f"""
-            created_at < (SELECT created_at FROM messages WHERE id = ${param_idx})
+        conditions.append("""
+            created_at < (SELECT created_at FROM messages WHERE id = :before_id)
         """)
-        values.append(before_id)
-        param_idx += 1
+        values["before_id"] = str(before_id)
 
-    values.append(limit)
     query = f"""
         SELECT * FROM messages
         WHERE {" AND ".join(conditions)}
         ORDER BY created_at DESC
-        LIMIT ${param_idx}
+        LIMIT :limit
     """
 
     rows = await db.fetch_all(query, values)
@@ -69,9 +66,9 @@ async def get_recent_messages(
     # Verify episode ownership
     episode_check = """
         SELECT id FROM episodes
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :episode_id AND user_id = :user_id
     """
-    episode_row = await db.fetch_one(episode_check, [episode_id, user_id])
+    episode_row = await db.fetch_one(episode_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
 
     if not episode_row:
         raise HTTPException(
@@ -81,10 +78,10 @@ async def get_recent_messages(
 
     query = """
         SELECT * FROM messages
-        WHERE episode_id = $1
+        WHERE episode_id = :episode_id
         ORDER BY created_at DESC
-        LIMIT $2
+        LIMIT :limit
     """
 
-    rows = await db.fetch_all(query, [episode_id, limit])
+    rows = await db.fetch_all(query, {"episode_id": str(episode_id), "limit": limit})
     return [Message(**dict(row)) for row in reversed(rows)]

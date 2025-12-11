@@ -18,9 +18,9 @@ async def get_current_user(
 ):
     """Get current user's profile."""
     query = """
-        SELECT * FROM users WHERE id = $1
+        SELECT * FROM users WHERE id = :user_id
     """
-    row = await db.fetch_one(query, [user_id])
+    row = await db.fetch_one(query, {"user_id": str(user_id)})
 
     if not row:
         raise HTTPException(
@@ -40,38 +40,31 @@ async def update_current_user(
     """Update current user's profile."""
     # Build dynamic update query
     updates = []
-    values = []
-    param_idx = 1
+    values = {"user_id": str(user_id)}
 
     if data.display_name is not None:
-        updates.append(f"display_name = ${param_idx}")
-        values.append(data.display_name)
-        param_idx += 1
+        updates.append("display_name = :display_name")
+        values["display_name"] = data.display_name
 
     if data.pronouns is not None:
-        updates.append(f"pronouns = ${param_idx}")
-        values.append(data.pronouns)
-        param_idx += 1
+        updates.append("pronouns = :pronouns")
+        values["pronouns"] = data.pronouns
 
     if data.timezone is not None:
-        updates.append(f"timezone = ${param_idx}")
-        values.append(data.timezone)
-        param_idx += 1
+        updates.append("timezone = :timezone")
+        values["timezone"] = data.timezone
 
     if data.preferences is not None:
-        updates.append(f"preferences = ${param_idx}")
-        values.append(data.preferences.model_dump_json())
-        param_idx += 1
+        updates.append("preferences = :preferences")
+        values["preferences"] = data.preferences.model_dump_json()
 
     if data.onboarding_completed is not None:
-        updates.append(f"onboarding_completed = ${param_idx}")
-        values.append(data.onboarding_completed)
-        param_idx += 1
+        updates.append("onboarding_completed = :onboarding_completed")
+        values["onboarding_completed"] = data.onboarding_completed
 
     if data.onboarding_step is not None:
-        updates.append(f"onboarding_step = ${param_idx}")
-        values.append(data.onboarding_step)
-        param_idx += 1
+        updates.append("onboarding_step = :onboarding_step")
+        values["onboarding_step"] = data.onboarding_step
 
     if not updates:
         raise HTTPException(
@@ -79,11 +72,10 @@ async def update_current_user(
             detail="No fields to update",
         )
 
-    values.append(user_id)
     query = f"""
         UPDATE users
         SET {", ".join(updates)}, updated_at = NOW()
-        WHERE id = ${param_idx}
+        WHERE id = :user_id
         RETURNING *
     """
 
@@ -98,35 +90,35 @@ async def complete_onboarding(
     db=Depends(get_db),
 ):
     """Complete user onboarding and create first relationship."""
-    # Update user profile
-    query = """
-        UPDATE users
-        SET
-            display_name = $1,
-            pronouns = $2,
-            timezone = $3,
-            age_confirmed = $4,
-            onboarding_completed = TRUE,
-            preferences = preferences || $5::jsonb,
-            updated_at = NOW()
-        WHERE id = $6
-        RETURNING *
-    """
-
     import json
 
     preferences_update = json.dumps({"vibe_preference": data.vibe_preference})
 
+    # Update user profile
+    query = """
+        UPDATE users
+        SET
+            display_name = :display_name,
+            pronouns = :pronouns,
+            timezone = :timezone,
+            age_confirmed = :age_confirmed,
+            onboarding_completed = TRUE,
+            preferences = preferences || :preferences::jsonb,
+            updated_at = NOW()
+        WHERE id = :user_id
+        RETURNING *
+    """
+
     row = await db.fetch_one(
         query,
-        [
-            data.display_name,
-            data.pronouns,
-            data.timezone,
-            data.age_confirmed,
-            preferences_update,
-            user_id,
-        ],
+        {
+            "display_name": data.display_name,
+            "pronouns": data.pronouns,
+            "timezone": data.timezone,
+            "age_confirmed": data.age_confirmed,
+            "preferences": preferences_update,
+            "user_id": str(user_id),
+        },
     )
 
     if not row:
@@ -138,10 +130,10 @@ async def complete_onboarding(
     # Create relationship with first character
     rel_query = """
         INSERT INTO relationships (user_id, character_id)
-        VALUES ($1, $2)
+        VALUES (:user_id, :character_id)
         ON CONFLICT (user_id, character_id) DO NOTHING
         RETURNING id
     """
-    await db.fetch_one(rel_query, [user_id, data.first_character_id])
+    await db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(data.first_character_id)})
 
     return User(**dict(row))

@@ -19,13 +19,11 @@ async def list_characters(
 ):
     """List all available characters."""
     conditions = ["is_active = TRUE"]
-    values = []
-    param_idx = 1
+    values = {}
 
     if archetype:
-        conditions.append(f"archetype = ${param_idx}")
-        values.append(archetype)
-        param_idx += 1
+        conditions.append("archetype = :archetype")
+        values["archetype"] = archetype
 
     if not include_premium:
         conditions.append("is_premium = FALSE")
@@ -37,8 +35,22 @@ async def list_characters(
         ORDER BY sort_order, name
     """
 
-    rows = await db.fetch_all(query, values)
+    rows = await db.fetch_all(query, values if values else None)
     return [CharacterSummary(**dict(row)) for row in rows]
+
+
+@router.get("/archetypes/list", response_model=List[str])
+async def list_archetypes(
+    db=Depends(get_db),
+):
+    """List all available character archetypes."""
+    query = """
+        SELECT DISTINCT archetype FROM characters
+        WHERE is_active = TRUE
+        ORDER BY archetype
+    """
+    rows = await db.fetch_all(query)
+    return [row["archetype"] for row in rows]
 
 
 @router.get("/{character_id}", response_model=Character)
@@ -49,9 +61,9 @@ async def get_character(
     """Get a specific character by ID."""
     query = """
         SELECT * FROM characters
-        WHERE id = $1 AND is_active = TRUE
+        WHERE id = :character_id AND is_active = TRUE
     """
-    row = await db.fetch_one(query, [character_id])
+    row = await db.fetch_one(query, {"character_id": str(character_id)})
 
     if not row:
         raise HTTPException(
@@ -70,9 +82,9 @@ async def get_character_by_slug(
     """Get a specific character by slug."""
     query = """
         SELECT * FROM characters
-        WHERE slug = $1 AND is_active = TRUE
+        WHERE slug = :slug AND is_active = TRUE
     """
-    row = await db.fetch_one(query, [slug])
+    row = await db.fetch_one(query, {"slug": slug})
 
     if not row:
         raise HTTPException(
@@ -92,9 +104,9 @@ async def get_character_world(
     query = """
         SELECT w.* FROM worlds w
         JOIN characters c ON c.world_id = w.id
-        WHERE c.id = $1 AND c.is_active = TRUE
+        WHERE c.id = :character_id AND c.is_active = TRUE
     """
-    row = await db.fetch_one(query, [character_id])
+    row = await db.fetch_one(query, {"character_id": str(character_id)})
 
     if not row:
         raise HTTPException(
@@ -103,17 +115,3 @@ async def get_character_world(
         )
 
     return World(**dict(row))
-
-
-@router.get("/archetypes/list", response_model=List[str])
-async def list_archetypes(
-    db=Depends(get_db),
-):
-    """List all available character archetypes."""
-    query = """
-        SELECT DISTINCT archetype FROM characters
-        WHERE is_active = TRUE
-        ORDER BY archetype
-    """
-    rows = await db.fetch_all(query)
-    return [row["archetype"] for row in rows]

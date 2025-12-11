@@ -244,22 +244,23 @@ class MemoryService:
                     user_id, character_id, episode_id, type, category,
                     content, summary, emotional_valence, importance_score
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                VALUES (:user_id, :character_id, :episode_id, :type, :category,
+                        :content, :summary, :emotional_valence, :importance_score)
                 RETURNING *
             """
             row = await self.db.fetch_one(
                 query,
-                [
-                    user_id,
-                    character_id,
-                    episode_id,
-                    memory.type.value,
-                    memory.category,
-                    json.dumps(memory.content),
-                    memory.summary,
-                    memory.emotional_valence,
-                    memory.importance_score,
-                ],
+                {
+                    "user_id": str(user_id),
+                    "character_id": str(character_id),
+                    "episode_id": str(episode_id),
+                    "type": memory.type.value,
+                    "category": memory.category,
+                    "content": json.dumps(memory.content),
+                    "summary": memory.summary,
+                    "emotional_valence": memory.emotional_valence,
+                    "importance_score": memory.importance_score,
+                },
             )
             saved.append(MemoryEvent(**dict(row)))
 
@@ -285,20 +286,21 @@ class MemoryService:
                     user_id, character_id, episode_id, type, priority,
                     content, suggested_opener, trigger_after
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                VALUES (:user_id, :character_id, :episode_id, :type, :priority,
+                        :content, :suggested_opener, :trigger_after)
             """
             await self.db.execute(
                 query,
-                [
-                    user_id,
-                    character_id,
-                    episode_id,
-                    hook.type.value,
-                    hook.priority,
-                    hook.content,
-                    hook.suggested_opener,
-                    trigger_after,
-                ],
+                {
+                    "user_id": str(user_id),
+                    "character_id": str(character_id),
+                    "episode_id": str(episode_id),
+                    "type": hook.type.value,
+                    "priority": hook.priority,
+                    "content": hook.content,
+                    "suggested_opener": hook.suggested_opener,
+                    "trigger_after": trigger_after,
+                },
             )
 
     async def get_relevant_memories(
@@ -319,16 +321,16 @@ class MemoryService:
                             created_at DESC
                     ) as rn
                 FROM memory_events
-                WHERE user_id = $1
-                    AND (character_id = $2 OR character_id IS NULL)
+                WHERE user_id = :user_id
+                    AND (character_id = :character_id OR character_id IS NULL)
                     AND is_active = TRUE
             )
             SELECT * FROM ranked_memories
             WHERE rn <= 3
             ORDER BY importance_score DESC, created_at DESC
-            LIMIT $3
+            LIMIT :limit
         """
-        rows = await self.db.fetch_all(query, [user_id, character_id, limit])
+        rows = await self.db.fetch_all(query, {"user_id": str(user_id), "character_id": str(character_id), "limit": limit})
         return [MemoryEvent(**dict(row)) for row in rows]
 
     async def get_active_hooks(
@@ -342,16 +344,16 @@ class MemoryService:
 
         query = """
             SELECT * FROM hooks
-            WHERE user_id = $1
-                AND character_id = $2
+            WHERE user_id = :user_id
+                AND character_id = :character_id
                 AND is_active = TRUE
                 AND triggered_at IS NULL
                 AND (trigger_after IS NULL OR trigger_after <= NOW())
                 AND (trigger_before IS NULL OR trigger_before >= NOW())
             ORDER BY priority DESC, trigger_after ASC NULLS LAST
-            LIMIT $3
+            LIMIT :limit
         """
-        rows = await self.db.fetch_all(query, [user_id, character_id, limit])
+        rows = await self.db.fetch_all(query, {"user_id": str(user_id), "character_id": str(character_id), "limit": limit})
         return [Hook(**dict(row)) for row in rows]
 
     def _format_conversation(self, messages: List[Dict[str, str]]) -> str:

@@ -22,14 +22,12 @@ async def list_hooks(
     db=Depends(get_db),
 ):
     """List hooks for the current user."""
-    conditions = ["user_id = $1"]
-    values = [user_id]
-    param_idx = 2
+    conditions = ["user_id = :user_id"]
+    values = {"user_id": str(user_id), "limit": limit}
 
     if character_id:
-        conditions.append(f"character_id = ${param_idx}")
-        values.append(character_id)
-        param_idx += 1
+        conditions.append("character_id = :character_id")
+        values["character_id"] = str(character_id)
 
     if active_only:
         conditions.append("is_active = TRUE")
@@ -38,12 +36,11 @@ async def list_hooks(
         conditions.append("triggered_at IS NULL")
         conditions.append("(trigger_after IS NULL OR trigger_after <= NOW())")
 
-    values.append(limit)
     query = f"""
         SELECT * FROM hooks
         WHERE {" AND ".join(conditions)}
         ORDER BY priority DESC, trigger_after ASC NULLS LAST, created_at DESC
-        LIMIT ${param_idx}
+        LIMIT :limit
     """
 
     rows = await db.fetch_all(query, values)
@@ -60,17 +57,17 @@ async def get_pending_hooks(
     """Get pending hooks for a character conversation."""
     query = """
         SELECT * FROM hooks
-        WHERE user_id = $1
-            AND character_id = $2
+        WHERE user_id = :user_id
+            AND character_id = :character_id
             AND is_active = TRUE
             AND triggered_at IS NULL
             AND (trigger_after IS NULL OR trigger_after <= NOW())
             AND (trigger_before IS NULL OR trigger_before >= NOW())
         ORDER BY priority DESC, trigger_after ASC NULLS LAST
-        LIMIT $3
+        LIMIT :limit
     """
 
-    rows = await db.fetch_all(query, [user_id, character_id, limit])
+    rows = await db.fetch_all(query, {"user_id": str(user_id), "character_id": str(character_id), "limit": limit})
     return [Hook(**dict(row)) for row in rows]
 
 
@@ -86,24 +83,25 @@ async def create_hook(
             user_id, character_id, episode_id, type, priority,
             content, context, suggested_opener, trigger_after, trigger_before
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+        VALUES (:user_id, :character_id, :episode_id, :type, :priority,
+                :content, :context, :suggested_opener, :trigger_after, :trigger_before)
         RETURNING *
     """
 
     row = await db.fetch_one(
         query,
-        [
-            user_id,
-            data.character_id,
-            data.episode_id,
-            data.type.value,
-            data.priority,
-            data.content,
-            data.context,
-            data.suggested_opener,
-            data.trigger_after,
-            data.trigger_before,
-        ],
+        {
+            "user_id": str(user_id),
+            "character_id": str(data.character_id),
+            "episode_id": str(data.episode_id) if data.episode_id else None,
+            "type": data.type.value,
+            "priority": data.priority,
+            "content": data.content,
+            "context": data.context,
+            "suggested_opener": data.suggested_opener,
+            "trigger_after": data.trigger_after,
+            "trigger_before": data.trigger_before,
+        },
     )
 
     return Hook(**dict(row))
@@ -119,10 +117,10 @@ async def mark_hook_triggered(
     query = """
         UPDATE hooks
         SET triggered_at = NOW()
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :hook_id AND user_id = :user_id
         RETURNING *
     """
-    row = await db.fetch_one(query, [hook_id, user_id])
+    row = await db.fetch_one(query, {"hook_id": str(hook_id), "user_id": str(user_id)})
 
     if not row:
         raise HTTPException(
@@ -143,9 +141,9 @@ async def delete_hook(
     query = """
         UPDATE hooks
         SET is_active = FALSE
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :hook_id AND user_id = :user_id
     """
-    result = await db.execute(query, [hook_id, user_id])
+    result = await db.execute(query, {"hook_id": str(hook_id), "user_id": str(user_id)})
 
     if result == "UPDATE 0":
         raise HTTPException(

@@ -154,8 +154,8 @@ class ConversationService:
     ) -> ConversationContext:
         """Build conversation context for LLM."""
         # Get character
-        char_query = "SELECT * FROM characters WHERE id = $1"
-        char_row = await self.db.fetch_one(char_query, [character_id])
+        char_query = "SELECT * FROM characters WHERE id = :character_id"
+        char_row = await self.db.fetch_one(char_query, {"character_id": str(character_id)})
         if not char_row:
             raise ValueError(f"Character {character_id} not found")
         character = Character(**dict(char_row))
@@ -163,9 +163,9 @@ class ConversationService:
         # Get relationship
         rel_query = """
             SELECT * FROM relationships
-            WHERE user_id = $1 AND character_id = $2
+            WHERE user_id = :user_id AND character_id = :character_id
         """
-        rel_row = await self.db.fetch_one(rel_query, [user_id, character_id])
+        rel_row = await self.db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(character_id)})
         relationship = Relationship(**dict(rel_row)) if rel_row else None
 
         # Get recent messages from episode
@@ -173,11 +173,11 @@ class ConversationService:
         if episode_id:
             msg_query = """
                 SELECT role, content FROM messages
-                WHERE episode_id = $1
+                WHERE episode_id = :episode_id
                 ORDER BY created_at DESC
                 LIMIT 20
             """
-            msg_rows = await self.db.fetch_all(msg_query, [episode_id])
+            msg_rows = await self.db.fetch_all(msg_query, {"episode_id": str(episode_id)})
             messages = [
                 {"role": row["role"], "content": row["content"]}
                 for row in reversed(msg_rows)
@@ -230,11 +230,11 @@ class ConversationService:
         # Check for existing active episode
         query = """
             SELECT * FROM episodes
-            WHERE user_id = $1 AND character_id = $2 AND is_active = TRUE
+            WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
             ORDER BY started_at DESC
             LIMIT 1
         """
-        row = await self.db.fetch_one(query, [user_id, character_id])
+        row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
         if row:
             return Episode(**dict(row))
@@ -242,31 +242,37 @@ class ConversationService:
         # Ensure relationship exists
         rel_query = """
             INSERT INTO relationships (user_id, character_id)
-            VALUES ($1, $2)
+            VALUES (:user_id, :character_id)
             ON CONFLICT (user_id, character_id) DO UPDATE SET updated_at = NOW()
             RETURNING id
         """
-        rel_row = await self.db.fetch_one(rel_query, [user_id, character_id])
+        rel_row = await self.db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(character_id)})
         relationship_id = rel_row["id"]
 
         # Get next episode number
         count_query = """
             SELECT COALESCE(MAX(episode_number), 0) + 1 as next_num
             FROM episodes
-            WHERE user_id = $1 AND character_id = $2
+            WHERE user_id = :user_id AND character_id = :character_id
         """
-        count_row = await self.db.fetch_one(count_query, [user_id, character_id])
+        count_row = await self.db.fetch_one(count_query, {"user_id": str(user_id), "character_id": str(character_id)})
         episode_number = count_row["next_num"]
 
         # Create episode
         create_query = """
             INSERT INTO episodes (user_id, character_id, relationship_id, episode_number, scene)
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES (:user_id, :character_id, :relationship_id, :episode_number, :scene)
             RETURNING *
         """
         new_row = await self.db.fetch_one(
             create_query,
-            [user_id, character_id, relationship_id, episode_number, scene],
+            {
+                "user_id": str(user_id),
+                "character_id": str(character_id),
+                "relationship_id": str(relationship_id),
+                "episode_number": episode_number,
+                "scene": scene,
+            },
         )
 
         return Episode(**dict(new_row))
@@ -280,9 +286,9 @@ class ConversationService:
         # Get active episode
         query = """
             SELECT * FROM episodes
-            WHERE user_id = $1 AND character_id = $2 AND is_active = TRUE
+            WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
         """
-        row = await self.db.fetch_one(query, [user_id, character_id])
+        row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
         if not row:
             return None
@@ -292,15 +298,15 @@ class ConversationService:
         # Get messages for summary
         msg_query = """
             SELECT role, content FROM messages
-            WHERE episode_id = $1
+            WHERE episode_id = :episode_id
             ORDER BY created_at
         """
-        msg_rows = await self.db.fetch_all(msg_query, [episode.id])
+        msg_rows = await self.db.fetch_all(msg_query, {"episode_id": str(episode.id)})
         messages = [{"role": r["role"], "content": r["content"]} for r in msg_rows]
 
         # Get character name for summary
-        char_query = "SELECT name FROM characters WHERE id = $1"
-        char_row = await self.db.fetch_one(char_query, [character_id])
+        char_query = "SELECT name FROM characters WHERE id = :character_id"
+        char_row = await self.db.fetch_one(char_query, {"character_id": str(character_id)})
         character_name = char_row["name"] if char_row else "Character"
 
         # Generate summary
@@ -315,20 +321,20 @@ class ConversationService:
             SET
                 is_active = FALSE,
                 ended_at = NOW(),
-                summary = $1,
-                emotional_tags = $2,
-                key_events = $3
-            WHERE id = $4
+                summary = :summary,
+                emotional_tags = :emotional_tags,
+                key_events = :key_events
+            WHERE id = :episode_id
             RETURNING *
         """
         updated_row = await self.db.fetch_one(
             update_query,
-            [
-                summary_data.get("summary"),
-                summary_data.get("emotional_tags", []),
-                summary_data.get("key_events", []),
-                episode.id,
-            ],
+            {
+                "summary": summary_data.get("summary"),
+                "emotional_tags": summary_data.get("emotional_tags", []),
+                "key_events": summary_data.get("key_events", []),
+                "episode_id": str(episode.id),
+            },
         )
 
         return Episode(**dict(updated_row))
@@ -346,19 +352,27 @@ class ConversationService:
         """Save a message to the database."""
         query = """
             INSERT INTO messages (episode_id, role, content, model_used, tokens_input, tokens_output, latency_ms)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            VALUES (:episode_id, :role, :content, :model_used, :tokens_input, :tokens_output, :latency_ms)
             RETURNING *
         """
         row = await self.db.fetch_one(
             query,
-            [episode_id, role.value, content, model_used, tokens_input, tokens_output, latency_ms],
+            {
+                "episode_id": str(episode_id),
+                "role": role.value,
+                "content": content,
+                "model_used": model_used,
+                "tokens_input": tokens_input,
+                "tokens_output": tokens_output,
+                "latency_ms": latency_ms,
+            },
         )
         return Message(**dict(row))
 
     async def _mark_hook_triggered(self, hook_id: UUID):
         """Mark a hook as triggered."""
-        query = "UPDATE hooks SET triggered_at = NOW() WHERE id = $1"
-        await self.db.execute(query, [hook_id])
+        query = "UPDATE hooks SET triggered_at = NOW() WHERE id = :hook_id"
+        await self.db.execute(query, {"hook_id": str(hook_id)})
 
     async def _process_exchange(
         self,

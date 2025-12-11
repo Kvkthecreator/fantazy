@@ -21,32 +21,31 @@ async def list_memories(
     db=Depends(get_db),
 ):
     """List memory events for the current user."""
-    conditions = ["user_id = $1", "is_active = TRUE"]
-    values = [user_id]
-    param_idx = 2
+    conditions = ["user_id = :user_id", "is_active = TRUE"]
+    values = {"user_id": str(user_id), "limit": limit}
 
     if character_id:
-        conditions.append(f"(character_id = ${param_idx} OR character_id IS NULL)")
-        values.append(character_id)
-        param_idx += 1
+        conditions.append("(character_id = :character_id OR character_id IS NULL)")
+        values["character_id"] = str(character_id)
 
     if types:
-        type_placeholders = ", ".join(f"${i}" for i in range(param_idx, param_idx + len(types)))
-        conditions.append(f"type IN ({type_placeholders})")
-        values.extend([t.value for t in types])
-        param_idx += len(types)
+        # Build IN clause with indexed parameters
+        type_params = []
+        for i, t in enumerate(types):
+            param_name = f"type_{i}"
+            type_params.append(f":{param_name}")
+            values[param_name] = t.value
+        conditions.append(f"type IN ({', '.join(type_params)})")
 
     if min_importance > 0:
-        conditions.append(f"importance_score >= ${param_idx}")
-        values.append(min_importance)
-        param_idx += 1
+        conditions.append("importance_score >= :min_importance")
+        values["min_importance"] = min_importance
 
-    values.append(limit)
     query = f"""
         SELECT * FROM memory_events
         WHERE {" AND ".join(conditions)}
         ORDER BY importance_score DESC, created_at DESC
-        LIMIT ${param_idx}
+        LIMIT :limit
     """
 
     rows = await db.fetch_all(query, values)
@@ -79,17 +78,17 @@ async def get_relevant_memories(
                         created_at DESC
                 ) as rn
             FROM memory_events
-            WHERE user_id = $1
-                AND (character_id = $2 OR character_id IS NULL)
+            WHERE user_id = :user_id
+                AND (character_id = :character_id OR character_id IS NULL)
                 AND is_active = TRUE
         )
         SELECT * FROM ranked_memories
         WHERE rn <= 3
         ORDER BY importance_score DESC, created_at DESC
-        LIMIT $3
+        LIMIT :limit
     """
 
-    rows = await db.fetch_all(query, [user_id, character_id, limit])
+    rows = await db.fetch_all(query, {"user_id": str(user_id), "character_id": str(character_id), "limit": limit})
     return [MemoryEvent(**dict(row)) for row in rows]
 
 
@@ -107,23 +106,24 @@ async def create_memory(
             user_id, character_id, episode_id, type, category,
             content, summary, emotional_valence, importance_score
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES (:user_id, :character_id, :episode_id, :type, :category,
+                :content, :summary, :emotional_valence, :importance_score)
         RETURNING *
     """
 
     row = await db.fetch_one(
         query,
-        [
-            user_id,
-            data.character_id,
-            data.episode_id,
-            data.type.value,
-            data.category,
-            json.dumps(data.content),
-            data.summary,
-            data.emotional_valence,
-            data.importance_score,
-        ],
+        {
+            "user_id": str(user_id),
+            "character_id": str(data.character_id) if data.character_id else None,
+            "episode_id": str(data.episode_id) if data.episode_id else None,
+            "type": data.type.value,
+            "category": data.category,
+            "content": json.dumps(data.content),
+            "summary": data.summary,
+            "emotional_valence": data.emotional_valence,
+            "importance_score": data.importance_score,
+        },
     )
 
     return MemoryEvent(**dict(row))
@@ -139,9 +139,9 @@ async def delete_memory(
     query = """
         UPDATE memory_events
         SET is_active = FALSE
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :memory_id AND user_id = :user_id
     """
-    result = await db.execute(query, [memory_id, user_id])
+    result = await db.execute(query, {"memory_id": str(memory_id), "user_id": str(user_id)})
 
     if result == "UPDATE 0":
         raise HTTPException(
@@ -162,10 +162,10 @@ async def mark_memory_referenced(
         SET
             last_referenced_at = NOW(),
             reference_count = reference_count + 1
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :memory_id AND user_id = :user_id
         RETURNING *
     """
-    row = await db.fetch_one(query, [memory_id, user_id])
+    row = await db.fetch_one(query, {"memory_id": str(memory_id), "user_id": str(user_id)})
 
     if not row:
         raise HTTPException(

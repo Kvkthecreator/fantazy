@@ -22,26 +22,23 @@ async def list_episodes(
     db=Depends(get_db),
 ):
     """List episodes for the current user."""
-    conditions = ["user_id = $1"]
-    values = [user_id]
-    param_idx = 2
+    conditions = ["user_id = :user_id"]
+    values = {"user_id": str(user_id), "limit": limit, "offset": offset}
 
     if character_id:
-        conditions.append(f"character_id = ${param_idx}")
-        values.append(character_id)
-        param_idx += 1
+        conditions.append("character_id = :character_id")
+        values["character_id"] = str(character_id)
 
     if active_only:
         conditions.append("is_active = TRUE")
 
-    values.extend([limit, offset])
     query = f"""
         SELECT id, character_id, episode_number, title, started_at, ended_at,
                message_count, is_active
         FROM episodes
         WHERE {" AND ".join(conditions)}
         ORDER BY started_at DESC
-        LIMIT ${param_idx} OFFSET ${param_idx + 1}
+        LIMIT :limit OFFSET :offset
     """
 
     rows = await db.fetch_all(query, values)
@@ -58,46 +55,46 @@ async def create_episode(
     # Get or create relationship
     rel_query = """
         INSERT INTO relationships (user_id, character_id)
-        VALUES ($1, $2)
+        VALUES (:user_id, :character_id)
         ON CONFLICT (user_id, character_id) DO UPDATE SET updated_at = NOW()
         RETURNING id
     """
-    rel_row = await db.fetch_one(rel_query, [user_id, data.character_id])
+    rel_row = await db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(data.character_id)})
     relationship_id = rel_row["id"]
 
     # Close any active episodes with this character
     close_query = """
         UPDATE episodes
         SET is_active = FALSE, ended_at = NOW()
-        WHERE user_id = $1 AND character_id = $2 AND is_active = TRUE
+        WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
     """
-    await db.execute(close_query, [user_id, data.character_id])
+    await db.execute(close_query, {"user_id": str(user_id), "character_id": str(data.character_id)})
 
     # Get next episode number
     count_query = """
         SELECT COALESCE(MAX(episode_number), 0) + 1 as next_num
         FROM episodes
-        WHERE user_id = $1 AND character_id = $2
+        WHERE user_id = :user_id AND character_id = :character_id
     """
-    count_row = await db.fetch_one(count_query, [user_id, data.character_id])
+    count_row = await db.fetch_one(count_query, {"user_id": str(user_id), "character_id": str(data.character_id)})
     episode_number = count_row["next_num"]
 
     # Create new episode
     query = """
         INSERT INTO episodes (user_id, character_id, relationship_id, episode_number, title, scene)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES (:user_id, :character_id, :relationship_id, :episode_number, :title, :scene)
         RETURNING *
     """
     row = await db.fetch_one(
         query,
-        [
-            user_id,
-            data.character_id,
-            relationship_id,
-            episode_number,
-            data.title,
-            data.scene,
-        ],
+        {
+            "user_id": str(user_id),
+            "character_id": str(data.character_id),
+            "relationship_id": str(relationship_id),
+            "episode_number": episode_number,
+            "title": data.title,
+            "scene": data.scene,
+        },
     )
 
     return Episode(**dict(row))
@@ -112,11 +109,11 @@ async def get_active_episode(
     """Get the active episode with a character, if any."""
     query = """
         SELECT * FROM episodes
-        WHERE user_id = $1 AND character_id = $2 AND is_active = TRUE
+        WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
         ORDER BY started_at DESC
         LIMIT 1
     """
-    row = await db.fetch_one(query, [user_id, character_id])
+    row = await db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
     if not row:
         return None
@@ -133,9 +130,9 @@ async def get_episode(
     """Get a specific episode."""
     query = """
         SELECT * FROM episodes
-        WHERE id = $1 AND user_id = $2
+        WHERE id = :episode_id AND user_id = :user_id
     """
-    row = await db.fetch_one(query, [episode_id, user_id])
+    row = await db.fetch_one(query, {"episode_id": str(episode_id), "user_id": str(user_id)})
 
     if not row:
         raise HTTPException(
@@ -155,27 +152,22 @@ async def update_episode(
 ):
     """Update an episode."""
     updates = []
-    values = []
-    param_idx = 1
+    values = {"episode_id": str(episode_id), "user_id": str(user_id)}
 
     if data.title is not None:
-        updates.append(f"title = ${param_idx}")
-        values.append(data.title)
-        param_idx += 1
+        updates.append("title = :title")
+        values["title"] = data.title
 
     if data.scene is not None:
-        updates.append(f"scene = ${param_idx}")
-        values.append(data.scene)
-        param_idx += 1
+        updates.append("scene = :scene")
+        values["scene"] = data.scene
 
     if data.is_active is not None:
-        updates.append(f"is_active = ${param_idx}")
-        values.append(data.is_active)
-        param_idx += 1
+        updates.append("is_active = :is_active")
+        values["is_active"] = data.is_active
         if not data.is_active:
-            updates.append(f"ended_at = ${param_idx}")
-            values.append(datetime.utcnow())
-            param_idx += 1
+            updates.append("ended_at = :ended_at")
+            values["ended_at"] = datetime.utcnow()
 
     if not updates:
         raise HTTPException(
@@ -183,11 +175,10 @@ async def update_episode(
             detail="No fields to update",
         )
 
-    values.extend([episode_id, user_id])
     query = f"""
         UPDATE episodes
         SET {", ".join(updates)}
-        WHERE id = ${param_idx} AND user_id = ${param_idx + 1}
+        WHERE id = :episode_id AND user_id = :user_id
         RETURNING *
     """
 
@@ -212,10 +203,10 @@ async def end_episode(
     query = """
         UPDATE episodes
         SET is_active = FALSE, ended_at = NOW()
-        WHERE id = $1 AND user_id = $2 AND is_active = TRUE
+        WHERE id = :episode_id AND user_id = :user_id AND is_active = TRUE
         RETURNING *
     """
-    row = await db.fetch_one(query, [episode_id, user_id])
+    row = await db.fetch_one(query, {"episode_id": str(episode_id), "user_id": str(user_id)})
 
     if not row:
         raise HTTPException(
