@@ -103,7 +103,7 @@ async def complete_onboarding(
             timezone = :timezone,
             age_confirmed = :age_confirmed,
             onboarding_completed = TRUE,
-            preferences = preferences || :preferences::jsonb,
+            preferences = preferences || :prefs_update::jsonb,
             updated_at = NOW()
         WHERE id = :user_id
         RETURNING *
@@ -116,7 +116,7 @@ async def complete_onboarding(
             "pronouns": data.pronouns,
             "timezone": data.timezone,
             "age_confirmed": data.age_confirmed,
-            "preferences": preferences_update,
+            "prefs_update": preferences_update,
             "user_id": str(user_id),
         },
     )
