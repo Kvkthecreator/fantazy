@@ -1,4 +1,6 @@
+from __future__ import annotations
 import os, base64, logging, jwt
+from typing import Optional, Union
 from fastapi import HTTPException
 
 log = logging.getLogger("uvicorn.error")

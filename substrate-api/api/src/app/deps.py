@@ -1,7 +1,8 @@
+from __future__ import annotations
 import os
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, Optional
 
 try:
     from databases import Database
@@ -42,7 +43,7 @@ except ImportError as e:
 
 if USING_DATABASES_LIBRARY:
     # Global database instance for databases library
-    _db: Database | None = None
+    _db: Optional[Database] = None
     _connection_lock = asyncio.Lock()
 
     async def get_db() -> Database:

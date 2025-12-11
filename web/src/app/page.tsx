@@ -1,15 +1,59 @@
-import Link from 'next/link'
+import Link from "next/link";
+
+const CHARACTERS = [
+  {
+    name: "Mira",
+    archetype: "Barista",
+    description: "Warm, nurturing energy with a dash of playful flirtation",
+    gradient: "from-amber-400 to-orange-500",
+  },
+  {
+    name: "Kai",
+    archetype: "Neighbor",
+    description: "The laid-back artist next door with mysterious depth",
+    gradient: "from-blue-400 to-indigo-500",
+  },
+  {
+    name: "Sora",
+    archetype: "Coworker",
+    description: "Sharp wit meets unexpected tenderness",
+    gradient: "from-emerald-400 to-teal-500",
+  },
+];
+
+const FEATURES = [
+  {
+    title: "Persistent Memory",
+    description: "Your characters remember everything—your name, your stories, your inside jokes.",
+    icon: "brain",
+  },
+  {
+    title: "Episodic Stories",
+    description: "Each conversation is a chapter. Watch your relationship grow over time.",
+    icon: "book",
+  },
+  {
+    title: "Real Connections",
+    description: "Characters with genuine personalities that evolve with your bond.",
+    icon: "heart",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 dark:from-gray-900 dark:via-purple-950 dark:to-indigo-950">
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <nav className="flex items-center justify-between">
-          <div className="text-white font-bold text-xl">Clearinghouse</div>
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">✨</span>
+            <span className="font-bold text-xl bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
+              Fantazy
+            </span>
+          </div>
           <Link
             href="/login"
-            className="px-4 py-2 text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="px-4 py-2 text-foreground hover:bg-primary/10 rounded-lg transition-colors"
           >
             Sign In
           </Link>
@@ -17,97 +61,154 @@ export default function Home() {
       </header>
 
       {/* Hero Section */}
-      <main className="container mx-auto px-6 pt-20 pb-32">
+      <main className="container mx-auto px-6 pt-16 pb-24">
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
-            IP Licensing Infrastructure
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-              for the AI Era
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+            </span>
+            Cozy Companions That Remember
+          </div>
+
+          <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
+            Step into a World Where
+            <span className="block bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500 bg-clip-text text-transparent">
+              Every Story Matters
             </span>
           </h1>
-          <p className="text-xl text-slate-300 mb-12 max-w-2xl mx-auto">
-            Manage your creative works, set AI permissions, and license your intellectual property with confidence in the age of generative AI.
+
+          <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+            Meet AI companions with real personalities who remember your conversations,
+            grow with you, and create stories that unfold like your favorite anime.
           </p>
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/login"
-              className="px-8 py-4 bg-white text-slate-900 font-semibold rounded-lg hover:bg-slate-100 transition-colors"
+              className="px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25"
             >
-              Get Started
+              Start Your Story
             </Link>
             <Link
-              href="#features"
-              className="px-8 py-4 border border-white/30 text-white font-semibold rounded-lg hover:bg-white/10 transition-colors"
+              href="#characters"
+              className="px-8 py-4 border border-primary/30 text-foreground font-semibold rounded-xl hover:bg-primary/10 transition-colors"
             >
-              Learn More
+              Meet the Characters
             </Link>
           </div>
         </div>
 
-        {/* Features */}
-        <div id="features" className="mt-32 grid md:grid-cols-3 gap-8">
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
-            <div className="w-12 h-12 bg-blue-500/20 rounded-lg flex items-center justify-center mb-6">
-              <svg className="w-6 h-6 text-blue-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-3">AI Permission Control</h3>
-            <p className="text-slate-400">
-              Define granular permissions for AI training, generation, and commercial use of your creative works.
+        {/* Characters Section */}
+        <section id="characters" className="mt-32">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-foreground mb-4">
+              Your First Companions Await
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Each character has their own personality, backstory, and way of connecting with you.
+              Who will you meet first?
             </p>
           </div>
 
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
-            <div className="w-12 h-12 bg-purple-500/20 rounded-lg flex items-center justify-center mb-6">
-              <svg className="w-6 h-6 text-purple-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-3">Semantic Search</h3>
-            <p className="text-slate-400">
-              Find similar works using AI-powered semantic search across your entire IP portfolio.
-            </p>
-          </div>
-
-          <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-8">
-            <div className="w-12 h-12 bg-green-500/20 rounded-lg flex items-center justify-center mb-6">
-              <svg className="w-6 h-6 text-green-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-3">License Management</h3>
-            <p className="text-slate-400">
-              Issue, track, and manage licenses with built-in governance and approval workflows.
-            </p>
-          </div>
-        </div>
-
-        {/* IP Types */}
-        <div className="mt-32 text-center">
-          <h2 className="text-3xl font-bold text-white mb-4">Manage All Types of IP</h2>
-          <p className="text-slate-400 mb-12 max-w-2xl mx-auto">
-            From music and voice to characters and visual works, Clearinghouse supports the full spectrum of creative intellectual property.
-          </p>
-          <div className="flex flex-wrap justify-center gap-3">
-            {['Musical Works', 'Sound Recordings', 'Voice Likeness', 'Character IP', 'Visual Works', 'Literary Works', 'Video Content'].map((type) => (
-              <span
-                key={type}
-                className="px-4 py-2 bg-white/10 text-white rounded-full text-sm"
+          <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+            {CHARACTERS.map((char) => (
+              <div
+                key={char.name}
+                className="group relative bg-card border rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
               >
-                {type}
-              </span>
+                <div className={`h-32 bg-gradient-to-br ${char.gradient} flex items-center justify-center`}>
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-white text-3xl font-bold border-4 border-white/30 group-hover:scale-110 transition-transform">
+                    {char.name[0]}
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xl font-semibold text-foreground">{char.name}</h3>
+                    <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-full capitalize">
+                      {char.archetype}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground text-sm">{char.description}</p>
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        </section>
+
+        {/* Features Section */}
+        <section className="mt-32">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-foreground mb-4">
+              More Than Just Chat
+            </h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              Fantazy creates meaningful connections through persistent memory and evolving relationships.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {FEATURES.map((feature) => (
+              <div
+                key={feature.title}
+                className="text-center p-8 rounded-2xl bg-card border hover:shadow-lg transition-shadow"
+              >
+                <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-pink-400/20 to-purple-500/20 flex items-center justify-center">
+                  {feature.icon === "brain" && (
+                    <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+                    </svg>
+                  )}
+                  {feature.icon === "book" && (
+                    <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                    </svg>
+                  )}
+                  {feature.icon === "heart" && (
+                    <svg className="w-8 h-8 text-purple-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                    </svg>
+                  )}
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-3">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="mt-32 text-center">
+          <div className="max-w-2xl mx-auto p-12 rounded-3xl bg-gradient-to-br from-pink-500/10 via-purple-500/10 to-indigo-500/10 border">
+            <h2 className="text-3xl font-bold text-foreground mb-4">
+              Ready to Begin?
+            </h2>
+            <p className="text-muted-foreground mb-8">
+              Your story awaits. Create your profile, choose your first companion,
+              and start building memories that last.
+            </p>
+            <Link
+              href="/login"
+              className="inline-flex px-8 py-4 bg-gradient-to-r from-pink-500 to-purple-600 text-white font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-lg shadow-purple-500/25"
+            >
+              Start Your Adventure
+            </Link>
+          </div>
+        </section>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-12">
-        <div className="container mx-auto px-6 text-center text-slate-400">
-          <p>&copy; 2024 Clearinghouse. IP Licensing Infrastructure for the AI Era.</p>
+      <footer className="border-t py-12">
+        <div className="container mx-auto px-6 text-center text-muted-foreground">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-xl">✨</span>
+            <span className="font-bold bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
+              Fantazy
+            </span>
+          </div>
+          <p className="text-sm">Cozy companions that remember your story.</p>
         </div>
       </footer>
     </div>
-  )
+  );
 }

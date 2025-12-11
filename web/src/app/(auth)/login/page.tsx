@@ -1,47 +1,55 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from "react";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const supabase = createClient()
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const supabase = createClient();
 
   const handleGoogleLogin = async () => {
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
-    })
+    });
 
     if (error) {
-      setError(error.message)
-      setIsLoading(false)
+      setError(error.message);
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="w-full max-w-md p-8">
-        <div className="bg-white rounded-2xl shadow-xl p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-pink-50 via-purple-50 to-indigo-50 dark:from-gray-900 dark:via-purple-950 dark:to-indigo-950 p-4">
+      <div className="w-full max-w-md">
+        {/* Card */}
+        <div className="bg-card border rounded-2xl shadow-xl p-8">
           {/* Logo/Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">
-              Clearinghouse
+            <Link href="/" className="inline-flex items-center gap-2 mb-4">
+              <span className="text-3xl">✨</span>
+              <span className="font-bold text-2xl bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
+                Fantazy
+              </span>
+            </Link>
+            <h1 className="text-xl font-semibold text-foreground mb-2">
+              Welcome back
             </h1>
-            <p className="text-slate-600">
-              IP Licensing Infrastructure for the AI Era
+            <p className="text-muted-foreground text-sm">
+              Sign in to continue your story
             </p>
           </div>
 
           {/* Error Message */}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+            <div className="mb-6 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
               {error}
             </div>
           )}
@@ -50,10 +58,10 @@ export default function LoginPage() {
           <button
             onClick={handleGoogleLogin}
             disabled={isLoading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 hover:border-slate-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 px-4 py-3.5 bg-card border-2 rounded-xl text-foreground font-medium hover:bg-muted/50 hover:border-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-muted border-t-primary rounded-full animate-spin" />
             ) : (
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
@@ -74,27 +82,45 @@ export default function LoginPage() {
                 />
               </svg>
             )}
-            {isLoading ? 'Signing in...' : 'Continue with Google'}
+            {isLoading ? "Signing in..." : "Continue with Google"}
           </button>
 
-          {/* Divider */}
-          <div className="my-6 flex items-center">
-            <div className="flex-1 border-t border-slate-200" />
-            <span className="px-3 text-sm text-slate-500">or</span>
-            <div className="flex-1 border-t border-slate-200" />
+          {/* Features hint */}
+          <div className="mt-8 pt-6 border-t">
+            <p className="text-center text-xs text-muted-foreground mb-4">
+              What awaits you
+            </p>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="p-3 rounded-lg bg-muted/50">
+                <span className="block text-lg mb-1">🧠</span>
+                <span className="text-xs text-muted-foreground">Memory</span>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <span className="block text-lg mb-1">📖</span>
+                <span className="text-xs text-muted-foreground">Stories</span>
+              </div>
+              <div className="p-3 rounded-lg bg-muted/50">
+                <span className="block text-lg mb-1">💕</span>
+                <span className="text-xs text-muted-foreground">Bonds</span>
+              </div>
+            </div>
           </div>
-
-          {/* Info */}
-          <p className="text-center text-sm text-slate-500">
-            Sign in to manage your IP catalogs, set AI permissions, and license your creative works.
-          </p>
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-sm text-slate-400">
-          By signing in, you agree to our Terms of Service and Privacy Policy.
-        </p>
+        <div className="mt-6 text-center">
+          <p className="text-xs text-muted-foreground">
+            By signing in, you confirm you are 18+ and agree to our{" "}
+            <Link href="/terms" className="underline hover:text-foreground">
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="underline hover:text-foreground">
+              Privacy Policy
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
-  )
+  );
 }
