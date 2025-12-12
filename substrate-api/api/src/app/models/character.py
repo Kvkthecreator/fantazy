@@ -82,6 +82,9 @@ class Character(BaseModel):
     # Boundaries
     boundaries: Dict[str, Any] = Field(default_factory=dict)
 
+    # Life arc (character's own story/struggles)
+    life_arc: Dict[str, Any] = Field(default_factory=dict)
+
     # Relationship config
     relationship_stage_thresholds: Dict[str, int] = Field(default_factory=dict)
 
@@ -95,7 +98,7 @@ class Character(BaseModel):
 
     @field_validator(
         "baseline_personality", "tone_style", "speech_patterns",
-        "boundaries", "relationship_stage_thresholds", mode="before"
+        "boundaries", "life_arc", "relationship_stage_thresholds", mode="before"
     )
     @classmethod
     def ensure_dict(cls, v: Any) -> Dict[str, Any]:

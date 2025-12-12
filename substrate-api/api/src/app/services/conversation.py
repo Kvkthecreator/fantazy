@@ -211,13 +211,47 @@ class ConversationService:
             for h in hooks
         ]
 
+        # Calculate time since first met
+        time_since_first_met = ""
+        if relationship and relationship.first_met_at:
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc)
+            first_met = relationship.first_met_at
+            if first_met.tzinfo is None:
+                first_met = first_met.replace(tzinfo=timezone.utc)
+            delta = now - first_met
+            if delta.days == 0:
+                time_since_first_met = "Just met today"
+            elif delta.days == 1:
+                time_since_first_met = "1 day"
+            elif delta.days < 7:
+                time_since_first_met = f"{delta.days} days"
+            elif delta.days < 30:
+                weeks = delta.days // 7
+                time_since_first_met = f"{weeks} week{'s' if weeks > 1 else ''}"
+            else:
+                months = delta.days // 30
+                time_since_first_met = f"{months} month{'s' if months > 1 else ''}"
+
+        # Get character life arc from character data (if available)
+        character_life_arc = {}
+        if hasattr(character, 'life_arc') and character.life_arc:
+            character_life_arc = character.life_arc
+        elif character.current_stressor:
+            # Fallback: use current_stressor as the struggle
+            character_life_arc = {"current_struggle": character.current_stressor}
+
         return ConversationContext(
             character_system_prompt=character.system_prompt,
+            character_name=character.name,
+            character_life_arc=character_life_arc,
             messages=messages,
             memories=memory_summaries,
             hooks=hook_summaries,
             relationship_stage=relationship.stage.value if relationship else "acquaintance",
             relationship_progress=relationship.stage_progress if relationship else 0,
+            total_episodes=relationship.total_episodes if relationship else 0,
+            time_since_first_met=time_since_first_met,
         )
 
     async def get_or_create_episode(
