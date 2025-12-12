@@ -109,6 +109,7 @@ async def complete_onboarding(
     preferences_update = json.dumps({"vibe_preference": data.vibe_preference})
 
     # Update user profile
+    # Note: Using CAST() instead of :: syntax to avoid SQLAlchemy parameter parsing issues
     query = """
         UPDATE users
         SET
@@ -117,7 +118,7 @@ async def complete_onboarding(
             timezone = :timezone,
             age_confirmed = :age_confirmed,
             onboarding_completed = TRUE,
-            preferences = preferences || :prefs_update::jsonb,
+            preferences = preferences || CAST(:prefs_update AS jsonb),
             updated_at = NOW()
         WHERE id = :user_id
         RETURNING *
