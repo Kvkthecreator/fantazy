@@ -1,4 +1,5 @@
 from __future__ import annotations
+import json
 import os
 import asyncio
 from contextlib import asynccontextmanager
@@ -6,8 +7,24 @@ from typing import AsyncIterator, Optional
 
 try:
     from databases import Database
+    import asyncpg
     USING_DATABASES_LIBRARY = True
     print("✅ Using 'databases' library for database connections")
+
+    async def _init_connection(conn):
+        """Initialize connection with JSON/JSONB type codecs."""
+        await conn.set_type_codec(
+            'json',
+            encoder=json.dumps,
+            decoder=json.loads,
+            schema='pg_catalog'
+        )
+        await conn.set_type_codec(
+            'jsonb',
+            encoder=json.dumps,
+            decoder=json.loads,
+            schema='pg_catalog'
+        )
 except ImportError as e:
     print(f"⚠️  'databases' package not available: {e}")
     print("🔄 Falling back to asyncpg direct connection...")
@@ -94,6 +111,8 @@ if USING_DATABASES_LIBRARY:
                 command_timeout=60,
                 # Critical: Disable statement cache for pgbouncer compatibility
                 statement_cache_size=0,
+                # Register JSON/JSONB codecs on each connection
+                init=_init_connection,
             )
 
             # Connect with extended timeout

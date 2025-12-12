@@ -3,6 +3,7 @@ Fallback database connection using asyncpg directly.
 Use this if the 'databases' package fails to install on Render.
 """
 
+import json
 import os
 import asyncio
 from contextlib import asynccontextmanager
@@ -14,6 +15,23 @@ except ImportError as e:
     print(f"❌ CRITICAL: Failed to import 'asyncpg' package: {e}")
     print("🔧 Fix: Ensure 'asyncpg>=0.29.0' is installed")
     raise ImportError("Missing required asyncpg package. Install with: pip install asyncpg>=0.29.0") from e
+
+
+async def _init_connection(conn: asyncpg.Connection):
+    """Initialize connection with JSON/JSONB type codecs."""
+    # Register JSON codec so JSONB columns return dicts instead of strings
+    await conn.set_type_codec(
+        'json',
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema='pg_catalog'
+    )
+    await conn.set_type_codec(
+        'jsonb',
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema='pg_catalog'
+    )
 
 # Global connection pool
 _pool: Optional[asyncpg.Pool] = None
@@ -160,12 +178,13 @@ async def get_db() -> AsyncpgAdapter:
             database_url = database_url.split("?")[0]
             print("ℹ️  Stripped query parameters from DATABASE_URL for compatibility")
 
-        # Create connection pool
+        # Create connection pool with JSON codec initialization
         _pool = await asyncpg.create_pool(
             database_url,
             min_size=1,
             max_size=10,
-            command_timeout=60
+            command_timeout=60,
+            init=_init_connection  # Register JSON/JSONB codecs on each connection
         )
         
         return AsyncpgAdapter(_pool)
