@@ -24,26 +24,48 @@ async def list_characters(
     include_premium: bool = Query(True, description="Include premium characters"),
     db=Depends(get_db),
 ):
-    """List all available characters."""
-    conditions = ["is_active = TRUE"]
+    """List all available characters with avatar URLs from kits."""
+    conditions = ["c.is_active = TRUE"]
     values = {}
 
     if archetype:
-        conditions.append("archetype = :archetype")
+        conditions.append("c.archetype = :archetype")
         values["archetype"] = archetype
 
     if not include_premium:
-        conditions.append("is_premium = FALSE")
+        conditions.append("c.is_premium = FALSE")
 
+    # Join with avatar_kits and avatar_assets to get primary anchor path
     query = f"""
-        SELECT id, name, slug, archetype, avatar_url, short_backstory, is_premium
-        FROM characters
+        SELECT c.id, c.name, c.slug, c.archetype, c.avatar_url,
+               c.short_backstory, c.is_premium,
+               aa.storage_path as anchor_path
+        FROM characters c
+        LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id AND ak.status = 'active'
+        LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id AND aa.is_active = TRUE
         WHERE {" AND ".join(conditions)}
-        ORDER BY sort_order, name
+        ORDER BY c.sort_order, c.name
     """
 
     rows = await db.fetch_all(query, values if values else None)
-    return [CharacterSummary(**dict(row)) for row in rows]
+
+    # Process rows - generate signed URLs for anchor images
+    results = []
+    storage = None
+
+    for row in rows:
+        data = dict(row)
+        anchor_path = data.pop("anchor_path", None)
+
+        # If no avatar_url but has anchor_path, generate signed URL
+        if not data["avatar_url"] and anchor_path:
+            if storage is None:
+                storage = StorageService.get_instance()
+            data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
+
+        results.append(CharacterSummary(**data))
+
+    return results
 
 
 @router.get("/archetypes/list", response_model=List[str])
