@@ -52,6 +52,56 @@ class CharacterSummary(BaseModel):
     is_premium: bool = False
 
 
+class AvatarGalleryItem(BaseModel):
+    """Single gallery image for character profile."""
+
+    id: UUID
+    asset_type: str
+    expression: Optional[str] = None
+    image_url: str
+    is_primary: bool = False
+
+
+class CharacterProfile(BaseModel):
+    """Character profile for the detail page - includes avatar gallery."""
+
+    id: UUID
+    name: str
+    slug: str
+    archetype: str
+    avatar_url: Optional[str] = None
+    short_backstory: Optional[str] = None
+    full_backstory: Optional[str] = None
+    likes: List[str] = Field(default_factory=list)
+    dislikes: List[str] = Field(default_factory=list)
+    starter_prompts: List[str] = Field(default_factory=list)
+    is_premium: bool = False
+    # Avatar gallery
+    gallery: List[AvatarGalleryItem] = Field(default_factory=list)
+    primary_avatar_url: Optional[str] = None
+
+    @field_validator("likes", "dislikes", "starter_prompts", mode="before")
+    @classmethod
+    def ensure_list_profile(cls, v: Any) -> List[str]:
+        """Handle list fields as JSON string (from DB)."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return [v]
+        return []
+
+
+# Alias for backwards compatibility
+CharacterWithAvatar = CharacterProfile
+
+
 class Character(BaseModel):
     """Full character model."""
 

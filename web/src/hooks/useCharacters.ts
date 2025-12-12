@@ -82,3 +82,28 @@ export function useRelationships() {
 
   return { relationships, isLoading, error, reload: loadRelationships };
 }
+
+export function useCharacterProfile(slug: string) {
+  const [profile, setProfile] = useState<import("@/types").CharacterProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const loadProfile = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await api.characters.getProfile(slug);
+      setProfile(data);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  return { profile, isLoading, error, reload: loadProfile };
+}

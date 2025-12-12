@@ -99,6 +99,8 @@ export const api = {
       request<import("@/types").Character>(`/characters/${id}`),
     getBySlug: (slug: string) =>
       request<import("@/types").Character>(`/characters/slug/${slug}`),
+    getProfile: (slug: string) =>
+      request<import("@/types").CharacterProfile>(`/characters/slug/${slug}/profile`),
     archetypes: () => request<string[]>("/characters/archetypes/list"),
   },
 

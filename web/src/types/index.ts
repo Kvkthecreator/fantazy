@@ -55,6 +55,23 @@ export interface CharacterSummary {
   is_premium: boolean;
 }
 
+export interface AvatarGalleryItem {
+  id: string;
+  asset_type: string;
+  expression: string | null;
+  image_url: string;
+  is_primary: boolean;
+}
+
+export interface CharacterProfile extends CharacterSummary {
+  full_backstory: string | null;
+  likes: string[];
+  dislikes: string[];
+  starter_prompts: string[];
+  gallery: AvatarGalleryItem[];
+  primary_avatar_url: string | null;
+}
+
 export interface Character extends CharacterSummary {
   world_id: string | null;
   baseline_personality: Record<string, unknown>;

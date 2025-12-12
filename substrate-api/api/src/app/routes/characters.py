@@ -5,8 +5,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.deps import get_db
-from app.models.character import Character, CharacterSummary
+from app.models.character import (
+    AvatarGalleryItem,
+    Character,
+    CharacterProfile,
+    CharacterSummary,
+    CharacterWithAvatar,
+)
 from app.models.world import World
+from app.services.storage import StorageService
 
 router = APIRouter(prefix="/characters", tags=["Characters"])
 
@@ -93,6 +100,80 @@ async def get_character_by_slug(
         )
 
     return Character(**dict(row))
+
+
+@router.get("/slug/{slug}/profile", response_model=CharacterProfile)
+async def get_character_profile(
+    slug: str,
+    db=Depends(get_db),
+):
+    """Get character profile with avatar gallery for the detail page."""
+    # Get character
+    query = """
+        SELECT id, name, slug, archetype, avatar_url, short_backstory,
+               full_backstory, likes, dislikes, starter_prompts, is_premium,
+               active_avatar_kit_id
+        FROM characters
+        WHERE slug = :slug AND is_active = TRUE
+    """
+    row = await db.fetch_one(query, {"slug": slug})
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Character not found",
+        )
+
+    data = dict(row)
+    gallery = []
+    primary_avatar_url = None
+    active_kit_id = data.pop("active_avatar_kit_id", None)
+
+    # Get avatar gallery if character has an active kit
+    if active_kit_id:
+        # Get kit with primary anchor
+        kit_query = """
+            SELECT primary_anchor_id FROM avatar_kits
+            WHERE id = :kit_id AND status = 'active'
+        """
+        kit = await db.fetch_one(kit_query, {"kit_id": str(active_kit_id)})
+
+        if kit:
+            primary_anchor_id = kit["primary_anchor_id"]
+
+            # Get all active assets for this kit
+            assets_query = """
+                SELECT id, asset_type, expression, storage_path
+                FROM avatar_assets
+                WHERE avatar_kit_id = :kit_id AND is_active = TRUE
+                ORDER BY is_canonical DESC, created_at ASC
+            """
+            assets = await db.fetch_all(assets_query, {"kit_id": str(active_kit_id)})
+
+            if assets:
+                storage = StorageService.get_instance()
+                for asset in assets:
+                    signed_url = await storage.create_signed_url(
+                        "avatars", asset["storage_path"]
+                    )
+                    is_primary = str(asset["id"]) == str(primary_anchor_id) if primary_anchor_id else False
+
+                    gallery.append(AvatarGalleryItem(
+                        id=asset["id"],
+                        asset_type=asset["asset_type"],
+                        expression=asset["expression"],
+                        image_url=signed_url,
+                        is_primary=is_primary,
+                    ))
+
+                    # Track primary avatar URL
+                    if is_primary:
+                        primary_avatar_url = signed_url
+
+    data["gallery"] = gallery
+    data["primary_avatar_url"] = primary_avatar_url
+
+    return CharacterProfile(**data)
 
 
 @router.get("/{character_id}/world", response_model=World)

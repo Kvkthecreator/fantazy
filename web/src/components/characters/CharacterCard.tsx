@@ -35,7 +35,7 @@ export function CharacterCard({
     archetypeColors[character.archetype] || archetypeColors.default;
 
   return (
-    <Link href={`/chat/${character.id}`}>
+    <Link href={`/characters/${character.slug}`}>
       <Card
         className={cn(
           "overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer group",
