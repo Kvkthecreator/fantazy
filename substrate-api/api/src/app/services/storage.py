@@ -1,17 +1,24 @@
 """Supabase Storage service for image uploads.
 
 Handles uploading images to Supabase Storage buckets:
-- avatars: Public bucket for character avatars
-- scenes: Authenticated bucket for generated scene cards
+- avatars: Private bucket for avatar kit assets (anchors, expressions)
+- scenes: Private bucket for generated scene cards
+
+Storage path conventions:
+- avatars: {kit_id}/anchors/{asset_id}.png, {kit_id}/expressions/{asset_id}.png
+- scenes: {user_id}/{episode_id}/{image_id}.png
 
 Usage:
     service = StorageService.get_instance()
-    url = await service.upload_scene(
-        image_bytes=image_data,
-        user_id=user_id,
-        episode_id=episode_id,
-        image_id=image_id
-    )
+
+    # Upload a scene image
+    path = await service.upload_scene(image_data, user_id, episode_id, image_id)
+
+    # Upload an avatar asset
+    path = await service.upload_avatar_asset(image_data, kit_id, asset_id, "anchor_portrait")
+
+    # Get signed URL for private content
+    url = await service.create_signed_url("avatars", path)
 """
 
 import logging
@@ -74,6 +81,8 @@ class StorageService:
     ) -> str:
         """Upload a character avatar to the avatars bucket.
 
+        DEPRECATED: Use upload_avatar_asset() for avatar kit assets.
+
         Path format: {character_id}/{filename}
 
         Returns the storage path.
@@ -83,6 +92,73 @@ class StorageService:
 
         await self._upload(bucket, storage_path, image_bytes, content_type)
         return storage_path
+
+    async def upload_avatar_asset(
+        self,
+        image_bytes: bytes,
+        kit_id: UUID,
+        asset_id: UUID,
+        asset_type: str,
+        content_type: str = "image/png",
+    ) -> str:
+        """Upload an avatar asset to the avatars bucket.
+
+        Path format: {kit_id}/{asset_folder}/{asset_id}.png
+
+        Asset folders by type:
+        - anchor_portrait, anchor_fullbody -> anchors/
+        - expression -> expressions/
+        - pose -> poses/
+        - outfit -> outfits/
+
+        Args:
+            image_bytes: Image data
+            kit_id: Avatar kit UUID
+            asset_id: Asset UUID
+            asset_type: One of anchor_portrait, anchor_fullbody, expression, pose, outfit
+            content_type: MIME type (default image/png)
+
+        Returns:
+            Storage path (not full URL)
+        """
+        # Map asset types to folder names
+        folder_map = {
+            "anchor_portrait": "anchors",
+            "anchor_fullbody": "anchors",
+            "expression": "expressions",
+            "pose": "poses",
+            "outfit": "outfits",
+        }
+        folder = folder_map.get(asset_type, "other")
+
+        storage_path = f"{kit_id}/{folder}/{asset_id}.png"
+        bucket = "avatars"
+
+        await self._upload(bucket, storage_path, image_bytes, content_type)
+        return storage_path
+
+    async def download(
+        self,
+        bucket: str,
+        path: str,
+    ) -> bytes:
+        """Download an object from storage.
+
+        Returns the file contents as bytes.
+        """
+        url = f"{self.supabase_url}/storage/v1/object/{bucket}/{path}"
+
+        headers = {
+            "Authorization": f"Bearer {self.service_role_key}",
+        }
+
+        response = await self.client.get(url, headers=headers)
+
+        if response.status_code != 200:
+            log.error(f"Storage download failed: {response.status_code} {response.text}")
+            response.raise_for_status()
+
+        return response.content
 
     async def _upload(
         self,
