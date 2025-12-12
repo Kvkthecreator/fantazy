@@ -16,10 +16,12 @@ interface UseChatReturn {
   isSending: boolean;
   episode: Episode | null;
   streamingContent: string;
+  suggestScene: boolean;
   sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
   startNewEpisode: () => Promise<void>;
   endEpisode: () => Promise<void>;
+  clearSceneSuggestion: () => void;
 }
 
 export function useChat({ characterId, enabled = true, onError }: UseChatOptions): UseChatReturn {
@@ -28,6 +30,7 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
   const [isSending, setIsSending] = useState(false);
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [streamingContent, setStreamingContent] = useState("");
+  const [suggestScene, setSuggestScene] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -153,6 +156,11 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
           setMessages((prev) => [...prev, assistantMessage]);
           setStreamingContent("");
           messageAdded = true;
+
+          // Check if backend suggests generating a scene
+          if (chunk.suggest_scene) {
+            setSuggestScene(true);
+          }
         }
       }
 
@@ -211,6 +219,11 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
     }
   }, [characterId, episode]);
 
+  // Clear scene suggestion
+  const clearSceneSuggestion = useCallback(() => {
+    setSuggestScene(false);
+  }, []);
+
   // Load on mount (only when enabled, and only once per characterId)
   useEffect(() => {
     if (!enabled) {
@@ -237,9 +250,11 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
     isSending,
     episode,
     streamingContent,
+    suggestScene,
     sendMessage,
     loadMessages,
     startNewEpisode,
     endEpisode,
+    clearSceneSuggestion,
   };
 }

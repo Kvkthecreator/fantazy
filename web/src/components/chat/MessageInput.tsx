@@ -11,6 +11,7 @@ interface MessageInputProps {
   disabled?: boolean;
   isGeneratingScene?: boolean;
   showVisualizeButton?: boolean;
+  suggestScene?: boolean;
   placeholder?: string;
 }
 
@@ -20,6 +21,7 @@ export function MessageInput({
   disabled = false,
   isGeneratingScene = false,
   showVisualizeButton = true,
+  suggestScene = false,
   placeholder = "Type a message...",
 }: MessageInputProps) {
   const [value, setValue] = useState("");
@@ -57,25 +59,35 @@ export function MessageInput({
     <div className="flex items-end gap-2 p-4 border-t bg-background">
       {/* Visualize button */}
       {showVisualizeButton && onVisualize && (
-        <Button
-          onClick={onVisualize}
-          disabled={disabled || isGeneratingScene}
-          variant="ghost"
-          size="icon"
-          className={cn(
-            "rounded-full h-10 w-10 flex-shrink-0",
-            "text-muted-foreground hover:text-purple-500 hover:bg-purple-500/10",
-            isGeneratingScene && "text-purple-500 bg-purple-500/10"
+        <div className="relative">
+          <Button
+            onClick={onVisualize}
+            disabled={disabled || isGeneratingScene}
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "rounded-full h-10 w-10 flex-shrink-0",
+              "text-muted-foreground hover:text-purple-500 hover:bg-purple-500/10",
+              isGeneratingScene && "text-purple-500 bg-purple-500/10",
+              suggestScene && "text-purple-500 bg-purple-500/10 animate-pulse"
+            )}
+            title={suggestScene ? "Capture this moment!" : "Visualize this moment"}
+          >
+            {isGeneratingScene ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            <span className="sr-only">Visualize scene</span>
+          </Button>
+          {/* Suggestion indicator */}
+          {suggestScene && !isGeneratingScene && (
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500"></span>
+            </span>
           )}
-          title="Visualize this moment"
-        >
-          {isGeneratingScene ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-          <span className="sr-only">Visualize scene</span>
-        </Button>
+        </div>
       )}
 
       <div className="flex-1 relative">

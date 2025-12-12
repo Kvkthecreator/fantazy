@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
-import { Heart, LayoutDashboard, LogOut, MessageCircle, Users } from "lucide-react"
+import { Heart, Images, LayoutDashboard, LogOut, MessageCircle, Users } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Characters", href: "/dashboard/characters", icon: Users },
+  { name: "Our Story", href: "/dashboard/story", icon: Images },
   { name: "Memories", href: "/dashboard/memories", icon: Heart },
 ]
 

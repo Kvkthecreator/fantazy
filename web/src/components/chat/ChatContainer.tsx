@@ -34,8 +34,10 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
     isSending,
     episode,
     streamingContent,
+    suggestScene,
     sendMessage,
     endEpisode,
+    clearSceneSuggestion,
   } = useChat({
     characterId,
     enabled: shouldInitChat,
@@ -97,6 +99,7 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
   // Handle visualize button click
   const handleVisualize = async () => {
     if (!episode || isGeneratingScene) return;
+    clearSceneSuggestion(); // Clear the suggestion
     await generateScene();
   };
 
@@ -167,6 +170,7 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
         disabled={isSending || isLoadingChat}
         isGeneratingScene={isGeneratingScene}
         showVisualizeButton={showVisualizeButton}
+        suggestScene={suggestScene}
         placeholder={`Message ${character.name}...`}
       />
     </div>

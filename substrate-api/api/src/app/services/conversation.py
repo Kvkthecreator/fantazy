@@ -1,5 +1,6 @@
 """Conversation service - orchestrates chat interactions."""
 
+import asyncio
 import json
 import logging
 from typing import AsyncIterator, Dict, List, Optional
@@ -13,6 +14,9 @@ from app.services.llm import LLMService
 from app.services.memory import MemoryService
 
 log = logging.getLogger(__name__)
+
+# Whether to auto-generate scenes (can be disabled via env var)
+ENABLE_AUTO_SCENE_GENERATION = True
 
 
 class ConversationService:
@@ -144,7 +148,17 @@ class ConversationService:
         except Exception as e:
             log.error(f"Memory extraction failed: {e}")
 
-        yield json.dumps({"type": "done", "content": response_content})
+        # Check if we should suggest scene generation
+        # (frontend can show a "visualize" prompt)
+        message_count = len(context.messages) + 2  # +2 for this exchange
+        should_suggest_scene = self._should_suggest_scene(message_count)
+
+        yield json.dumps({
+            "type": "done",
+            "content": response_content,
+            "suggest_scene": should_suggest_scene,
+            "episode_id": str(episode.id),
+        })
 
     async def get_context(
         self,
@@ -424,6 +438,23 @@ class ConversationService:
         """Mark a hook as triggered."""
         query = "UPDATE hooks SET triggered_at = NOW() WHERE id = :hook_id"
         await self.db.execute(query, {"hook_id": str(hook_id)})
+
+    def _should_suggest_scene(self, message_count: int) -> bool:
+        """Determine if we should suggest scene generation.
+
+        Suggests scene at conversation milestones:
+        - First exchange (message 2)
+        - After 6 messages
+        - After 12 messages
+        - Every 10 messages after that
+
+        Returns True if frontend should prompt user to visualize.
+        """
+        if not ENABLE_AUTO_SCENE_GENERATION:
+            return False
+
+        milestones = [2, 6, 12, 22, 32, 42]
+        return message_count in milestones
 
     async def _process_exchange(
         self,
