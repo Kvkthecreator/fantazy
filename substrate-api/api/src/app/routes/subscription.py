@@ -5,6 +5,7 @@ import hmac
 import json
 import logging
 import os
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -220,6 +221,21 @@ def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     return hmac.compare_digest(signature, expected)
 
 
+def parse_iso_date(date_str: Optional[str]) -> Optional[datetime]:
+    """Parse ISO 8601 date string to datetime object."""
+    if not date_str:
+        return None
+    try:
+        # Handle various ISO formats
+        # Remove 'Z' and replace with +00:00 for fromisoformat
+        if date_str.endswith("Z"):
+            date_str = date_str[:-1] + "+00:00"
+        return datetime.fromisoformat(date_str)
+    except (ValueError, TypeError):
+        log.warning(f"Failed to parse date: {date_str}")
+        return None
+
+
 @webhook_router.post("/lemonsqueezy")
 async def handle_lemonsqueezy_webhook(
     request: Request,
@@ -300,7 +316,7 @@ async def handle_lemonsqueezy_webhook(
         # Could send notification, but don't downgrade yet (grace period)
     elif event_name == "subscription_payment_success":
         # Renewal successful - update expiry
-        renews_at = attrs.get("renews_at")
+        renews_at = parse_iso_date(attrs.get("renews_at"))
         if renews_at:
             await db.execute(
                 """
@@ -318,7 +334,7 @@ async def handle_subscription_created(
     db, user_id: str, attrs: dict, subscription_id: str, customer_id: str
 ):
     """Activate premium subscription for user."""
-    renews_at = attrs.get("renews_at")
+    renews_at = parse_iso_date(attrs.get("renews_at"))
     status_value = attrs.get("status", "active")
 
     # Map LS status to our status
@@ -349,7 +365,7 @@ async def handle_subscription_updated(
     db, user_id: str, attrs: dict, subscription_id: str
 ):
     """Handle subscription updates (plan changes, etc.)."""
-    renews_at = attrs.get("renews_at")
+    renews_at = parse_iso_date(attrs.get("renews_at"))
     status_value = attrs.get("status", "active")
 
     sub_status = "premium" if status_value in ("active", "on_trial", "past_due") else "free"
@@ -392,7 +408,7 @@ async def handle_subscription_resumed(
     db, user_id: str, attrs: dict, subscription_id: str
 ):
     """Reactivate subscription after pause/resume."""
-    renews_at = attrs.get("renews_at")
+    renews_at = parse_iso_date(attrs.get("renews_at"))
 
     await db.execute(
         """
