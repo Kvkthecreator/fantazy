@@ -11,6 +11,7 @@ from app.routes import (
     hooks,
     conversation,
     scenes,
+    subscription,
 )
 
 __all__ = [
@@ -24,4 +25,5 @@ __all__ = [
     "hooks",
     "conversation",
     "scenes",
+    "subscription",
 ]

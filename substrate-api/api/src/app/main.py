@@ -26,6 +26,7 @@ from app.routes import (
     messages,
     relationships,
     scenes,
+    subscription,
     users,
 )
 
@@ -98,7 +99,7 @@ app.add_middleware(
 app.add_middleware(
     AuthMiddleware,
     exempt_paths={"/", "/health", "/docs", "/openapi.json", "/redoc"},
-    exempt_prefixes={"/health/", "/characters"},  # Characters browsable without auth
+    exempt_prefixes={"/health/", "/characters", "/webhooks"},  # Webhooks have their own auth
 )
 
 # Include routers
@@ -113,6 +114,8 @@ app.include_router(hooks.router, tags=["Hooks"])
 app.include_router(conversation.router, tags=["Conversation"])
 app.include_router(scenes.router, tags=["Scenes"])
 app.include_router(avatars.router, tags=["Avatar Kits"])
+app.include_router(subscription.router, tags=["Subscription"])
+app.include_router(subscription.webhook_router, tags=["Webhooks"])
 
 
 @app.get("/")
