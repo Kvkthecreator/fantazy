@@ -110,3 +110,45 @@ export FANTAZY_DB_PASSWORD='[from Supabase dashboard]'
 
 - Supabase may pause inactive databases on free tier
 - Access dashboard to wake it up
+
+### Pooler Region Mismatch
+
+When connecting, always use `aws-0-ap-northeast-1` for Render-deployed services and `aws-1-ap-northeast-1` for local CLI access:
+
+```bash
+# Local CLI (aws-1)
+postgresql://postgres.lfwhdzwbikyzalpbwfnd:[PASSWORD]@aws-1-ap-northeast-1.pooler.supabase.com:5432/postgres
+
+# Render services (aws-0)
+postgresql://postgres.lfwhdzwbikyzalpbwfnd:[PASSWORD]@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres
+```
+
+The aws-0 vs aws-1 prefix matters - using the wrong one results in "Tenant or user not found" errors.
+
+---
+
+## Supabase Storage API
+
+### Upload Files
+
+```bash
+curl -X POST "https://lfwhdzwbikyzalpbwfnd.supabase.co/storage/v1/object/BUCKET/PATH" \
+  -H "Authorization: Bearer SERVICE_ROLE_KEY" \
+  -H "Content-Type: image/webp" \
+  --data-binary @"/path/to/local/file.webp"
+```
+
+### Generate Signed URL
+
+```bash
+curl -X POST "https://lfwhdzwbikyzalpbwfnd.supabase.co/storage/v1/object/sign/BUCKET/PATH" \
+  -H "Authorization: Bearer SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"expiresIn": 3600}'
+```
+
+### Notes
+
+- Service role key required for uploads to private buckets
+- Get service role key from: https://supabase.com/dashboard/project/lfwhdzwbikyzalpbwfnd/settings/api
+- Storage paths don't include bucket name (e.g., `characters/kai/anchor.webp` not `avatars/characters/kai/anchor.webp`)
