@@ -130,6 +130,7 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
 
     try {
       let fullContent = "";
+      let messageAdded = false;
 
       for await (const chunk of api.conversation.sendStream(characterId, content)) {
         if (chunk.type === "chunk") {
@@ -151,11 +152,12 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
           };
           setMessages((prev) => [...prev, assistantMessage]);
           setStreamingContent("");
+          messageAdded = true;
         }
       }
 
       // If stream ended without "done" event, add what we have
-      if (fullContent && !messages.find((m) => m.content === fullContent)) {
+      if (fullContent && !messageAdded) {
         const assistantMessage: Message = {
           id: `assistant-${Date.now()}`,
           episode_id: episode.id,
@@ -178,7 +180,7 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
       setIsSending(false);
       setStreamingContent("");
     }
-  }, [characterId, episode, isSending, messages]);
+  }, [characterId, episode, isSending]);
 
   // Start new episode
   const startNewEpisode = useCallback(async () => {
