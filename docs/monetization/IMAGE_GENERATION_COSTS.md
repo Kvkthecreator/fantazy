@@ -66,19 +66,19 @@ Focus on **pre-generated library + sparse Flux moments** rather than complex ove
 - Limited daily messages
 - **Cost to serve**: ~$0.50-1.00/active user/month
 
-#### Premium Tier ($10-15/month)
+#### Premium Tier ($19/month)
 - Unlimited chat
-- **20-30 Flux scene generations per month**
+- **50 Flux scene generations per month**
 - Priority features
 - Custom character requests
-- **Cost to serve**: ~$2-4/active user/month
+- **Cost to serve**: ~$5-7/active user/month
 
 ### Margin Analysis
 
 | Tier | Revenue | Est. Cost | Gross Margin |
 |------|---------|-----------|--------------|
 | Free | $0 | ~$0.50-1.00 | Negative (acquisition) |
-| Premium | $10-15 | ~$2-4 | **60-80%** |
+| Premium | $19 | ~$7 | **~63%** |
 
 ---
 
@@ -100,11 +100,12 @@ Focus on **pre-generated library + sparse Flux moments** rather than complex ove
 ### Unit Economics (Premium User)
 
 ```
-Revenue:        $12.50/month (avg)
-- Flux costs:   -$1.00 (20 images)
-- Chat API:     -$2.00 (average usage)
-- Infra/other:  -$1.00
-= Gross profit: $8.50/user/month (~68% margin)
+Revenue:              $19.00/month
+- Lemon Squeezy fee:  -$1.45 (~5% + $0.50)
+- Flux costs:         -$2.50 (50 images)
+- Chat API:           -$2.00 (average usage)
+- Infra/other:        -$1.00
+= Net margin:         $12.05/user/month (~63%)
 ```
 
 ### Scaling Considerations
@@ -149,5 +150,5 @@ Reserve Flux generation for:
 The hybrid approach (pre-generated library + selective Flux) provides:
 - **Low marginal cost** per user
 - **High-quality visuals** when they matter
-- **Sustainable margins** at $10-15/month pricing
+- **Sustainable margins** at $19/month pricing (~63%)
 - **Competitive positioning** in the AI companion market

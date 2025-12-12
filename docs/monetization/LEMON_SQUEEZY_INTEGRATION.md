@@ -465,21 +465,35 @@ ngrok http 8000
 
 ---
 
-## Discussion Points
+## Pricing Decisions (Finalized)
 
-Before implementing, clarify:
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| **Monthly Price** | $19/month | Higher margin, premium positioning |
+| **Annual Plan** | Not yet | Validate monthly first |
+| **Trial Period** | No | Higher quality signals from paying users upfront |
+| **Flux Quota** | 50/month | ~$2.50 cost, generous for most users |
+| **Cancellation** | End of billing period | Industry standard, reduces refunds |
+| **Promo Codes** | Yes (simple) | Friends/family, early adopters, creators |
 
-1. **Pricing**: Confirm $12/month. Want annual option at ~$99/year (2 months free)?
+### Unit Economics at $19/month
 
-2. **Trial Period**: Offer free trial? (7 days is common)
+```
+Revenue:              $19.00
+- Lemon Squeezy fee:  -$1.45 (~5% + $0.50)
+- Flux (50 images):   -$2.50
+- Chat API:           -$2.00
+- Infra overhead:     -$1.00
+= Net margin:         $12.05 (~63%)
+```
 
-3. **Grace Period**: How long after failed payment before downgrade? (LS default: 2-3 retry attempts)
+### Promo Code Strategy
 
-4. **Feature Quotas**: Confirm 20-30 Flux generations per month for premium
-
-5. **Cancellation**: Immediate downgrade or end of billing period?
-
-6. **Promo Codes**: Need coupon/discount support?
+| Code Type | Discount | Use Case |
+|-----------|----------|----------|
+| `FRIENDS50` | 50% off first month | Friends & family testing |
+| `EARLY100` | 50% off first month | First 100 subscribers |
+| `CREATOR` | 100% off (free month) | Influencer partnerships |
 
 ---
 
