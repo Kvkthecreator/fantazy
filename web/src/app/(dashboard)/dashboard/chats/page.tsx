@@ -6,7 +6,6 @@ import { api } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { MessageCircle } from "lucide-react";
 import type { RelationshipWithCharacter } from "@/types";
 
@@ -57,13 +56,6 @@ export default function MyChatsPage() {
     intimate: "Special",
   };
 
-  const archetypeColors: Record<string, string> = {
-    barista: "from-amber-400 to-orange-500",
-    neighbor: "from-blue-400 to-indigo-500",
-    coworker: "from-emerald-400 to-teal-500",
-    default: "from-pink-400 to-purple-500",
-  };
-
   return (
     <div className="space-y-6">
       <div>
@@ -88,68 +80,61 @@ export default function MyChatsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {relationships.map((rel) => {
-            const gradientClass = archetypeColors[rel.character_archetype] || archetypeColors.default;
-
-            return (
-              <Link key={rel.id} href={`/chat/${rel.character_id}`}>
-                <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-4">
-                      {/* Avatar */}
-                      <div
-                        className={cn(
-                          "w-14 h-14 rounded-full shrink-0 flex items-center justify-center bg-gradient-to-br",
-                          gradientClass
-                        )}
-                      >
-                        {rel.character_avatar_url ? (
-                          <img
-                            src={rel.character_avatar_url}
-                            alt={rel.character_name}
-                            className="w-12 h-12 rounded-full object-cover border-2 border-white"
-                          />
-                        ) : (
-                          <span className="text-white text-xl font-bold">
+          {relationships.map((rel) => (
+            <Link key={rel.id} href={`/chat/${rel.character_id}`}>
+              <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-4">
+                    {/* Avatar - full image, no gradient ring */}
+                    <div className="w-14 h-14 rounded-full shrink-0 overflow-hidden bg-muted">
+                      {rel.character_avatar_url ? (
+                        <img
+                          src={rel.character_avatar_url}
+                          alt={rel.character_name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <span className="text-muted-foreground text-xl font-bold">
                             {rel.character_name[0]}
                           </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h3 className="font-semibold truncate">{rel.character_name}</h3>
+                        <Badge variant="secondary" className="text-xs shrink-0">
+                          {stageLabels[rel.stage] || rel.stage}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground capitalize">
+                        {rel.character_archetype}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{rel.total_episodes} episodes</span>
+                        <span>&bull;</span>
+                        <span>{rel.total_messages} messages</span>
+                        {rel.last_interaction_at && (
+                          <>
+                            <span>&bull;</span>
+                            <span>{formatRelativeTime(rel.last_interaction_at)}</span>
+                          </>
                         )}
                       </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <h3 className="font-semibold truncate">{rel.character_name}</h3>
-                          <Badge variant="secondary" className="text-xs shrink-0">
-                            {stageLabels[rel.stage] || rel.stage}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {rel.character_archetype}
-                        </p>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                          <span>{rel.total_episodes} episodes</span>
-                          <span>&bull;</span>
-                          <span>{rel.total_messages} messages</span>
-                          {rel.last_interaction_at && (
-                            <>
-                              <span>&bull;</span>
-                              <span>{formatRelativeTime(rel.last_interaction_at)}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Arrow */}
-                      <div className="text-muted-foreground">
-                        <MessageCircle className="h-5 w-5" />
-                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
+
+                    {/* Arrow */}
+                    <div className="text-muted-foreground">
+                      <MessageCircle className="h-5 w-5" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
         </div>
       )}
     </div>

@@ -24,16 +24,6 @@ export function CharacterCard({
     intimate: "Special",
   };
 
-  const archetypeColors: Record<string, string> = {
-    barista: "from-amber-400 to-orange-500",
-    neighbor: "from-blue-400 to-indigo-500",
-    coworker: "from-emerald-400 to-teal-500",
-    default: "from-pink-400 to-purple-500",
-  };
-
-  const gradientClass =
-    archetypeColors[character.archetype] || archetypeColors.default;
-
   return (
     <Link href={`/characters/${character.slug}`}>
       <Card
@@ -43,24 +33,24 @@ export function CharacterCard({
         )}
       >
         <CardContent className="p-0">
-          {/* Avatar section */}
-          <div
-            className={cn(
-              "h-32 bg-gradient-to-br flex items-center justify-center relative",
-              gradientClass
-            )}
-          >
+          {/* Image section - full bleed */}
+          <div className="aspect-[3/4] relative overflow-hidden bg-muted">
             {character.avatar_url ? (
               <img
                 src={character.avatar_url}
                 alt={character.name}
-                className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur flex items-center justify-center text-white text-3xl font-bold border-4 border-white/30">
-                {character.name[0]}
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted-foreground/20">
+                <span className="text-4xl font-bold text-muted-foreground/50">
+                  {character.name[0]}
+                </span>
               </div>
             )}
+
+            {/* Gradient overlay for text readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
             {/* Premium badge */}
             {character.is_premium && (
@@ -68,25 +58,27 @@ export function CharacterCard({
                 Premium
               </Badge>
             )}
+
+            {/* Name and archetype overlay */}
+            <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
+              <div className="flex items-center justify-between mb-0.5">
+                <h3 className="font-semibold text-lg drop-shadow-md">
+                  {character.name}
+                </h3>
+                {relationship && (
+                  <Badge variant="secondary" className="text-xs bg-white/20 text-white border-0">
+                    {stageLabels[relationship.stage] || relationship.stage}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-sm text-white/80 capitalize">
+                {character.archetype}
+              </p>
+            </div>
           </div>
 
           {/* Info section */}
-          <div className="p-4">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                {character.name}
-              </h3>
-              {relationship && (
-                <Badge variant="secondary" className="text-xs">
-                  {stageLabels[relationship.stage] || relationship.stage}
-                </Badge>
-              )}
-            </div>
-
-            <p className="text-sm text-muted-foreground capitalize mb-2">
-              {character.archetype}
-            </p>
-
+          <div className="p-3">
             {character.short_backstory && (
               <p className="text-xs text-muted-foreground line-clamp-2">
                 {character.short_backstory}
@@ -95,7 +87,7 @@ export function CharacterCard({
 
             {/* Stats */}
             {relationship && (
-              <div className="flex gap-3 mt-3 text-xs text-muted-foreground">
+              <div className="flex gap-3 mt-2 text-xs text-muted-foreground">
                 <span>{relationship.total_episodes} episodes</span>
                 <span>•</span>
                 <span>
