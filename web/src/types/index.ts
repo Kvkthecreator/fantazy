@@ -231,3 +231,54 @@ export interface World {
   is_active: boolean;
   created_at: string;
 }
+
+// Scene types
+export type SceneTriggerType = "milestone" | "user_request" | "stage_change" | "episode_start";
+
+export interface SceneGenerateRequest {
+  episode_id: string;
+  prompt?: string;
+  trigger_type?: SceneTriggerType;
+}
+
+export interface SceneGenerateResponse {
+  image_id: string;
+  episode_id: string;
+  storage_path: string;
+  image_url: string;
+  caption: string | null;
+  prompt: string;
+  model_used: string;
+  latency_ms: number | null;
+  sequence_index: number;
+}
+
+export interface EpisodeImage {
+  id: string;
+  episode_id: string;
+  image_id: string;
+  sequence_index: number;
+  caption: string | null;
+  triggered_by_message_id: string | null;
+  trigger_type: SceneTriggerType | null;
+  is_memory: boolean;
+  saved_at: string | null;
+  created_at: string;
+  storage_path: string;
+  image_url: string;
+  prompt: string | null;
+  style_tags: string[];
+}
+
+export interface SceneMemory {
+  image_id: string;
+  episode_id: string;
+  character_id: string;
+  character_name: string;
+  caption: string | null;
+  storage_path: string;
+  image_url: string;
+  style_tags: string[];
+  saved_at: string;
+  episode_started_at: string;
+}

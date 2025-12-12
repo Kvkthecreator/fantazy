@@ -10,6 +10,7 @@ from app.routes import (
     memory,
     hooks,
     conversation,
+    scenes,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "memory",
     "hooks",
     "conversation",
+    "scenes",
 ]

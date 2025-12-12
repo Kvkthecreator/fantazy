@@ -299,6 +299,32 @@ export const api = {
       request<null>(`/memory/${id}`, { method: "DELETE" }),
   },
 
+  // Scene endpoints
+  scenes: {
+    generate: (data: import("@/types").SceneGenerateRequest) =>
+      request<import("@/types").SceneGenerateResponse>("/scenes/generate", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    listForEpisode: (episode_id: string) =>
+      request<import("@/types").EpisodeImage[]>(`/scenes/episode/${episode_id}`),
+    toggleMemory: (episode_image_id: string, is_memory: boolean) =>
+      request<import("@/types").EpisodeImage>(`/scenes/${episode_image_id}/memory`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_memory }),
+      }),
+    listMemories: (params?: { character_id?: string; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.character_id)
+        searchParams.set("character_id", params.character_id);
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      const query = searchParams.toString();
+      return request<import("@/types").SceneMemory[]>(
+        `/scenes/memories${query ? `?${query}` : ""}`
+      );
+    },
+  },
+
   // Hook endpoints
   hooks: {
     list: (params?: {

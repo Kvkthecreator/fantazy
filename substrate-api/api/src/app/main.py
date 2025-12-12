@@ -24,6 +24,7 @@ from app.routes import (
     memory,
     messages,
     relationships,
+    scenes,
     users,
 )
 
@@ -55,6 +56,18 @@ async def lifespan(app: FastAPI):
 
     if LLMService._instance:
         await LLMService._instance.close()
+
+    # Close Image client
+    from app.services.image import ImageService
+
+    if ImageService._instance:
+        await ImageService._instance.close()
+
+    # Close Storage client
+    from app.services.storage import StorageService
+
+    if StorageService._instance:
+        await StorageService._instance.close()
 
     log.info("Shutdown complete")
 
@@ -95,6 +108,7 @@ app.include_router(messages.router, tags=["Messages"])
 app.include_router(memory.router, tags=["Memory"])
 app.include_router(hooks.router, tags=["Hooks"])
 app.include_router(conversation.router, tags=["Conversation"])
+app.include_router(scenes.router, tags=["Scenes"])
 
 
 @app.get("/")

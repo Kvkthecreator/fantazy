@@ -1,18 +1,25 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import { useChat } from "@/hooks/useChat";
 import { useCharacter } from "@/hooks/useCharacters";
+import { useScenes } from "@/hooks/useScenes";
 import { ChatHeader } from "./ChatHeader";
 import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
+import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api/client";
-import type { Relationship } from "@/types";
+import type { Relationship, Message, EpisodeImage } from "@/types";
 
 interface ChatContainerProps {
   characterId: string;
 }
+
+// A chat item can be a message or a scene card
+type ChatItem =
+  | { type: "message"; data: Message }
+  | { type: "scene"; data: EpisodeImage };
 
 export function ChatContainer({ characterId }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -34,22 +41,64 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
     enabled: shouldInitChat,
     onError: (error) => {
       console.error("Chat error:", error);
-      // TODO: Show toast
     },
   });
+
+  // Scene generation
+  const {
+    scenes,
+    isGenerating: isGeneratingScene,
+    generateScene,
+  } = useScenes({
+    episodeId: episode?.id ?? null,
+    enabled: shouldInitChat && !!episode,
+    onError: (error) => {
+      console.error("Scene error:", error);
+    },
+  });
+
+  // Merge messages and scenes into a single timeline
+  const chatItems = useMemo((): ChatItem[] => {
+    const items: ChatItem[] = [];
+
+    // Add all messages
+    for (const msg of messages) {
+      items.push({ type: "message", data: msg });
+    }
+
+    // Add all scenes
+    for (const scene of scenes) {
+      items.push({ type: "scene", data: scene });
+    }
+
+    // Sort by created_at
+    items.sort((a, b) => {
+      const timeA = new Date(a.data.created_at).getTime();
+      const timeB = new Date(b.data.created_at).getTime();
+      return timeA - timeB;
+    });
+
+    return items;
+  }, [messages, scenes]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
+  }, [chatItems, streamingContent, isGeneratingScene]);
 
-  // Get relationship (simplified - in real app would fetch)
+  // Get relationship
   const [relationship, setRelationship] = React.useState<Relationship | null>(null);
   React.useEffect(() => {
     api.relationships.getByCharacter(characterId)
       .then(setRelationship)
       .catch(() => setRelationship(null));
   }, [characterId]);
+
+  // Handle visualize button click
+  const handleVisualize = async () => {
+    if (!episode || isGeneratingScene) return;
+    await generateScene();
+  };
 
   if (isLoadingCharacter) {
     return <ChatSkeleton />;
@@ -62,6 +111,9 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
       </div>
     );
   }
+
+  // Only show visualize button after some messages
+  const showVisualizeButton = messages.length >= 2;
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -77,24 +129,31 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {isLoadingChat ? (
           <MessagesSkeleton />
-        ) : messages.length === 0 ? (
+        ) : chatItems.length === 0 ? (
           <EmptyState characterName={character.name} starterPrompts={character.starter_prompts} onSelect={sendMessage} />
         ) : (
           <>
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                characterName={character.name}
-                characterAvatar={character.avatar_url}
-              />
-            ))}
+            {chatItems.map((item) =>
+              item.type === "message" ? (
+                <MessageBubble
+                  key={`msg-${item.data.id}`}
+                  message={item.data}
+                  characterName={character.name}
+                  characterAvatar={character.avatar_url}
+                />
+              ) : (
+                <SceneCard key={`scene-${item.data.id}`} scene={item.data} />
+              )
+            )}
             {streamingContent && (
               <StreamingBubble
                 content={streamingContent}
                 characterName={character.name}
                 characterAvatar={character.avatar_url}
               />
+            )}
+            {isGeneratingScene && (
+              <SceneCardSkeleton caption="Creating a scene from your conversation..." />
             )}
           </>
         )}
@@ -104,15 +163,15 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
       {/* Input */}
       <MessageInput
         onSend={sendMessage}
+        onVisualize={handleVisualize}
         disabled={isSending || isLoadingChat}
+        isGeneratingScene={isGeneratingScene}
+        showVisualizeButton={showVisualizeButton}
         placeholder={`Message ${character.name}...`}
       />
     </div>
   );
 }
-
-// Need to add React import for useState/useEffect used inline
-import React from "react";
 
 function ChatSkeleton() {
   return (

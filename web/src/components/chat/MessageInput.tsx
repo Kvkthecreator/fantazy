@@ -1,18 +1,25 @@
 "use client";
 
 import { useState, useRef, useEffect, KeyboardEvent } from "react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface MessageInputProps {
   onSend: (content: string) => void;
+  onVisualize?: () => void;
   disabled?: boolean;
+  isGeneratingScene?: boolean;
+  showVisualizeButton?: boolean;
   placeholder?: string;
 }
 
 export function MessageInput({
   onSend,
+  onVisualize,
   disabled = false,
+  isGeneratingScene = false,
+  showVisualizeButton = true,
   placeholder = "Type a message...",
 }: MessageInputProps) {
   const [value, setValue] = useState("");
@@ -48,6 +55,29 @@ export function MessageInput({
 
   return (
     <div className="flex items-end gap-2 p-4 border-t bg-background">
+      {/* Visualize button */}
+      {showVisualizeButton && onVisualize && (
+        <Button
+          onClick={onVisualize}
+          disabled={disabled || isGeneratingScene}
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "rounded-full h-10 w-10 flex-shrink-0",
+            "text-muted-foreground hover:text-purple-500 hover:bg-purple-500/10",
+            isGeneratingScene && "text-purple-500 bg-purple-500/10"
+          )}
+          title="Visualize this moment"
+        >
+          {isGeneratingScene ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="h-4 w-4" />
+          )}
+          <span className="sr-only">Visualize scene</span>
+        </Button>
+      )}
+
       <div className="flex-1 relative">
         <textarea
           ref={textareaRef}
