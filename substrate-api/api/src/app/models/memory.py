@@ -1,10 +1,11 @@
 """Memory event models."""
+import json
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class MemoryType(str, Enum):
@@ -60,6 +61,24 @@ class MemoryEvent(BaseModel):
 
     created_at: datetime
 
+    @field_validator("content", mode="before")
+    @classmethod
+    def ensure_content_is_dict(cls, v: Any) -> Dict[str, Any]:
+        """Handle content as JSON string (from LLM or DB)."""
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                # Return as wrapped dict if can't parse
+                return {"raw": v}
+        return {}
+
     class Config:
         from_attributes = True
 
@@ -83,3 +102,20 @@ class ExtractedMemory(BaseModel):
     emotional_valence: int = Field(0, ge=-2, le=2)
     importance_score: float = Field(0.5, ge=0, le=1)
     category: Optional[str] = None
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def ensure_content_is_dict(cls, v: Any) -> Dict[str, Any]:
+        """Handle content as JSON string (from LLM output)."""
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return {"raw": v}
+        return {}
