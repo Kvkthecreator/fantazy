@@ -4,11 +4,19 @@ Supports multiple LLM providers through a unified interface.
 Configure via LLM_PROVIDER and LLM_MODEL environment variables.
 
 Supported providers:
-- openai: OpenAI API (GPT-4, GPT-3.5)
+- openai: OpenAI API (GPT-4, GPT-4o-mini)
 - anthropic: Anthropic API (Claude)
+- google: Google Gemini API (Gemini Flash, Gemini Pro)
 - openrouter: OpenRouter (access to multiple models)
 - ollama: Local Ollama instance
 - custom: Custom OpenAI-compatible endpoint
+
+Environment variables:
+- LLM_PROVIDER: Provider name (default: openai)
+- LLM_MODEL: Model name (provider-specific default)
+- GOOGLE_API_KEY: Google AI API key (for google provider)
+- OPENAI_API_KEY: OpenAI API key (for openai provider)
+- ANTHROPIC_API_KEY: Anthropic API key (for anthropic provider)
 """
 
 import json
@@ -30,6 +38,7 @@ class LLMProvider(str, Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GOOGLE = "google"
     OPENROUTER = "openrouter"
     OLLAMA = "ollama"
     CUSTOM = "custom"
@@ -360,6 +369,119 @@ class OllamaClient(BaseLLMClient):
                         continue
 
 
+class GeminiClient(BaseLLMClient):
+    """Google Gemini API client."""
+
+    def __init__(self, config: LLMConfig):
+        super().__init__(config)
+        self.base_url = config.base_url or "https://generativelanguage.googleapis.com/v1beta"
+        self.api_key = config.api_key
+
+    async def generate(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> LLMResponse:
+        start_time = time.time()
+
+        # Convert messages to Gemini format
+        contents = []
+        system_instruction = None
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            elif msg["role"] == "user":
+                contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
+            elif msg["role"] == "assistant":
+                contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
+
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature or self.config.temperature,
+                "maxOutputTokens": max_tokens or self.config.max_tokens,
+            },
+        }
+
+        if system_instruction:
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+        url = f"{self.base_url}/models/{self.config.model}:generateContent?key={self.api_key}"
+
+        response = await self.client.post(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+
+        latency_ms = int((time.time() - start_time) * 1000)
+
+        # Extract content from response
+        content = ""
+        if "candidates" in data and len(data["candidates"]) > 0:
+            candidate = data["candidates"][0]
+            if "content" in candidate and "parts" in candidate["content"]:
+                content = candidate["content"]["parts"][0].get("text", "")
+
+        # Extract token counts
+        usage = data.get("usageMetadata", {})
+
+        return LLMResponse(
+            content=content,
+            model=self.config.model,
+            tokens_input=usage.get("promptTokenCount"),
+            tokens_output=usage.get("candidatesTokenCount"),
+            latency_ms=latency_ms,
+            raw_response=data,
+        )
+
+    async def generate_stream(
+        self,
+        messages: List[Dict[str, str]],
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> AsyncIterator[str]:
+        # Convert messages to Gemini format
+        contents = []
+        system_instruction = None
+
+        for msg in messages:
+            if msg["role"] == "system":
+                system_instruction = msg["content"]
+            elif msg["role"] == "user":
+                contents.append({"role": "user", "parts": [{"text": msg["content"]}]})
+            elif msg["role"] == "assistant":
+                contents.append({"role": "model", "parts": [{"text": msg["content"]}]})
+
+        payload = {
+            "contents": contents,
+            "generationConfig": {
+                "temperature": temperature or self.config.temperature,
+                "maxOutputTokens": max_tokens or self.config.max_tokens,
+            },
+        }
+
+        if system_instruction:
+            payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+
+        url = f"{self.base_url}/models/{self.config.model}:streamGenerateContent?alt=sse&key={self.api_key}"
+
+        async with self.client.stream("POST", url, json=payload) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line.startswith("data: "):
+                    try:
+                        data = json.loads(line[6:])
+                        if "candidates" in data and len(data["candidates"]) > 0:
+                            candidate = data["candidates"][0]
+                            if "content" in candidate and "parts" in candidate["content"]:
+                                text = candidate["content"]["parts"][0].get("text", "")
+                                if text:
+                                    yield text
+                    except json.JSONDecodeError:
+                        continue
+
+
 class LLMService:
     """Provider-agnostic LLM service."""
 
@@ -390,6 +512,7 @@ class LLMService:
         default_models = {
             LLMProvider.OPENAI: "gpt-4o-mini",
             LLMProvider.ANTHROPIC: "claude-3-haiku-20240307",
+            LLMProvider.GOOGLE: "gemini-2.0-flash",
             LLMProvider.OPENROUTER: "openai/gpt-4o-mini",
             LLMProvider.OLLAMA: "llama3.2",
             LLMProvider.CUSTOM: "gpt-4o-mini",
@@ -399,6 +522,7 @@ class LLMService:
         api_key_vars = {
             LLMProvider.OPENAI: "OPENAI_API_KEY",
             LLMProvider.ANTHROPIC: "ANTHROPIC_API_KEY",
+            LLMProvider.GOOGLE: "GOOGLE_API_KEY",
             LLMProvider.OPENROUTER: "OPENROUTER_API_KEY",
             LLMProvider.OLLAMA: None,
             LLMProvider.CUSTOM: "LLM_API_KEY",
@@ -422,6 +546,7 @@ class LLMService:
         client_classes = {
             LLMProvider.OPENAI: OpenAIClient,
             LLMProvider.ANTHROPIC: AnthropicClient,
+            LLMProvider.GOOGLE: GeminiClient,
             LLMProvider.OPENROUTER: OpenRouterClient,
             LLMProvider.OLLAMA: OllamaClient,
             LLMProvider.CUSTOM: OpenAIClient,
