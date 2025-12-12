@@ -1,36 +1,21 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api/client";
+
+// Local test assets (transparent avatar + background)
+const AVATAR_URL = "/playground-assets/avatar_transparent.png";
+const BACKGROUND_URL = "/playground-assets/classroom-bg.jpg";
 
 export default function ParallaxPlayground() {
   const [parallaxEnabled, setParallaxEnabled] = useState(true);
   const [breathingEnabled, setBreathingEnabled] = useState(true);
   const [parallaxIntensity, setParallaxIntensity] = useState(20);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Fetch Kai's avatar URL
-  useEffect(() => {
-    async function loadCharacter() {
-      try {
-        const character = await api.characters.getBySlug("kai");
-        setAvatarUrl(character.avatar_url || null);
-      } catch (err) {
-        console.error("Failed to load character:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-    loadCharacter();
-  }, []);
 
   // Track mouse position relative to container center
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -120,53 +105,28 @@ export default function ParallaxPlayground() {
       >
         {/* Background Layer */}
         <div
-          className="absolute inset-[-20px] transition-transform duration-100 ease-out"
+          className="absolute inset-[-20px] transition-transform duration-100 ease-out bg-cover bg-center"
           style={{
             transform: bgTransform,
-            background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
+            backgroundImage: `url(${BACKGROUND_URL})`,
           }}
-        >
-          {/* Add some ambient elements to the background */}
-          <div className="absolute top-[10%] left-[10%] w-32 h-32 bg-purple-500/20 rounded-full blur-3xl" />
-          <div className="absolute bottom-[20%] right-[15%] w-48 h-48 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="absolute top-[40%] right-[30%] w-24 h-24 bg-pink-500/10 rounded-full blur-2xl" />
-
-          {/* Stars / particles */}
-          {[...Array(20)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute w-1 h-1 bg-white/40 rounded-full"
-              style={{
-                top: `${10 + (i * 17) % 80}%`,
-                left: `${5 + (i * 23) % 90}%`,
-              }}
-            />
-          ))}
-        </div>
+        />
 
         {/* Character Layer */}
         <div
-          className={`absolute bottom-0 left-[10%] h-[85%] transition-transform duration-100 ease-out ${
+          className={`absolute bottom-0 right-[5%] h-[90%] transition-transform duration-100 ease-out ${
             breathingEnabled ? "animate-breathing" : ""
           }`}
           style={{ transform: avatarTransform }}
         >
-          {isLoading ? (
-            <Skeleton className="h-full w-48 rounded-xl" />
-          ) : avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt="Kai"
-              className="h-full w-auto object-contain drop-shadow-2xl"
-              style={{
-                filter: "drop-shadow(0 0 20px rgba(0,0,0,0.5))",
-              }}
-            />
-          ) : (
-            <div className="h-full w-48 bg-muted/50 rounded-xl flex items-center justify-center text-white/50">
-              No avatar
-            </div>
-          )}
+          <img
+            src={AVATAR_URL}
+            alt="Character"
+            className="h-full w-auto object-contain"
+            style={{
+              filter: "drop-shadow(0 0 15px rgba(0,0,0,0.4))",
+            }}
+          />
         </div>
 
         {/* Foreground FX Layer - bokeh / light particles */}
