@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class UserPreferences(BaseModel):
@@ -61,6 +61,32 @@ class User(BaseModel):
     subscription_expires_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("preferences", mode="before")
+    @classmethod
+    def ensure_preferences_is_dict(cls, v: Any) -> Dict[str, Any]:
+        """Handle corrupted preferences data (e.g., array instead of dict)."""
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, list):
+            # Corrupted data - merge list items into dict
+            result: Dict[str, Any] = {}
+            for item in v:
+                if isinstance(item, dict):
+                    result.update(item)
+                elif isinstance(item, str):
+                    # Try to parse JSON string
+                    import json
+                    try:
+                        parsed = json.loads(item)
+                        if isinstance(parsed, dict):
+                            result.update(parsed)
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+            return result
+        return {}
 
     class Config:
         from_attributes = True

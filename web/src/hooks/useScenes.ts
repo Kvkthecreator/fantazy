@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { api } from "@/lib/api/client";
 import type { EpisodeImage, SceneGenerateResponse } from "@/types";
 
@@ -27,6 +27,13 @@ export function useScenes({
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
 
+  // Store onError in a ref to avoid dependency issues
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  // Track if we've already loaded for this episodeId
+  const loadedEpisodeRef = useRef<string | null>(null);
+
   const refreshScenes = useCallback(async () => {
     if (!episodeId) return;
 
@@ -35,11 +42,11 @@ export function useScenes({
       const images = await api.scenes.listForEpisode(episodeId);
       setScenes(images);
     } catch (error) {
-      onError?.(error as Error);
+      onErrorRef.current?.(error as Error);
     } finally {
       setIsLoading(false);
     }
-  }, [episodeId, onError]);
+  }, [episodeId]);
 
   const generateScene = useCallback(
     async (prompt?: string): Promise<SceneGenerateResponse | null> => {
@@ -58,18 +65,19 @@ export function useScenes({
 
         return response;
       } catch (error) {
-        onError?.(error as Error);
+        onErrorRef.current?.(error as Error);
         return null;
       } finally {
         setIsGenerating(false);
       }
     },
-    [episodeId, isGenerating, onError, refreshScenes]
+    [episodeId, isGenerating, refreshScenes]
   );
 
-  // Load scenes when episode changes
+  // Load scenes when episode changes (only once per episodeId)
   useEffect(() => {
-    if (enabled && episodeId) {
+    if (enabled && episodeId && loadedEpisodeRef.current !== episodeId) {
+      loadedEpisodeRef.current = episodeId;
       refreshScenes();
     }
   }, [enabled, episodeId, refreshScenes]);

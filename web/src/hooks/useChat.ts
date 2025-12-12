@@ -31,6 +31,13 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Store onError in a ref to avoid dependency issues causing infinite loops
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  // Track if we've already loaded for this characterId
+  const loadedCharacterRef = useRef<string | null>(null);
+
   // Load active episode and messages
   const loadMessages = useCallback(async () => {
     setIsLoading(true);
@@ -50,11 +57,11 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
         setMessages(msgs);
       }
     } catch (error) {
-      onError?.(error as Error);
+      onErrorRef.current?.(error as Error);
     } finally {
       setIsLoading(false);
     }
-  }, [characterId, onError]);
+  }, [characterId]);
 
   // Send message (non-streaming)
   const sendMessageSimple = useCallback(async (content: string) => {
@@ -93,11 +100,11 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
     } catch (error) {
       // Remove temp message on error
       setMessages((prev) => prev.filter((m) => m.id !== tempUserMessage.id));
-      onError?.(error as Error);
+      onErrorRef.current?.(error as Error);
     } finally {
       setIsSending(false);
     }
-  }, [characterId, episode, isSending, onError]);
+  }, [characterId, episode, isSending]);
 
   // Send message with streaming
   const sendMessage = useCallback(async (content: string) => {
@@ -165,13 +172,13 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
         setStreamingContent("");
       }
     } catch (error) {
-      onError?.(error as Error);
+      onErrorRef.current?.(error as Error);
       // Keep user message but show error
     } finally {
       setIsSending(false);
       setStreamingContent("");
     }
-  }, [characterId, episode, isSending, onError, messages]);
+  }, [characterId, episode, isSending, messages]);
 
   // Start new episode
   const startNewEpisode = useCallback(async () => {
@@ -186,9 +193,9 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
       setEpisode(newEpisode);
       setMessages([]);
     } catch (error) {
-      onError?.(error as Error);
+      onErrorRef.current?.(error as Error);
     }
-  }, [characterId, episode, onError]);
+  }, [characterId, episode]);
 
   // End current episode
   const endEpisode = useCallback(async () => {
@@ -198,23 +205,29 @@ export function useChat({ characterId, enabled = true, onError }: UseChatOptions
       const ended = await api.conversation.end(characterId);
       setEpisode(ended);
     } catch (error) {
-      onError?.(error as Error);
+      onErrorRef.current?.(error as Error);
     }
-  }, [characterId, episode, onError]);
+  }, [characterId, episode]);
 
-  // Load on mount (only when enabled)
+  // Load on mount (only when enabled, and only once per characterId)
   useEffect(() => {
     if (!enabled) {
       setIsLoading(false);
       return;
     }
 
+    // Prevent infinite loops - only load once per characterId
+    if (loadedCharacterRef.current === characterId) {
+      return;
+    }
+    loadedCharacterRef.current = characterId;
+
     loadMessages();
 
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [loadMessages, enabled]);
+  }, [loadMessages, enabled, characterId]);
 
   return {
     messages,
