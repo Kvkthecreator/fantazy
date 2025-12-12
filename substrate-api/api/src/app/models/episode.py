@@ -1,9 +1,10 @@
 """Episode models."""
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
     from app.models.message import Message
@@ -71,6 +72,40 @@ class Episode(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
     created_at: datetime
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def ensure_metadata_is_dict(cls, v: Any) -> Dict[str, Any]:
+        """Handle metadata as JSON string (from DB)."""
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return {"raw": v}
+        return {}
+
+    @field_validator("emotional_tags", "key_events", mode="before")
+    @classmethod
+    def ensure_list(cls, v: Any) -> List[str]:
+        """Handle list fields as JSON string (from DB)."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return [v]
+        return []
 
     class Config:
         from_attributes = True

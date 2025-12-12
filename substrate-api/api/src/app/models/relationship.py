@@ -1,10 +1,11 @@
 """Relationship models."""
+import json
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RelationshipStage(str, Enum):
@@ -60,6 +61,40 @@ class Relationship(BaseModel):
 
     created_at: datetime
     updated_at: datetime
+
+    @field_validator("metadata", mode="before")
+    @classmethod
+    def ensure_metadata_is_dict(cls, v: Any) -> Dict[str, Any]:
+        """Handle metadata as JSON string (from DB)."""
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return {"raw": v}
+        return {}
+
+    @field_validator("inside_jokes", mode="before")
+    @classmethod
+    def ensure_list(cls, v: Any) -> List[str]:
+        """Handle list fields as JSON string (from DB)."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, list):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return [v]
+        return []
 
     class Config:
         from_attributes = True
