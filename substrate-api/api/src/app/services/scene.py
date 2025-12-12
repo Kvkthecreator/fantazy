@@ -2,6 +2,9 @@
 
 Handles automatic scene card generation for key conversation moments.
 Works with existing ImageService for generation, StorageService for upload.
+
+NOTE: This service is used for automatic scene generation during chat.
+For manual scene generation, see routes/scenes.py which has fuller avatar kit support.
 """
 
 import logging
@@ -17,16 +20,17 @@ from app.services.storage import StorageService
 log = logging.getLogger(__name__)
 
 
-# Scene generation prompts
+# Scene generation prompts - enhanced with appearance support
 SCENE_PROMPT_TEMPLATE = """Create an image generation prompt for this moment.
 
 Context:
 - Character: {character_name}
+- Appearance: {appearance_prompt}
 - Setting: {scene}
 - Moment: {moment}
 
 Write a concise image prompt (50-80 words) that:
-- Describes ONE person ({character_name}) in the scene
+- Describes ONE person matching the appearance description
 - Focuses on mood, lighting, and atmosphere
 - Uses comma-separated descriptive tags
 
@@ -67,7 +71,7 @@ class SceneService:
         """
         # Check how many scenes already exist for this episode
         count_query = """
-            SELECT COUNT(*) as count FROM episode_images
+            SELECT COUNT(*) as count FROM scene_images
             WHERE episode_id = :episode_id
         """
         result = await self.db.fetch_one(count_query, {"episode_id": str(episode_id)})
@@ -104,15 +108,23 @@ class SceneService:
         moment_description: str,
         trigger_type: str,
         message_id: Optional[UUID] = None,
+        # Avatar kit data (optional, for consistency)
+        appearance_prompt: Optional[str] = None,
+        style_prompt: Optional[str] = None,
+        negative_prompt: Optional[str] = None,
+        avatar_kit_id: Optional[UUID] = None,
     ) -> Optional[Dict[str, Any]]:
         """Generate a scene card for a conversation moment.
 
         Returns the generated scene data or None if generation fails.
+
+        If avatar kit data is provided, it will be used for visual consistency.
         """
         try:
             # Generate scene prompt via LLM
             prompt_request = SCENE_PROMPT_TEMPLATE.format(
                 character_name=character_name,
+                appearance_prompt=appearance_prompt or "A character",
                 scene=scene_setting or "A cozy setting",
                 moment=moment_description,
             )
@@ -123,10 +135,19 @@ class SceneService:
             ], max_tokens=300)
             scene_prompt = prompt_response.content.strip()
 
+            # Append style prompt if provided
+            if style_prompt:
+                scene_prompt = f"{scene_prompt}, {style_prompt}"
+
+            # Build negative prompt
+            final_negative = "photorealistic, 3D render, harsh shadows, multiple characters, text, watermark"
+            if negative_prompt:
+                final_negative = f"{final_negative}, {negative_prompt}"
+
             # Generate image
             image_response = await self.image_service.generate(
                 prompt=scene_prompt,
-                negative_prompt="photorealistic, 3D render, harsh shadows, multiple characters, text, watermark",
+                negative_prompt=final_negative,
                 width=1024,
                 height=1024,
             )
@@ -183,15 +204,15 @@ class SceneService:
                 "file_size_bytes": len(image_bytes),
             })
 
-            # 2. Create episode_images record
+            # 2. Create scene_images record (renamed from episode_images)
             await self.db.execute("""
-                INSERT INTO episode_images (
+                INSERT INTO scene_images (
                     episode_id, image_id, sequence_index, caption,
-                    triggered_by_message_id, trigger_type
+                    triggered_by_message_id, trigger_type, avatar_kit_id
                 )
                 VALUES (
                     :episode_id, :image_id, :sequence_index, :caption,
-                    :message_id, :trigger_type
+                    :message_id, :trigger_type, :avatar_kit_id
                 )
             """, {
                 "episode_id": str(episode_id),
@@ -200,6 +221,7 @@ class SceneService:
                 "caption": caption,
                 "message_id": str(message_id) if message_id else None,
                 "trigger_type": trigger_type,
+                "avatar_kit_id": str(avatar_kit_id) if avatar_kit_id else None,
             })
 
             # Construct image URL

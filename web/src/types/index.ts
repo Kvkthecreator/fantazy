@@ -251,9 +251,14 @@ export interface SceneGenerateResponse {
   model_used: string;
   latency_ms: number | null;
   sequence_index: number;
+  avatar_kit_id?: string | null;
 }
 
-export interface EpisodeImage {
+/**
+ * Scene image (scene card) - renamed from EpisodeImage.
+ * Represents a user-generated scene output linked to an episode.
+ */
+export interface SceneImage {
   id: string;
   episode_id: string;
   image_id: string;
@@ -268,7 +273,13 @@ export interface EpisodeImage {
   image_url: string;
   prompt: string | null;
   style_tags: string[];
+  // Avatar kit tracking (new in v0.10)
+  avatar_kit_id?: string | null;
+  derived_from_asset_id?: string | null;
 }
+
+/** @deprecated Use SceneImage instead */
+export type EpisodeImage = SceneImage;
 
 export interface SceneMemory {
   image_id: string;
@@ -281,4 +292,72 @@ export interface SceneMemory {
   style_tags: string[];
   saved_at: string;
   episode_started_at: string;
+}
+
+// ============================================================================
+// Avatar Kit Types (Visual Identity Contracts)
+// ============================================================================
+
+export type AvatarKitStatus = "draft" | "active" | "archived";
+
+export type AvatarAssetType =
+  | "anchor_portrait"
+  | "anchor_fullbody"
+  | "expression"
+  | "pose"
+  | "outfit";
+
+export type AvatarAssetSource = "manual_upload" | "ai_generated" | "imported";
+
+/**
+ * Avatar Kit - Visual identity contract for a character.
+ * Defines the canonical appearance prompts and anchor references.
+ */
+export interface AvatarKit {
+  id: string;
+  character_id: string;
+  created_by: string | null;
+  name: string;
+  description: string | null;
+  appearance_prompt: string;
+  style_prompt: string;
+  negative_prompt: string | null;
+  primary_anchor_id: string | null;
+  secondary_anchor_id: string | null;
+  status: AvatarKitStatus;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AvatarKitWithAnchors extends AvatarKit {
+  primary_anchor_url: string | null;
+  secondary_anchor_url: string | null;
+}
+
+/**
+ * Avatar Asset - Canonical character image (anchor, expression, pose).
+ */
+export interface AvatarAsset {
+  id: string;
+  avatar_kit_id: string;
+  asset_type: AvatarAssetType;
+  expression: string | null;
+  emotion_tags: string[];
+  storage_bucket: string;
+  storage_path: string;
+  source_type: AvatarAssetSource;
+  derived_from_id: string | null;
+  generation_metadata: Record<string, unknown>;
+  mime_type: string;
+  width: number | null;
+  height: number | null;
+  file_size_bytes: number | null;
+  is_canonical: boolean;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AvatarAssetWithUrl extends AvatarAsset {
+  image_url: string;
 }
