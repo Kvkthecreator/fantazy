@@ -1,10 +1,14 @@
-"""Image models for scene cards and assets."""
+"""Image models for scene cards, avatar assets, and image storage."""
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+
+# ============================================================================
+# Scene Generation (user-initiated)
+# ============================================================================
 
 class SceneGenerateRequest(BaseModel):
     """Request to generate a scene image."""
@@ -26,13 +30,184 @@ class SceneGenerateResponse(BaseModel):
     model_used: str
     latency_ms: Optional[int] = None
     sequence_index: int
+    avatar_kit_id: Optional[UUID] = None  # Which visual identity was used
 
 
-class ImageAsset(BaseModel):
-    """Full image asset model."""
+# ============================================================================
+# Avatar Kits - Visual Identity Contracts
+# ============================================================================
+
+class AvatarKitCreate(BaseModel):
+    """Request to create an avatar kit."""
+
+    character_id: UUID
+    name: str
+    description: Optional[str] = None
+    appearance_prompt: str
+    style_prompt: str
+    negative_prompt: Optional[str] = None
+    is_default: bool = False
+
+
+class AvatarKitUpdate(BaseModel):
+    """Request to update an avatar kit."""
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    appearance_prompt: Optional[str] = None
+    style_prompt: Optional[str] = None
+    negative_prompt: Optional[str] = None
+    status: Optional[str] = None  # draft, active, archived
+    is_default: Optional[bool] = None
+
+
+class AvatarKit(BaseModel):
+    """Avatar kit - visual identity contract for a character."""
 
     id: UUID
-    type: str  # avatar, expression, scene
+    character_id: UUID
+    created_by: Optional[UUID] = None
+
+    name: str
+    description: Optional[str] = None
+
+    # Visual contract
+    appearance_prompt: str
+    style_prompt: str
+    negative_prompt: Optional[str] = None
+
+    # Anchor references
+    primary_anchor_id: Optional[UUID] = None
+    secondary_anchor_id: Optional[UUID] = None
+
+    status: str = "draft"
+    is_default: bool = False
+
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AvatarKitWithAnchors(AvatarKit):
+    """Avatar kit with anchor asset URLs."""
+
+    primary_anchor_url: Optional[str] = None
+    secondary_anchor_url: Optional[str] = None
+
+
+# ============================================================================
+# Avatar Assets - Canonical Character Images
+# ============================================================================
+
+class AvatarAssetCreate(BaseModel):
+    """Request to create an avatar asset (via upload)."""
+
+    asset_type: str  # anchor_portrait, anchor_fullbody, expression, pose, outfit
+    expression: Optional[str] = None  # For expression assets
+    emotion_tags: List[str] = Field(default_factory=list)
+    source_type: str = "manual_upload"
+
+
+class AvatarAsset(BaseModel):
+    """Avatar asset - canonical character image."""
+
+    id: UUID
+    avatar_kit_id: UUID
+
+    asset_type: str
+    expression: Optional[str] = None
+    emotion_tags: List[str] = Field(default_factory=list)
+
+    storage_bucket: str
+    storage_path: str
+
+    source_type: str
+    derived_from_id: Optional[UUID] = None
+    generation_metadata: Dict[str, Any] = Field(default_factory=dict)
+
+    mime_type: str = "image/png"
+    width: Optional[int] = None
+    height: Optional[int] = None
+    file_size_bytes: Optional[int] = None
+
+    is_canonical: bool = False
+    is_active: bool = True
+
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class AvatarAssetWithUrl(AvatarAsset):
+    """Avatar asset with signed URL for access."""
+
+    image_url: str
+
+
+# ============================================================================
+# Scene Images (renamed from episode_images)
+# User-generated scene outputs
+# ============================================================================
+
+class SceneImage(BaseModel):
+    """Scene image (scene card) model - renamed from EpisodeImage."""
+
+    id: UUID
+    episode_id: UUID
+    image_id: UUID
+
+    sequence_index: int
+    caption: Optional[str] = None
+
+    triggered_by_message_id: Optional[UUID] = None
+    trigger_type: Optional[str] = None
+
+    # Avatar kit tracking
+    avatar_kit_id: Optional[UUID] = None
+    derived_from_asset_id: Optional[UUID] = None
+
+    is_memory: bool = False
+    saved_at: Optional[datetime] = None
+
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class SceneImageWithAsset(SceneImage):
+    """Scene image with embedded asset data."""
+
+    storage_path: str
+    image_url: str
+    prompt: Optional[str] = None
+    style_tags: List[str] = Field(default_factory=list)
+
+
+# ============================================================================
+# Legacy Aliases (for backward compatibility during migration)
+# ============================================================================
+
+# Keep these aliases for code that still references old names
+EpisodeImage = SceneImage
+EpisodeImageWithAsset = SceneImageWithAsset
+
+
+# ============================================================================
+# Generic Image Assets (for non-character images)
+# ============================================================================
+
+class ImageAsset(BaseModel):
+    """Generic image asset (backgrounds, props, world elements).
+
+    NOTE: For character-specific visuals, use AvatarAsset instead.
+    """
+
+    id: UUID
+    type: str  # background, prop, world (avatar/expression deprecated)
     user_id: Optional[UUID] = None
     character_id: Optional[UUID] = None
 
@@ -58,36 +233,9 @@ class ImageAsset(BaseModel):
         from_attributes = True
 
 
-class EpisodeImage(BaseModel):
-    """Episode image (scene card) model."""
-
-    id: UUID
-    episode_id: UUID
-    image_id: UUID
-
-    sequence_index: int
-    caption: Optional[str] = None
-
-    triggered_by_message_id: Optional[UUID] = None
-    trigger_type: Optional[str] = None  # milestone, user_request, stage_change, episode_start
-
-    is_memory: bool = False
-    saved_at: Optional[datetime] = None
-
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class EpisodeImageWithAsset(EpisodeImage):
-    """Episode image with embedded asset data."""
-
-    storage_path: str
-    image_url: str
-    prompt: Optional[str] = None
-    style_tags: List[str] = Field(default_factory=list)
-
+# ============================================================================
+# Memory / Gallery
+# ============================================================================
 
 class MemorySaveRequest(BaseModel):
     """Request to save/unsave a scene as memory."""

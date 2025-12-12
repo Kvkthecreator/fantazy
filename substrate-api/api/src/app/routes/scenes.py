@@ -9,11 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.deps import get_db
 from app.dependencies import get_current_user_id
 from app.models.image import (
-    EpisodeImageWithAsset,
     Memory,
     MemorySaveRequest,
     SceneGenerateRequest,
     SceneGenerateResponse,
+    SceneImageWithAsset,
 )
 from app.services.image import ImageService
 from app.services.llm import LLMService
@@ -24,15 +24,17 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/scenes", tags=["Scenes"])
 
 
+# Scene prompt template - will be enhanced with avatar kit data in Phase 3
 SCENE_PROMPT_TEMPLATE = """Create an image generation prompt for this moment.
 
 Context:
 - Character: {character_name}
+- Appearance: {appearance_prompt}
 - Setting: {scene}
 - Conversation: {conversation_summary}
 
 Write a concise image prompt (50-80 words) that:
-- Describes ONE person ({character_name}) in the scene
+- Describes ONE person matching the appearance description
 - Focuses on mood, lighting, and atmosphere
 - Uses comma-separated descriptive tags
 
@@ -58,12 +60,22 @@ async def generate_scene(
     """Generate a scene image for an episode.
 
     If no prompt is provided, one will be auto-generated from episode context.
+    Uses avatar kit for character consistency when available.
     """
-    # Verify episode ownership
+    # Verify episode ownership and get character + avatar kit info
     episode_query = """
-        SELECT e.id, e.title, e.scene, c.name as character_name, c.id as character_id
+        SELECT
+            e.id, e.title, e.scene,
+            c.name as character_name,
+            c.id as character_id,
+            c.active_avatar_kit_id,
+            ak.appearance_prompt,
+            ak.style_prompt,
+            ak.negative_prompt,
+            ak.primary_anchor_id
         FROM episodes e
         JOIN characters c ON c.id = e.character_id
+        LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id AND ak.status = 'active'
         WHERE e.id = :episode_id AND e.user_id = :user_id
     """
     episode = await db.fetch_one(
@@ -90,15 +102,21 @@ async def generate_scene(
         [f"{m['role']}: {m['content'][:100]}..." for m in reversed(messages)]
     ) if messages else "No messages yet"
 
+    # Extract avatar kit data (if available)
+    avatar_kit_id = episode.get("active_avatar_kit_id")
+    appearance_prompt = episode.get("appearance_prompt") or "A character"
+    style_prompt = episode.get("style_prompt") or ""
+    negative_prompt = episode.get("negative_prompt") or ""
+
     # Generate prompt if not provided
     prompt = data.prompt
     if not prompt:
         # Use LLM to generate scene prompt
         llm = LLMService.get_instance()
         prompt_request = SCENE_PROMPT_TEMPLATE.format(
-            episode_title=episode["title"] or f"Episode with {episode['character_name']}",
-            scene=episode["scene"] or "A cozy setting",
             character_name=episode["character_name"],
+            appearance_prompt=appearance_prompt,
+            scene=episode["scene"] or "A cozy setting",
             conversation_summary=conversation_summary,
         )
 
@@ -108,16 +126,23 @@ async def generate_scene(
                 {"role": "user", "content": prompt_request},
             ])
             prompt = response.content.strip()
+
+            # Append style prompt if available
+            if style_prompt:
+                prompt = f"{prompt}, {style_prompt}"
+
         except Exception as e:
             log.warning(f"Failed to generate scene prompt: {e}")
-            # Fallback to basic prompt
-            prompt = f"A cozy scene with {episode['character_name']} in an anime style, warm lighting, soft colors"
+            # Fallback to basic prompt with appearance
+            prompt = f"{appearance_prompt}, in an anime style, warm lighting, soft colors"
 
     # Generate the image
+    # TODO: Phase 3 - Use ImageService.edit() with anchor reference when available
     image_service = ImageService.get_instance()
     try:
         image_response = await image_service.generate(
             prompt=prompt,
+            negative_prompt=negative_prompt or None,
             width=1024,
             height=1024,
             num_images=1,
@@ -165,13 +190,13 @@ async def generate_scene(
     except Exception as e:
         log.warning(f"Caption generation failed: {e}")
 
-    # Get next sequence index
+    # Get next sequence index (function works with renamed table)
     index_query = "SELECT get_next_episode_image_index(:episode_id) as idx"
     index_row = await db.fetch_one(index_query, {"episode_id": str(data.episode_id)})
     sequence_index = index_row["idx"] if index_row else 0
 
     # Save to database
-    # 1. Create image_asset record
+    # 1. Create image_asset record (still using image_assets for scene storage)
     asset_query = """
         INSERT INTO image_assets (
             id, type, user_id, character_id, storage_bucket, storage_path,
@@ -197,24 +222,25 @@ async def generate_scene(
         },
     )
 
-    # 2. Create episode_images record
-    episode_image_query = """
-        INSERT INTO episode_images (
-            episode_id, image_id, sequence_index, caption, trigger_type
+    # 2. Create scene_images record (renamed from episode_images)
+    scene_image_query = """
+        INSERT INTO scene_images (
+            episode_id, image_id, sequence_index, caption, trigger_type, avatar_kit_id
         )
         VALUES (
-            :episode_id, :image_id, :sequence_index, :caption, :trigger_type
+            :episode_id, :image_id, :sequence_index, :caption, :trigger_type, :avatar_kit_id
         )
         RETURNING id
     """
     await db.execute(
-        episode_image_query,
+        scene_image_query,
         {
             "episode_id": str(data.episode_id),
             "image_id": str(image_id),
             "sequence_index": sequence_index,
             "caption": caption,
             "trigger_type": data.trigger_type,
+            "avatar_kit_id": str(avatar_kit_id) if avatar_kit_id else None,
         },
     )
 
@@ -231,10 +257,11 @@ async def generate_scene(
         model_used=image_response.model,
         latency_ms=image_response.latency_ms,
         sequence_index=sequence_index,
+        avatar_kit_id=avatar_kit_id,
     )
 
 
-@router.get("/episode/{episode_id}", response_model=List[EpisodeImageWithAsset])
+@router.get("/episode/{episode_id}", response_model=List[SceneImageWithAsset])
 async def list_episode_images(
     episode_id: UUID,
     user_id: UUID = Depends(get_current_user_id),
@@ -253,16 +280,17 @@ async def list_episode_images(
             detail="Episode not found",
         )
 
+    # Query uses renamed table: scene_images
     query = """
         SELECT
-            ei.id, ei.episode_id, ei.image_id, ei.sequence_index, ei.caption,
-            ei.triggered_by_message_id, ei.trigger_type, ei.is_memory, ei.saved_at,
-            ei.created_at,
+            si.id, si.episode_id, si.image_id, si.sequence_index, si.caption,
+            si.triggered_by_message_id, si.trigger_type, si.is_memory, si.saved_at,
+            si.avatar_kit_id, si.derived_from_asset_id, si.created_at,
             ia.storage_path, ia.prompt, ia.style_tags
-        FROM episode_images ei
-        JOIN image_assets ia ON ia.id = ei.image_id
-        WHERE ei.episode_id = :episode_id
-        ORDER BY ei.sequence_index ASC
+        FROM scene_images si
+        JOIN image_assets ia ON ia.id = si.image_id
+        WHERE si.episode_id = :episode_id
+        ORDER BY si.sequence_index ASC
     """
     rows = await db.fetch_all(query, {"episode_id": str(episode_id)})
 
@@ -271,38 +299,37 @@ async def list_episode_images(
     results = []
     for row in rows:
         data = dict(row)
-        # Create signed URL for temporary public access (1 hour expiry)
         data["image_url"] = await storage.create_signed_url("scenes", data["storage_path"])
-        results.append(EpisodeImageWithAsset(**data))
+        results.append(SceneImageWithAsset(**data))
 
     return results
 
 
-@router.patch("/{episode_image_id}/memory", response_model=EpisodeImageWithAsset)
+@router.patch("/{scene_image_id}/memory", response_model=SceneImageWithAsset)
 async def toggle_memory(
-    episode_image_id: UUID,
+    scene_image_id: UUID,
     data: MemorySaveRequest,
     user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Save or unsave a scene image as a memory."""
-    # Update with ownership check via episode
+    # Update with ownership check via episode (using renamed table)
     query = """
-        UPDATE episode_images ei
+        UPDATE scene_images si
         SET is_memory = :is_memory,
             saved_at = CASE WHEN :is_memory THEN NOW() ELSE NULL END
         FROM episodes e
-        WHERE ei.id = :episode_image_id
-          AND ei.episode_id = e.id
+        WHERE si.id = :scene_image_id
+          AND si.episode_id = e.id
           AND e.user_id = :user_id
-        RETURNING ei.id, ei.episode_id, ei.image_id, ei.sequence_index, ei.caption,
-                  ei.triggered_by_message_id, ei.trigger_type, ei.is_memory, ei.saved_at,
-                  ei.created_at
+        RETURNING si.id, si.episode_id, si.image_id, si.sequence_index, si.caption,
+                  si.triggered_by_message_id, si.trigger_type, si.is_memory, si.saved_at,
+                  si.avatar_kit_id, si.derived_from_asset_id, si.created_at
     """
     row = await db.fetch_one(
         query,
         {
-            "episode_image_id": str(episode_image_id),
+            "scene_image_id": str(scene_image_id),
             "is_memory": data.is_memory,
             "user_id": str(user_id),
         },
@@ -311,7 +338,7 @@ async def toggle_memory(
     if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Episode image not found",
+            detail="Scene image not found",
         )
 
     # Fetch asset data
@@ -329,7 +356,7 @@ async def toggle_memory(
     result["prompt"] = asset["prompt"]
     result["style_tags"] = asset["style_tags"] or []
 
-    return EpisodeImageWithAsset(**result)
+    return SceneImageWithAsset(**result)
 
 
 @router.get("/memories", response_model=List[Memory])
@@ -340,7 +367,7 @@ async def list_memories(
     db=Depends(get_db),
 ):
     """List user's saved memories (starred scene cards)."""
-    # Use the helper function
+    # Use the helper function (updated to use scene_images)
     query = "SELECT * FROM get_user_memories(:user_id, :character_id, :limit)"
     rows = await db.fetch_all(
         query,
