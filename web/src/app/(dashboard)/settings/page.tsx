@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubscriptionCard } from "@/components/subscription";
+import { UsageMeter } from "@/components/usage";
 import { useUser } from "@/hooks/useUser";
+import { useUsage } from "@/hooks/useUsage";
 import { CheckCircle2 } from "lucide-react";
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { reload } = useUser();
+  const { reload: reloadUsage } = useUsage();
   const [showSuccess, setShowSuccess] = useState(false);
 
   // Handle success redirect from Lemon Squeezy
@@ -19,13 +22,15 @@ export default function SettingsPage() {
       setShowSuccess(true);
       // Reload user data to get updated subscription status
       reload();
+      // Reload usage data (quota resets on subscription change)
+      reloadUsage();
       // Clear the URL param without reload
       window.history.replaceState({}, "", "/settings");
       // Hide success message after 5 seconds
       const timer = setTimeout(() => setShowSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [searchParams, reload]);
+  }, [searchParams, reload, reloadUsage]);
 
   return (
     <div className="space-y-8">
@@ -50,6 +55,21 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Usage Section */}
+      <section>
+        <Card>
+          <CardHeader>
+            <CardTitle>Usage This Month</CardTitle>
+            <CardDescription>
+              Track your image generation usage
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <UsageMeter />
+          </CardContent>
+        </Card>
+      </section>
 
       {/* Subscription Section */}
       <section>

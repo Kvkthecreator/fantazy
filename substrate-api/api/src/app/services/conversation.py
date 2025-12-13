@@ -12,6 +12,7 @@ from app.models.message import Message, MessageRole, ConversationContext, Memory
 from app.models.relationship import Relationship
 from app.services.llm import LLMService
 from app.services.memory import MemoryService
+from app.services.usage import UsageService
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ class ConversationService:
         self.db = db
         self.llm = LLMService.get_instance()
         self.memory_service = MemoryService(db)
+        self.usage_service = UsageService.get_instance()
 
     async def send_message(
         self,
@@ -54,6 +56,13 @@ class ConversationService:
             episode_id=episode.id,
             role=MessageRole.USER,
             content=content,
+        )
+
+        # Track message for analytics (non-blocking, fire-and-forget)
+        await self.usage_service.increment_message_count(
+            user_id=str(user_id),
+            character_id=str(character_id),
+            episode_id=str(episode.id),
         )
 
         # Add user message to context
@@ -110,6 +119,13 @@ class ConversationService:
             episode_id=episode.id,
             role=MessageRole.USER,
             content=content,
+        )
+
+        # Track message for analytics (non-blocking, fire-and-forget)
+        await self.usage_service.increment_message_count(
+            user_id=str(user_id),
+            character_id=str(character_id),
+            episode_id=str(episode.id),
         )
 
         # Add user message to context

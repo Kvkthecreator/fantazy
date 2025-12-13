@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.deps import get_db
 from app.dependencies import get_current_user_id
 from app.models.user import User, UserUpdate, OnboardingData
+from app.models.usage import UsageResponse, FluxUsage, MessageUsage
+from app.services.usage import UsageService
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -149,3 +151,33 @@ async def complete_onboarding(
     await db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(data.first_character_id)})
 
     return User(**dict(row))
+
+
+@router.get("/me/usage", response_model=UsageResponse)
+async def get_my_usage(
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Get current user's usage statistics."""
+    usage_service = UsageService.get_instance()
+
+    try:
+        stats = await usage_service.get_usage_stats(str(user_id))
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+    return UsageResponse(
+        flux=FluxUsage(
+            used=stats.flux_used,
+            quota=stats.flux_quota,
+            remaining=stats.flux_remaining,
+            resets_at=stats.flux_resets_at,
+        ),
+        messages=MessageUsage(
+            sent=stats.messages_sent,
+            resets_at=stats.messages_resets_at,
+        ),
+        subscription_status=stats.subscription_status,
+    )

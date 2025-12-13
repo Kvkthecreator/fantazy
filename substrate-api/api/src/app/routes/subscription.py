@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from app.deps import get_db
 from app.dependencies import get_current_user_id
+from app.services.usage import UsageService
 
 log = logging.getLogger("uvicorn.error")
 
@@ -358,6 +359,11 @@ async def handle_subscription_created(
             "subscription_id": subscription_id,
         },
     )
+
+    # Reset usage counters on subscription upgrade (gives full quota immediately)
+    usage_service = UsageService.get_instance()
+    await usage_service.reset_on_subscription_change(user_id)
+
     log.info(f"Activated premium subscription for user {user_id}")
 
 
@@ -425,4 +431,9 @@ async def handle_subscription_resumed(
             "subscription_id": subscription_id,
         },
     )
+
+    # Reset usage counters on subscription reactivation
+    usage_service = UsageService.get_instance()
+    await usage_service.reset_on_subscription_change(user_id)
+
     log.info(f"Resumed subscription for user {user_id}")

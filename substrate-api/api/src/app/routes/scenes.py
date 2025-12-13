@@ -18,6 +18,7 @@ from app.models.image import (
 from app.services.image import ImageService
 from app.services.llm import LLMService
 from app.services.storage import StorageService
+from app.services.usage import UsageService
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +63,24 @@ async def generate_scene(
     If no prompt is provided, one will be auto-generated from episode context.
     Uses avatar kit for character consistency when available.
     """
+    # Check quota before generation
+    usage_service = UsageService.get_instance()
+    quota_check = await usage_service.check_flux_quota(str(user_id))
+
+    if not quota_check.allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "quota_exceeded",
+                "message": quota_check.message,
+                "usage": {
+                    "used": quota_check.current_usage,
+                    "quota": quota_check.quota,
+                    "remaining": quota_check.remaining,
+                },
+            },
+        )
+
     # Verify episode ownership and get character + avatar kit info
     episode_query = """
         SELECT
@@ -279,6 +298,14 @@ async def generate_scene(
 
     # Create signed URL for the new image
     image_url = await storage.create_signed_url("scenes", storage_path)
+
+    # Increment usage counter after successful generation
+    await usage_service.increment_flux_usage(
+        user_id=str(user_id),
+        character_id=str(episode["character_id"]),
+        episode_id=str(data.episode_id),
+        model_used=image_response.model,
+    )
 
     return SceneGenerateResponse(
         image_id=image_id,

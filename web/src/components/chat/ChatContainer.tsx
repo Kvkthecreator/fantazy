@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useEffect, useMemo, useState } from "react";
 import { useChat } from "@/hooks/useChat";
 import { useCharacter } from "@/hooks/useCharacters";
 import { useScenes } from "@/hooks/useScenes";
@@ -9,6 +9,7 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QuotaExceededModal } from "@/components/usage";
 import { api } from "@/lib/api/client";
 import type { Relationship, Message, EpisodeImage } from "@/types";
 
@@ -23,6 +24,7 @@ type ChatItem =
 
 export function ChatContainer({ characterId }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
   const { character, isLoading: isLoadingCharacter } = useCharacter(characterId);
 
   // Only initialize chat after character is confirmed to exist
@@ -56,6 +58,9 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
     enabled: shouldInitChat && !!episode,
     onError: (error) => {
       console.error("Scene error:", error);
+    },
+    onQuotaExceeded: () => {
+      setShowQuotaModal(true);
     },
   });
 
@@ -172,6 +177,12 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
         showVisualizeButton={showVisualizeButton}
         suggestScene={suggestScene}
         placeholder={`Message ${character.name}...`}
+      />
+
+      {/* Quota Exceeded Modal */}
+      <QuotaExceededModal
+        open={showQuotaModal}
+        onClose={() => setShowQuotaModal(false)}
       />
     </div>
   );

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { api } from "@/lib/api/client";
-import type { EpisodeImage, SceneGenerateResponse } from "@/types";
+import { api, APIError } from "@/lib/api/client";
+import type { EpisodeImage, SceneGenerateResponse, QuotaExceededError } from "@/types";
 
 interface UseScenesOptions {
   episodeId: string | null;
   enabled?: boolean;
   onError?: (error: Error) => void;
+  onQuotaExceeded?: (error: QuotaExceededError) => void;
 }
 
 interface UseScenesReturn {
@@ -16,20 +17,25 @@ interface UseScenesReturn {
   isGenerating: boolean;
   generateScene: (prompt?: string) => Promise<SceneGenerateResponse | null>;
   refreshScenes: () => Promise<void>;
+  quotaExceeded: boolean;
 }
 
 export function useScenes({
   episodeId,
   enabled = true,
   onError,
+  onQuotaExceeded,
 }: UseScenesOptions): UseScenesReturn {
   const [scenes, setScenes] = useState<EpisodeImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
 
-  // Store onError in a ref to avoid dependency issues
+  // Store callbacks in refs to avoid dependency issues
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  const onQuotaExceededRef = useRef(onQuotaExceeded);
+  onQuotaExceededRef.current = onQuotaExceeded;
 
   // Track if we've already loaded for this episodeId
   const loadedEpisodeRef = useRef<string | null>(null);
@@ -53,6 +59,7 @@ export function useScenes({
       if (!episodeId || isGenerating) return null;
 
       setIsGenerating(true);
+      setQuotaExceeded(false);
       try {
         const response = await api.scenes.generate({
           episode_id: episodeId,
@@ -65,7 +72,14 @@ export function useScenes({
 
         return response;
       } catch (error) {
-        onErrorRef.current?.(error as Error);
+        // Check if this is a quota exceeded error (429)
+        if (error instanceof APIError && error.status === 429) {
+          const quotaError = error.data as QuotaExceededError;
+          setQuotaExceeded(true);
+          onQuotaExceededRef.current?.(quotaError);
+        } else {
+          onErrorRef.current?.(error as Error);
+        }
         return null;
       } finally {
         setIsGenerating(false);
@@ -88,5 +102,6 @@ export function useScenes({
     isGenerating,
     generateScene,
     refreshScenes,
+    quotaExceeded,
   };
 }

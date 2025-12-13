@@ -81,6 +81,7 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    usage: () => request<import("@/types").UsageResponse>("/users/me/usage"),
   },
 
   // Character endpoints

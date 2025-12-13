@@ -399,3 +399,35 @@ export interface CheckoutResponse {
 export interface PortalResponse {
   portal_url: string;
 }
+
+// ============================================================================
+// Usage Types
+// ============================================================================
+
+export interface FluxUsage {
+  used: number;
+  quota: number;
+  remaining: number;
+  resets_at: string;
+}
+
+export interface MessageUsage {
+  sent: number;
+  resets_at: string;
+}
+
+export interface UsageResponse {
+  flux: FluxUsage;
+  messages: MessageUsage;
+  subscription_status: string;
+}
+
+export interface QuotaExceededError {
+  error: "quota_exceeded";
+  message: string;
+  usage: {
+    used: number;
+    quota: number;
+    remaining: number;
+  };
+}

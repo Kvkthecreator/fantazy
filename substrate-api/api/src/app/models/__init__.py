@@ -44,6 +44,15 @@ from app.models.hook import (
     HookCreate,
     HookType,
 )
+from app.models.usage import (
+    UsageStats,
+    UsageResponse,
+    FluxUsage,
+    MessageUsage,
+    QuotaCheckResult,
+    UsageEvent,
+    UsageEventCreate,
+)
 
 __all__ = [
     # User
@@ -85,4 +94,12 @@ __all__ = [
     "Hook",
     "HookCreate",
     "HookType",
+    # Usage
+    "UsageStats",
+    "UsageResponse",
+    "FluxUsage",
+    "MessageUsage",
+    "QuotaCheckResult",
+    "UsageEvent",
+    "UsageEventCreate",
 ]
