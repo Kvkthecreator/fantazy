@@ -39,11 +39,19 @@ class Relationship(BaseModel):
     user_id: UUID
     character_id: UUID
 
-    # Progression
+    # Progression (legacy)
     stage: RelationshipStage = RelationshipStage.ACQUAINTANCE
     stage_progress: int = 0
     total_episodes: int = 0
     total_messages: int = 0
+
+    # Dynamic relationship state (Phase 4: Beat-aware system)
+    dynamic: Dict[str, Any] = Field(default_factory=lambda: {
+        "tone": "warm",
+        "tension_level": 30,
+        "recent_beats": []
+    })
+    milestones: List[str] = Field(default_factory=list)
 
     # Timestamps
     first_met_at: datetime
@@ -79,7 +87,7 @@ class Relationship(BaseModel):
                 return {"raw": v}
         return {}
 
-    @field_validator("inside_jokes", mode="before")
+    @field_validator("inside_jokes", "milestones", mode="before")
     @classmethod
     def ensure_list(cls, v: Any) -> List[str]:
         """Handle list fields as JSON string (from DB)."""
@@ -95,6 +103,24 @@ class Relationship(BaseModel):
             except (json.JSONDecodeError, TypeError):
                 return [v]
         return []
+
+    @field_validator("dynamic", mode="before")
+    @classmethod
+    def ensure_dynamic_is_dict(cls, v: Any) -> Dict[str, Any]:
+        """Handle dynamic as JSON string (from DB)."""
+        default = {"tone": "warm", "tension_level": 30, "recent_beats": []}
+        if v is None:
+            return default
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return default
+        return default
 
     class Config:
         from_attributes = True

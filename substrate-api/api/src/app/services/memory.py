@@ -2,7 +2,7 @@
 
 import json
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from app.models.memory import ExtractedMemory, MemoryType, MemoryEvent
@@ -39,7 +39,29 @@ Only extract NEW information. Skip things that are:
 EXISTING MEMORIES:
 {existing_memories}
 
-Respond with a JSON array of extracted memories. If nothing new to extract, return an empty array [].
+Additionally, classify this exchange's narrative beat:
+
+beat_classification:
+  type: playful | flirty | tense | vulnerable | supportive | conflict | comfort | neutral
+  tension_change: integer from -15 to +15 (negative = tension decreased, positive = increased)
+  milestone: null OR one of:
+    - "first_secret_shared" (character revealed something personal)
+    - "user_opened_up" (user shared something vulnerable)
+    - "first_flirt" (first explicitly flirty exchange)
+    - "had_disagreement" (conflict or tension moment)
+    - "comfort_moment" (meaningful emotional support)
+    - "inside_joke_created" (shared humor reference established)
+    - "deep_conversation" (extended meaningful exchange)
+
+Respond with JSON:
+{
+    "memories": [...],
+    "beat": {
+        "type": "...",
+        "tension_change": 0,
+        "milestone": null
+    }
+}
 """
 
 HOOK_EXTRACTION_PROMPT = """Analyze this conversation and identify any follow-up conversation hooks.
@@ -96,10 +118,14 @@ class MemoryService:
         episode_id: UUID,
         messages: List[Dict[str, str]],
         existing_memories: List[MemoryEvent],
-    ) -> List[ExtractedMemory]:
-        """Extract memories from a conversation exchange."""
+    ) -> tuple[List[ExtractedMemory], Optional[Dict]]:
+        """Extract memories and beat classification from a conversation exchange.
+
+        Returns:
+            tuple: (list of ExtractedMemory, beat classification dict or None)
+        """
         if len(messages) < 2:
-            return []
+            return [], None
 
         # Format conversation
         conversation = self._format_conversation(messages[-6:])  # Last 3 exchanges
@@ -117,19 +143,32 @@ class MemoryService:
         try:
             result = await self.llm.extract_json(
                 prompt=prompt,
-                schema_description="""[
-    {
-        "type": "fact|preference|event|goal|relationship|emotion",
-        "summary": "string",
-        "importance_score": 0.0-1.0,
-        "emotional_valence": -2 to 2,
-        "category": "optional string"
+                schema_description="""{
+    "memories": [
+        {
+            "type": "fact|preference|event|goal|relationship|emotion",
+            "summary": "string",
+            "importance_score": 0.0-1.0,
+            "emotional_valence": -2 to 2,
+            "category": "optional string"
+        }
+    ],
+    "beat": {
+        "type": "playful|flirty|tense|vulnerable|supportive|conflict|comfort|neutral",
+        "tension_change": -15 to 15,
+        "milestone": "string or null"
     }
-]""",
+}""",
             )
 
             memories = []
-            for item in result:
+            beat_data = None
+
+            # Handle both old format (array) and new format (object with memories and beat)
+            memory_items = result.get("memories", []) if isinstance(result, dict) else result
+            beat_data = result.get("beat") if isinstance(result, dict) else None
+
+            for item in memory_items:
                 try:
                     memory = ExtractedMemory(
                         type=MemoryType(item["type"]),
@@ -144,11 +183,11 @@ class MemoryService:
                     log.warning(f"Failed to parse memory: {e}")
                     continue
 
-            return memories
+            return memories, beat_data
 
         except Exception as e:
             log.error(f"Memory extraction failed: {e}")
-            return []
+            return [], None
 
     async def extract_hooks(
         self,
@@ -367,3 +406,148 @@ class MemoryService:
             elif role == "assistant":
                 lines.append(f"Character: {content}")
         return "\n".join(lines)
+
+    async def update_relationship_dynamic(
+        self,
+        user_id: UUID,
+        character_id: UUID,
+        beat_type: str,
+        tension_change: int,
+        milestone: Optional[str],
+    ) -> None:
+        """Update relationship with beat classification results.
+
+        Updates the dynamic JSONB column with:
+        - tone: derived from recent beats
+        - tension_level: adjusted by tension_change
+        - recent_beats: last 10 beat types
+
+        Also adds milestone if provided and not already recorded.
+        """
+        # Get current relationship dynamic
+        row = await self.db.fetch_one(
+            """SELECT id, dynamic, milestones FROM relationships
+               WHERE user_id = :user_id AND character_id = :character_id""",
+            {"user_id": str(user_id), "character_id": str(character_id)},
+        )
+
+        if not row:
+            log.warning(f"No relationship found for user={user_id}, character={character_id}")
+            return
+
+        relationship_id = row["id"]
+        dynamic = row["dynamic"] or {"tone": "warm", "tension_level": 30, "recent_beats": []}
+        milestones = row["milestones"] or []
+
+        # Parse dynamic if it's a string (from DB)
+        if isinstance(dynamic, str):
+            try:
+                dynamic = json.loads(dynamic)
+            except json.JSONDecodeError:
+                dynamic = {"tone": "warm", "tension_level": 30, "recent_beats": []}
+
+        # Update recent beats (keep last 10)
+        recent_beats = dynamic.get("recent_beats", [])
+        recent_beats.append(beat_type)
+        recent_beats = recent_beats[-10:]
+
+        # Update tension (clamp 0-100)
+        tension = dynamic.get("tension_level", 30) + tension_change
+        tension = max(0, min(100, tension))
+
+        # Derive tone from recent beats
+        tone = self._derive_tone(recent_beats, tension)
+
+        # Add milestone if new
+        if milestone and milestone not in milestones:
+            milestones.append(milestone)
+            log.info(f"New milestone recorded: {milestone}")
+
+        # Build new dynamic
+        new_dynamic = {
+            "tone": tone,
+            "tension_level": tension,
+            "recent_beats": recent_beats,
+        }
+
+        # Save
+        await self.db.execute(
+            """UPDATE relationships
+               SET dynamic = :dynamic, milestones = :milestones, updated_at = NOW()
+               WHERE id = :id""",
+            {
+                "id": str(relationship_id),
+                "dynamic": json.dumps(new_dynamic),
+                "milestones": milestones,
+            },
+        )
+
+        log.debug(f"Updated relationship dynamic: tone={tone}, tension={tension}, beats={len(recent_beats)}")
+
+    def _derive_tone(self, recent_beats: List[str], tension: int) -> str:
+        """Derive current tone from recent beats and tension level."""
+        if not recent_beats:
+            return "warm"
+
+        # Count recent beat types
+        beat_counts = {}
+        for beat in recent_beats[-5:]:  # Focus on last 5
+            beat_counts[beat] = beat_counts.get(beat, 0) + 1
+
+        # Find dominant beat
+        dominant = max(beat_counts, key=beat_counts.get)
+
+        # Map beats to tones with tension consideration
+        if tension > 70:
+            if dominant in ["conflict", "tense"]:
+                return "heated"
+            elif dominant in ["flirty"]:
+                return "charged"
+            else:
+                return "intense"
+        elif tension > 50:
+            if dominant in ["flirty"]:
+                return "flirty"
+            elif dominant in ["vulnerable", "supportive"]:
+                return "intimate"
+            else:
+                return "engaged"
+        elif tension > 30:
+            if dominant in ["playful"]:
+                return "playful"
+            elif dominant in ["flirty"]:
+                return "flirty"
+            else:
+                return "warm"
+        else:
+            if dominant in ["comfort", "supportive"]:
+                return "comfortable"
+            else:
+                return "relaxed"
+
+    async def get_relationship_dynamic(
+        self,
+        user_id: UUID,
+        character_id: UUID,
+    ) -> Optional[Dict]:
+        """Get current relationship dynamic for context building."""
+        row = await self.db.fetch_one(
+            """SELECT dynamic, milestones FROM relationships
+               WHERE user_id = :user_id AND character_id = :character_id""",
+            {"user_id": str(user_id), "character_id": str(character_id)},
+        )
+
+        if not row:
+            return None
+
+        dynamic = row["dynamic"]
+        if isinstance(dynamic, str):
+            try:
+                dynamic = json.loads(dynamic)
+            except json.JSONDecodeError:
+                dynamic = {"tone": "warm", "tension_level": 30, "recent_beats": []}
+
+        return {
+            "dynamic": dynamic or {"tone": "warm", "tension_level": 30, "recent_beats": []},
+            "milestones": row["milestones"] or [],
+        }

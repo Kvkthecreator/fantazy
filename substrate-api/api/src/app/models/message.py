@@ -94,7 +94,16 @@ class ConversationContext(BaseModel):
     total_episodes: int = 0
     time_since_first_met: str = ""
 
+    # Dynamic relationship fields (Phase 4: Beat-aware system)
+    relationship_dynamic: Dict[str, Any] = Field(default_factory=lambda: {
+        "tone": "warm",
+        "tension_level": 30,
+        "recent_beats": []
+    })
+    relationship_milestones: List[str] = Field(default_factory=list)
+
     # Stage-specific behavior guidelines (class constants, not model fields)
+    # DEPRECATED: Kept for backwards compatibility during transition
     STAGE_GUIDELINES: ClassVar[Dict[str, str]] = {
         "acquaintance": """You're still getting to know each other. Be warm but not overly familiar.
 - Ask questions to learn about them (their work/school, what's on their mind, what they're looking forward to)
@@ -222,6 +231,98 @@ This person matters to you. Remember to:
 
         return ""
 
+    def _format_relationship_dynamic(self) -> str:
+        """Format dynamic relationship context for LLM."""
+        if not self.relationship_dynamic or not self.relationship_dynamic.get("recent_beats"):
+            return "This is a new connection. Be warm and curious."
+
+        tone = self.relationship_dynamic.get("tone", "warm")
+        tension = self.relationship_dynamic.get("tension_level", 30)
+        recent_beats = self.relationship_dynamic.get("recent_beats", [])[-5:]
+
+        # Tension interpretation
+        if tension < 20:
+            tension_desc = "relaxed, comfortable"
+        elif tension < 40:
+            tension_desc = "light, easy-going"
+        elif tension < 60:
+            tension_desc = "some unresolved energy"
+        elif tension < 80:
+            tension_desc = "heightened, something brewing"
+        else:
+            tension_desc = "intense, needs resolution"
+
+        # Beat flow analysis
+        beat_flow = " → ".join(recent_beats) if recent_beats else "just starting"
+
+        # Pacing suggestion based on recent beats
+        pacing_hint = self._get_pacing_hint(recent_beats, tension)
+
+        return f"""RELATIONSHIP DYNAMIC:
+Current tone: {tone}
+Tension: {tension}/100 ({tension_desc})
+Recent flow: {beat_flow}
+{pacing_hint}"""
+
+    def _get_pacing_hint(self, recent_beats: List[str], tension: int) -> str:
+        """Generate pacing suggestion based on beat history."""
+        if not recent_beats:
+            return "Start naturally - get to know each other."
+
+        last_beat = recent_beats[-1]
+        beat_counts: Dict[str, int] = {}
+        for b in recent_beats:
+            beat_counts[b] = beat_counts.get(b, 0) + 1
+
+        hints = []
+
+        # Avoid repetition
+        if beat_counts.get(last_beat, 0) >= 2:
+            hints.append(f"You've had multiple {last_beat} moments - consider shifting energy")
+
+        # Tension-based suggestions
+        if tension > 60 and last_beat not in ["comfort", "supportive"]:
+            hints.append("Tension is high - might be time for resolution or escalation")
+        elif tension < 20 and "tense" not in recent_beats[-3:]:
+            hints.append("Things are very comfortable - some playful tension could add spark")
+
+        # After vulnerability
+        if last_beat == "vulnerable":
+            hints.append("They just opened up - acknowledge it meaningfully")
+
+        # After conflict
+        if last_beat in ["conflict", "tense"]:
+            hints.append("There's tension - address it, don't ignore it")
+
+        if hints:
+            return "PACING:\n" + "\n".join(f"- {h}" for h in hints)
+        return ""
+
+    def _format_milestones(self) -> str:
+        """Format significant relationship milestones."""
+        if not self.relationship_milestones:
+            return ""
+
+        milestone_descriptions = {
+            "first_secret_shared": "You've shared something personal with them",
+            "user_opened_up": "They've been vulnerable with you",
+            "first_flirt": "There's been some flirting between you",
+            "had_disagreement": "You've had a disagreement",
+            "comfort_moment": "You've comforted each other",
+            "inside_joke_created": "You have inside jokes",
+            "deep_conversation": "You've had deep conversations",
+        }
+
+        descriptions = [
+            milestone_descriptions.get(m, m)
+            for m in self.relationship_milestones
+            if m in milestone_descriptions
+        ]
+
+        if descriptions:
+            return "Significant moments: " + ", ".join(descriptions)
+        return ""
+
     def to_messages(self) -> List[Dict[str, str]]:
         """Format context as messages for LLM."""
         # Format memories by type
@@ -230,19 +331,19 @@ This person matters to you. Remember to:
         # Format hooks with openers
         hooks_text = self._format_hooks()
 
-        # Get stage-specific guidelines
-        stage_guidelines = self.STAGE_GUIDELINES.get(
-            self.relationship_stage,
-            self.STAGE_GUIDELINES["acquaintance"]
-        )
-
-        # Get stage label
+        # Get stage label (kept for compatibility)
         stage_label = self.STAGE_LABELS.get(self.relationship_stage, self.relationship_stage)
 
         # Format life arc
         life_arc_text = self._format_life_arc()
 
-        # Get bonding goals
+        # Format dynamic relationship context (Phase 4)
+        dynamic_context = self._format_relationship_dynamic()
+
+        # Format milestones
+        milestones_text = self._format_milestones()
+
+        # Get bonding goals (for early relationships)
         bonding_goals = self._get_bonding_goals()
 
         # Build system prompt with context
@@ -253,19 +354,19 @@ This person matters to you. Remember to:
             relationship_stage=f"{stage_label} ({self.relationship_stage})",
         )
 
-        # Add enhanced context section
+        # Add enhanced context section with dynamic relationships
         enhanced_context = f"""
 
 ═══════════════════════════════════════════════════════════════
 RELATIONSHIP CONTEXT
 ═══════════════════════════════════════════════════════════════
 
-Stage: {stage_label} ({self.relationship_stage})
+Stage: {stage_label}
 Episodes together: {self.total_episodes}
 {f"Time since meeting: {self.time_since_first_met}" if self.time_since_first_met else ""}
+{milestones_text}
 
-STAGE-SPECIFIC BEHAVIOR:
-{stage_guidelines}
+{dynamic_context}
 
 {bonding_goals}
 """

@@ -271,6 +271,13 @@ class ConversationService:
             # Fallback: use current_stressor as the struggle
             character_life_arc = {"current_struggle": character.current_stressor}
 
+        # Get relationship dynamic (Phase 4: Beat-aware system)
+        relationship_dynamic_data = await self.memory_service.get_relationship_dynamic(
+            user_id, character_id
+        )
+        relationship_dynamic = relationship_dynamic_data.get("dynamic", {}) if relationship_dynamic_data else {}
+        relationship_milestones = relationship_dynamic_data.get("milestones", []) if relationship_dynamic_data else []
+
         return ConversationContext(
             character_system_prompt=character.system_prompt,
             character_name=character.name,
@@ -282,6 +289,8 @@ class ConversationService:
             relationship_progress=relationship.stage_progress if relationship else 0,
             total_episodes=relationship.total_episodes if relationship else 0,
             time_since_first_met=time_since_first_met,
+            relationship_dynamic=relationship_dynamic,
+            relationship_milestones=relationship_milestones,
         )
 
     async def get_or_create_episode(
@@ -479,14 +488,14 @@ class ConversationService:
         episode_id: UUID,
         messages: List[Dict[str, str]],
     ):
-        """Process a conversation exchange for memories and hooks."""
+        """Process a conversation exchange for memories, hooks, and beat classification."""
         # Get existing memories for deduplication
         existing_memories = await self.memory_service.get_relevant_memories(
             user_id, character_id, limit=20
         )
 
-        # Extract memories
-        extracted_memories = await self.memory_service.extract_memories(
+        # Extract memories and beat classification (single LLM call)
+        extracted_memories, beat_data = await self.memory_service.extract_memories(
             user_id=user_id,
             character_id=character_id,
             episode_id=episode_id,
@@ -502,6 +511,20 @@ class ConversationService:
                 memories=extracted_memories,
             )
             log.info(f"Saved {len(extracted_memories)} memories")
+
+        # Update relationship dynamic with beat classification
+        if beat_data:
+            try:
+                await self.memory_service.update_relationship_dynamic(
+                    user_id=user_id,
+                    character_id=character_id,
+                    beat_type=beat_data.get("type", "neutral"),
+                    tension_change=int(beat_data.get("tension_change", 0)),
+                    milestone=beat_data.get("milestone"),
+                )
+                log.info(f"Updated relationship dynamic: beat={beat_data.get('type')}")
+            except Exception as e:
+                log.error(f"Failed to update relationship dynamic: {e}")
 
         # Extract hooks
         extracted_hooks = await self.memory_service.extract_hooks(messages)
