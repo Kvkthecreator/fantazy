@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, MessageCircle, Heart, ThumbsDown, Sparkles } from "lucide-react";
+import { ArrowLeft, MessageCircle, Heart, ThumbsDown, Sparkles, Camera, Info } from "lucide-react";
 import type { Relationship } from "@/types";
 
 interface CharacterProfilePageProps {
@@ -67,128 +67,132 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
     );
   }
 
-  const archetypeColors: Record<string, string> = {
-    barista: "from-amber-400 to-orange-500",
-    neighbor: "from-blue-400 to-indigo-500",
-    coworker: "from-emerald-400 to-teal-500",
-    default: "from-pink-400 to-purple-500",
-  };
-
-  const gradientClass = archetypeColors[profile.archetype] || archetypeColors.default;
-
-  // Get display images: gallery if available, else fallback to avatar_url
   const displayImages = profile.gallery.length > 0
     ? profile.gallery.map((g) => ({ url: g.image_url, label: g.expression || g.asset_type }))
     : profile.avatar_url
       ? [{ url: profile.avatar_url, label: "Portrait" }]
       : [];
 
-  const currentImage = displayImages[selectedImageIndex]?.url || null;
+  const coverImage = displayImages[0]?.url || profile.avatar_url || null;
+  const currentImage = displayImages[selectedImageIndex]?.url || coverImage;
 
   return (
     <div className="space-y-6">
-      {/* Back button */}
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-2">
         <ArrowLeft className="h-4 w-4" />
         Back
       </Button>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_400px]">
-        {/* Left: Avatar Gallery */}
-        <div className="space-y-4">
-          {/* Main image */}
-          <div
-            className={cn(
-              "relative aspect-square max-w-md mx-auto lg:mx-0 rounded-2xl overflow-hidden",
-              !currentImage && `bg-gradient-to-br ${gradientClass}`
-            )}
-          >
-            {currentImage ? (
-              <img
-                src={currentImage}
-                alt={profile.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-white text-8xl font-bold">
-                {profile.name[0]}
-              </div>
-            )}
-
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="relative h-72 w-full">
+          {coverImage ? (
+            <img
+              src={coverImage}
+              alt={profile.name}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/30 to-accent/30 text-6xl font-bold text-white">
+              {profile.name[0]}
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
+          <div className="absolute bottom-4 left-4 flex items-center gap-3">
+            <div className="h-16 w-16 rounded-full border-2 border-white/70 shadow-lg">
+              {profile.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt={profile.name}
+                  className="h-full w-full rounded-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-primary text-white text-2xl font-semibold">
+                  {profile.name[0]}
+                </div>
+              )}
+            </div>
+            <div className="text-white">
+              <h1 className="text-2xl font-semibold">{profile.name}</h1>
+              <p className="text-sm text-white/80 capitalize">{profile.archetype}</p>
+            </div>
+          </div>
+          <div className="absolute bottom-4 right-4 flex gap-2">
             {profile.is_premium && (
-              <Badge className="absolute top-4 right-4 bg-yellow-500 text-yellow-950">
-                <Sparkles className="h-3 w-3 mr-1" />
+              <Badge className="bg-white/90 text-yellow-800">
+                <Sparkles className="mr-1 h-3 w-3" />
                 Premium
               </Badge>
             )}
+            {profile.content_rating && (
+              <Badge variant="secondary" className="bg-white/80 text-foreground">
+                {profile.content_rating.toUpperCase()}
+              </Badge>
+            )}
           </div>
-
-          {/* Thumbnail gallery */}
-          {displayImages.length > 1 && (
-            <div className="flex gap-2 justify-center lg:justify-start overflow-x-auto pb-2">
-              {displayImages.map((img, index) => (
-                <button
-                  key={index}
-                  onClick={() => setSelectedImageIndex(index)}
-                  className={cn(
-                    "relative w-16 h-16 rounded-lg overflow-hidden shrink-0 transition-all",
-                    selectedImageIndex === index
-                      ? "ring-2 ring-primary ring-offset-2"
-                      : "opacity-60 hover:opacity-100"
-                  )}
-                >
-                  <img
-                    src={img.url}
-                    alt={img.label}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Right: Character Info */}
+        {/* Actions */}
+        <div className="flex items-center gap-3 border-t bg-card/80 px-4 py-3">
+          <Button
+            size="lg"
+            className="flex-1 gap-2"
+            onClick={handleStartChat}
+            disabled={isStartingChat}
+          >
+            <MessageCircle className="h-5 w-5" />
+            {relationship ? "Continue Chat" : "Chat with " + profile.name}
+          </Button>
+          <Button variant="outline" size="lg" className="gap-2">
+            <Camera className="h-4 w-4" />
+            Gallery
+          </Button>
+        </div>
+      </div>
+
+      {/* Info + Gallery */}
+      <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold">{profile.name}</h1>
-              {relationship && (
-                <Badge variant="secondary">
-                  {relationship.stage === "acquaintance" ? "Just Met" :
-                   relationship.stage === "friendly" ? "Friendly" :
-                   relationship.stage === "close" ? "Close" : "Special"}
-                </Badge>
+          {/* Tabs-ish layout */}
+          <Card>
+            <CardContent className="space-y-4 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Info className="h-4 w-4" />
+                Profile
+              </div>
+              {profile.short_backstory && (
+                <p className="text-base text-foreground">{profile.short_backstory}</p>
               )}
-            </div>
-            <p className="text-lg text-muted-foreground capitalize">{profile.archetype}</p>
-          </div>
-
-          {/* Short backstory */}
-          {profile.short_backstory && (
-            <p className="text-muted-foreground">{profile.short_backstory}</p>
-          )}
-
-          {/* Full backstory */}
-          {profile.full_backstory && (
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-2">About</h3>
+              {profile.full_backstory && (
                 <p className="text-sm text-muted-foreground whitespace-pre-line">
                   {profile.full_backstory}
                 </p>
-              </CardContent>
-            </Card>
-          )}
+              )}
+              {profile.starter_prompts.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">Conversation starters</p>
+                  <div className="grid gap-2 md:grid-cols-2">
+                    {profile.starter_prompts.slice(0, 4).map((prompt, i) => (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-border/70 bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
+                      >
+                        “{prompt}”
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {/* Likes & Dislikes */}
           {(profile.likes.length > 0 || profile.dislikes.length > 0) && (
             <div className="grid gap-4 sm:grid-cols-2">
               {profile.likes.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <Heart className="h-4 w-4 text-pink-500" />
+                    <h3 className="mb-2 flex items-center gap-2 font-semibold">
+                      <Heart className="h-4 w-4 text-primary" />
                       Likes
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
@@ -201,12 +205,11 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
                   </CardContent>
                 </Card>
               )}
-
               {profile.dislikes.length > 0 && (
                 <Card>
                   <CardContent className="p-4">
-                    <h3 className="font-semibold mb-2 flex items-center gap-2">
-                      <ThumbsDown className="h-4 w-4 text-slate-500" />
+                    <h3 className="mb-2 flex items-center gap-2 font-semibold">
+                      <ThumbsDown className="h-4 w-4 text-muted-foreground" />
                       Dislikes
                     </h3>
                     <div className="flex flex-wrap gap-1.5">
@@ -221,43 +224,52 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
               )}
             </div>
           )}
+        </div>
 
-          {/* Starter prompts */}
-          {profile.starter_prompts.length > 0 && (
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-3">Conversation starters</h3>
-                <div className="space-y-2">
-                  {profile.starter_prompts.slice(0, 3).map((prompt, i) => (
-                    <div
-                      key={i}
-                      className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg"
-                    >
-                      &ldquo;{prompt}&rdquo;
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Action buttons */}
-          <div className="flex gap-3">
-            <Button
-              size="lg"
-              className="flex-1 gap-2"
-              onClick={handleStartChat}
-              disabled={isStartingChat}
-            >
-              <MessageCircle className="h-5 w-5" />
-              {relationship ? "Continue Chat" : "Start Chatting"}
-            </Button>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-foreground">Gallery</p>
+            {relationship && (
+              <span className="text-xs text-muted-foreground">
+                {relationship.total_episodes} episodes · {relationship.total_messages} messages
+              </span>
+            )}
           </div>
-
-          {/* Relationship stats */}
-          {relationship && (
-            <div className="text-sm text-muted-foreground text-center">
-              {relationship.total_episodes} episodes &bull; {relationship.total_messages} messages
+          {/* Main image */}
+          <div className="relative aspect-[4/5] overflow-hidden rounded-xl border bg-muted">
+            {currentImage ? (
+              <img
+                src={currentImage}
+                alt={profile.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-5xl font-bold text-muted-foreground/60">
+                {profile.name[0]}
+              </div>
+            )}
+          </div>
+          {/* Thumbnails */}
+          {displayImages.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {displayImages.map((img, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedImageIndex(index)}
+                  className={cn(
+                    "relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border",
+                    selectedImageIndex === index
+                      ? "border-primary ring-2 ring-primary/40"
+                      : "border-border/60 opacity-80 hover:opacity-100"
+                  )}
+                >
+                  <img
+                    src={img.url}
+                    alt={img.label}
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
             </div>
           )}
         </div>
