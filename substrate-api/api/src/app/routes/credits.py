@@ -250,7 +250,7 @@ async def create_topup_checkout(
 
     api_key = os.getenv("LEMONSQUEEZY_API_KEY")
     store_id = os.getenv("LEMONSQUEEZY_STORE_ID")
-    success_url = os.getenv("CHECKOUT_SUCCESS_URL", "https://fantazy.app/settings?tab=billing")
+    success_url = os.getenv("CHECKOUT_SUCCESS_URL", "https://fantazy-five.vercel.app/settings?tab=billing")
 
     if not api_key or not store_id:
         raise HTTPException(
@@ -280,7 +280,7 @@ async def create_topup_checkout(
                                 }
                             },
                             "product_options": {
-                                "redirect_url": f"{success_url}?topup=success",
+                                "redirect_url": f"{success_url}&topup=success",
                             },
                         },
                         "relationships": {

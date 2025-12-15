@@ -115,7 +115,7 @@ async def create_checkout(
                 "product_options": {
                     "redirect_url": os.getenv(
                         "CHECKOUT_SUCCESS_URL",
-                        "https://fantazy.app/settings?subscription=success",
+                        "https://fantazy-five.vercel.app/settings?subscription=success",
                     ),
                 },
             },
