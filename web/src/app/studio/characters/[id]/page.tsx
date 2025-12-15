@@ -43,6 +43,11 @@ export default function CharacterDetailPage() {
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
 
+  // Conversation Ignition state
+  const [isRegenerating, setIsRegenerating] = useState(false)
+  const [regenerateFeedback, setRegenerateFeedback] = useState('')
+  const [showRegenerateOptions, setShowRegenerateOptions] = useState(false)
+
   // Editable fields
   const [editForm, setEditForm] = useState({
     short_backstory: '',
@@ -115,6 +120,43 @@ export default function CharacterDetailPage() {
       setTimeout(() => setSaveMessage(null), 2000)
     } catch (err) {
       setError(getErrorDetail(err, 'Failed to deactivate'))
+    }
+  }
+
+  // Regenerate Opening Beat
+  const handleRegenerateOpeningBeat = async () => {
+    if (!character) return
+
+    setIsRegenerating(true)
+    setError(null)
+
+    try {
+      const result = await api.studio.regenerateOpeningBeat(characterId, {
+        previous_situation: editForm.opening_situation || character.opening_situation || '',
+        previous_line: editForm.opening_line || character.opening_line || '',
+        feedback: regenerateFeedback || undefined,
+      })
+
+      setEditForm((prev) => ({
+        ...prev,
+        opening_situation: result.opening_situation,
+        opening_line: result.opening_line,
+        starter_prompts: [result.opening_line, ...(result.starter_prompts || [])],
+      }))
+
+      setRegenerateFeedback('')
+      setShowRegenerateOptions(false)
+      setSaveMessage('Opening beat regenerated! Review and save when ready.')
+      setTimeout(() => setSaveMessage(null), 3000)
+
+      if (!result.is_valid && result.validation_errors.length > 0) {
+        const errorMsg = result.validation_errors.map(e => e.message).join('; ')
+        setError(`Generated with warnings: ${errorMsg}`)
+      }
+    } catch (err) {
+      setError(getErrorDetail(err, 'Failed to regenerate opening beat'))
+    } finally {
+      setIsRegenerating(false)
     }
   }
 
@@ -388,6 +430,57 @@ export default function CharacterDetailPage() {
             <CardDescription>The first impression that defines the chat experience</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Regenerate Section */}
+            <div className="rounded-lg border border-dashed border-primary/50 bg-primary/5 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <p className="font-medium">Conversation Ignition</p>
+                  <p className="text-sm text-muted-foreground">
+                    Regenerate the opening beat using AI based on {character.name}&apos;s {character.archetype} archetype.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowRegenerateOptions(!showRegenerateOptions)}
+                  disabled={isRegenerating}
+                >
+                  {showRegenerateOptions ? 'Cancel' : 'Regenerate'}
+                </Button>
+              </div>
+
+              {showRegenerateOptions && (
+                <div className="space-y-3 pt-2 border-t border-border">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Feedback (optional)</Label>
+                    <Input
+                      placeholder="e.g., Make it more casual, add a bit of humor..."
+                      value={regenerateFeedback}
+                      onChange={(e) => setRegenerateFeedback(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Provide specific feedback to guide the regeneration.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleRegenerateOpeningBeat}
+                    disabled={isRegenerating}
+                    className="w-full"
+                  >
+                    {isRegenerating ? 'Regenerating...' : 'Generate New Opening Beat'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or edit manually</span>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Opening Situation</Label>
               <p className="text-xs text-muted-foreground">Set the scene for the first message</p>

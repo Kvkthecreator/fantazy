@@ -427,6 +427,38 @@ export default function CreateCharacterWizard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Generate Button */}
+            <div className="flex items-center justify-between rounded-lg border border-dashed border-primary/50 bg-primary/5 p-4">
+              <div className="flex-1">
+                <p className="font-medium">Generate Opening Beat</p>
+                <p className="text-sm text-muted-foreground">
+                  Let AI create a contextually appropriate opening based on {draft.name || 'your character'}&apos;s {draft.archetype || 'archetype'}.
+                </p>
+              </div>
+              <Button
+                onClick={handleGenerateOpeningBeat}
+                disabled={isGenerating || !draft.name || !draft.archetype}
+                className="ml-4"
+              >
+                {isGenerating ? 'Generating...' : 'Generate'}
+              </Button>
+            </div>
+
+            {generationError && (
+              <div className="rounded-lg border border-yellow-500/50 bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-300">
+                {generationError}
+              </div>
+            )}
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or write manually</span>
+              </div>
+            </div>
+
             {/* Opening Situation */}
             <div className="space-y-2">
               <Label htmlFor="situation">Opening Situation *</Label>
@@ -462,6 +494,33 @@ export default function CreateCharacterWizard() {
               />
               <p className="text-xs text-muted-foreground">{draft.openingLine.length}/500</p>
             </div>
+
+            {/* Starter Prompts (collapsible, from generation) */}
+            {starterPrompts.length > 0 && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowStarterPrompts(!showStarterPrompts)}
+                >
+                  <span>{showStarterPrompts ? '▼' : '▶'}</span>
+                  Starter Prompts ({starterPrompts.length})
+                </button>
+                {showStarterPrompts && (
+                  <div className="space-y-2 rounded-lg border border-border p-3">
+                    <p className="text-xs text-muted-foreground">
+                      Alternative opening lines generated for variety. These will be saved with your character.
+                    </p>
+                    {starterPrompts.map((prompt, idx) => (
+                      <div key={idx} className="flex items-start gap-2">
+                        <span className="text-xs text-muted-foreground">{idx + 1}.</span>
+                        <p className="text-sm">{prompt}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Preview */}
             {draft.openingSituation && draft.openingLine && (
