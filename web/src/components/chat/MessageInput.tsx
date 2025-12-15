@@ -56,7 +56,7 @@ export function MessageInput({
   };
 
   return (
-    <div className="flex items-end gap-2 p-4 border-t bg-background">
+    <div className="flex items-end gap-2 p-4 border-t bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/70">
       {/* Visualize button */}
       {showVisualizeButton && onVisualize && (
         <div className="relative">
@@ -100,7 +100,7 @@ export function MessageInput({
           disabled={disabled}
           rows={1}
           className={cn(
-            "w-full resize-none rounded-2xl border bg-muted/50 px-4 py-3 pr-12",
+            "w-full resize-none rounded-2xl border bg-muted/60 px-4 py-3 pr-12 shadow-sm",
             "text-sm placeholder:text-muted-foreground",
             "focus:outline-none focus:ring-2 focus:ring-primary/50",
             "disabled:opacity-50 disabled:cursor-not-allowed",

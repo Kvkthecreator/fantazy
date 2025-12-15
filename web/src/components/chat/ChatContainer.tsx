@@ -14,6 +14,8 @@ import { QuotaExceededModal } from "@/components/usage";
 import { InsufficientSparksModal } from "@/components/sparks";
 import { api } from "@/lib/api/client";
 import type { Relationship, Message, EpisodeImage, InsufficientSparksError, RateLimitError } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface ChatContainerProps {
   characterId: string;
@@ -138,7 +140,7 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
   const showVisualizeButton = messages.length >= 2;
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full page-surface">
       {/* Header */}
       <ChatHeader
         character={character}
@@ -146,6 +148,32 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
         episode={episode}
         onEndEpisode={endEpisode}
       />
+
+      {/* Context bar */}
+      <div className="flex flex-wrap gap-2 border-b bg-background/80 px-4 py-2 text-xs text-muted-foreground">
+        {relationship && (
+          <ContextChip label="Stage" value={formatStage(relationship.stage)} />
+        )}
+        {episode && (
+          <ContextChip
+            label="Episode"
+            value={`#${episode.episode_number}${episode.started_at ? " • " + formatRelative(episode.started_at) : ""}`}
+          />
+        )}
+        {relationship?.last_interaction_at && (
+          <ContextChip label="Last chat" value={formatRelative(relationship.last_interaction_at)} />
+        )}
+        {character.content_rating && (
+          <ContextChip
+            label="Content"
+            value={character.content_rating.toUpperCase()}
+            accent={character.content_rating === "adult" ? "destructive" : "primary"}
+          />
+        )}
+        {character.categories?.slice(0, 3).map((cat) => (
+          <ContextChip key={cat} label="Category" value={cat} />
+        ))}
+      </div>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
@@ -181,6 +209,21 @@ export function ChatContainer({ characterId }: ChatContainerProps) {
         )}
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Scene suggestion inline banner */}
+      {suggestScene && !isGeneratingScene && (
+        <div className="mx-4 mb-2 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-medium text-primary">This moment would make a great scene.</span>
+            <button
+              className="text-xs font-semibold text-primary hover:underline"
+              onClick={handleVisualize}
+            >
+              Visualize it
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Input */}
       <MessageInput
@@ -264,28 +307,78 @@ interface EmptyStateProps {
 function EmptyState({ characterName, starterPrompts, onSelect }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
-      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold mb-4">
+      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/80 to-accent/80 flex items-center justify-center text-white text-2xl font-bold mb-4">
         {characterName[0]}
       </div>
       <h2 className="text-lg font-semibold mb-2">Start talking with {characterName}</h2>
-      <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+      <p className="text-sm text-muted-foreground mb-4 max-w-xs">
         Send a message to begin your conversation. {characterName} will remember everything you share.
       </p>
 
       {starterPrompts.length > 0 && (
         <div className="space-y-2 w-full max-w-xs">
-          <p className="text-xs text-muted-foreground mb-2">Or try one of these:</p>
+          <p className="text-xs text-muted-foreground mb-1">Try one of these openers:</p>
           {starterPrompts.slice(0, 3).map((prompt, i) => (
             <button
               key={i}
               onClick={() => onSelect(prompt)}
-              className="w-full text-left px-4 py-2.5 rounded-xl bg-muted/50 hover:bg-muted text-sm transition-colors"
+              className="w-full text-left px-4 py-2.5 rounded-xl border border-border/70 bg-card hover:border-primary/40 hover:shadow-sm text-sm transition-all"
             >
-              &ldquo;{prompt}&rdquo;
+              “{prompt}”
             </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function formatStage(stage?: string | null) {
+  if (!stage) return "";
+  const map: Record<string, string> = {
+    acquaintance: "Just met",
+    friendly: "Friendly",
+    close: "Close",
+    intimate: "Special",
+  };
+  return map[stage] || stage;
+}
+
+function formatRelative(dateString?: string | null) {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(diffMs / 3600000);
+  const days = Math.floor(diffMs / 86400000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
+}
+
+function ContextChip({
+  label,
+  value,
+  accent = "muted",
+}: {
+  label: string;
+  value: string;
+  accent?: "muted" | "primary" | "destructive";
+}) {
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        "h-7 rounded-full px-3 text-[11px] font-medium",
+        accent === "primary" && "bg-primary/15 text-primary border border-primary/30",
+        accent === "destructive" && "bg-destructive/10 text-destructive border border-destructive/30"
+      )}
+    >
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80 mr-1">{label}</span>
+      {value}
+    </Badge>
   );
 }

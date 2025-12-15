@@ -41,10 +41,10 @@ export function MessageBubble({
       {/* Message content */}
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-2.5",
+          "max-w-[80%] rounded-2xl px-4 py-2.5 border shadow-sm",
           isUser
-            ? "bg-primary text-primary-foreground rounded-tr-sm"
-            : "bg-muted rounded-tl-sm"
+            ? "bg-primary text-primary-foreground rounded-tr-sm border-primary/30"
+            : "bg-card rounded-tl-sm border-border/80"
         )}
       >
         <p className="text-sm whitespace-pre-wrap break-words">
@@ -82,16 +82,16 @@ export function StreamingBubble({
         {characterAvatar ? (
           <img
             src={characterAvatar}
-            alt={characterName}
-            className="w-full h-full rounded-full object-cover"
-          />
-        ) : (
-          characterName[0]
+        alt={characterName}
+        className="w-full h-full rounded-full object-cover"
+      />
+    ) : (
+      characterName[0]
         )}
       </div>
 
       {/* Message content */}
-      <div className="max-w-[80%] rounded-2xl rounded-tl-sm bg-muted px-4 py-2.5">
+      <div className="max-w-[80%] rounded-2xl rounded-tl-sm bg-card border border-border/80 px-4 py-2.5 shadow-sm">
         <p className="text-sm whitespace-pre-wrap break-words">
           {content}
           <span className="inline-block w-2 h-4 ml-0.5 bg-foreground/50 animate-pulse" />
