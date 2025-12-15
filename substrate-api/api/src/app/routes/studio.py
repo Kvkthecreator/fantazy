@@ -17,6 +17,7 @@ from app.models.character import (
     CharacterCreatedResponse,
     CharacterSummary,
     CharacterUpdateInput,
+    validate_chat_ready,
 )
 
 router = APIRouter(prefix="/studio", tags=["Studio"])
@@ -365,19 +366,13 @@ async def activate_character(
     if existing["status"] == "active":
         return Character(**dict(existing))
 
-    # Validate activation requirements
-    errors = []
-    if not existing["avatar_url"]:
-        errors.append("avatar_url is required")
-    if not existing["opening_situation"]:
-        errors.append("opening_situation is required")
-    if not existing["opening_line"]:
-        errors.append("opening_line is required")
-
+    # Use canonical validation function
+    errors = validate_chat_ready(dict(existing))
     if errors:
+        error_messages = [str(e) for e in errors]
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cannot activate character: {', '.join(errors)}",
+            detail=f"Cannot activate character: {', '.join(error_messages)}",
         )
 
     # Activate

@@ -79,6 +79,13 @@ export interface Character extends CharacterSummary {
   relationship_stage_thresholds: Record<string, number>;
   is_active: boolean;
   sort_order: number;
+  // Character creation contract fields (Studio)
+  opening_situation: string | null;
+  opening_line: string | null;
+  status: "draft" | "active";
+  categories: string[];
+  content_rating: string;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
 }

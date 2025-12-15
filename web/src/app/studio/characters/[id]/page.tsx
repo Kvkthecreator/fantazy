@@ -8,39 +8,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { api, APIError } from '@/lib/api/client'
+import type { Character } from '@/types'
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Character = {
-  id: string
-  name: string
-  slug: string
-  archetype: string
-  avatar_url: string | null
-  baseline_personality: Record<string, unknown>
-  tone_style: Record<string, unknown>
-  speech_patterns: Record<string, unknown>
-  short_backstory: string | null
-  full_backstory: string | null
-  current_stressor: string | null
-  likes: string[]
-  dislikes: string[]
-  opening_situation: string | null
-  opening_line: string | null
-  system_prompt: string
-  starter_prompts: string[]
-  boundaries: Record<string, unknown>
-  world_id: string | null
-  status: 'draft' | 'active'
-  categories: string[]
-  content_rating: string
-  created_at: string
-  updated_at: string
-}
-
 type EditTab = 'overview' | 'backstory' | 'opening' | 'conversation' | 'advanced'
+
+// Helper to extract error detail from APIError
+function getErrorDetail(err: unknown, fallback: string): string {
+  if (err instanceof APIError && err.data) {
+    const data = err.data as Record<string, unknown>
+    if (typeof data.detail === 'string') return data.detail
+  }
+  if (err instanceof Error) return err.message
+  return fallback
+}
 
 // =============================================================================
 // Component
@@ -76,15 +61,7 @@ export default function CharacterDetailPage() {
 
   const fetchCharacter = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}`, {
-        credentials: 'include',
-      })
-
-      if (!res.ok) {
-        throw new Error('Failed to load character')
-      }
-
-      const data = await res.json()
+      const data = await api.studio.getCharacter(characterId)
       setCharacter(data)
       setEditForm({
         short_backstory: data.short_backstory || '',
@@ -97,35 +74,23 @@ export default function CharacterDetailPage() {
         starter_prompts: data.starter_prompts || [],
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load character')
+      setError(getErrorDetail(err, 'Failed to load character'))
     } finally {
       setLoading(false)
     }
   }
 
-  const saveChanges = async (fields: Partial<typeof editForm>) => {
+  const saveChanges = async (fields: Record<string, unknown>) => {
     setSaving(true)
     setSaveMessage(null)
 
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(fields),
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to save')
-      }
-
-      const updated = await res.json()
+      const updated = await api.studio.updateCharacter(characterId, fields)
       setCharacter(updated)
       setSaveMessage('Saved successfully')
       setTimeout(() => setSaveMessage(null), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save')
+      setError(getErrorDetail(err, 'Failed to save'))
     } finally {
       setSaving(false)
     }
@@ -133,43 +98,23 @@ export default function CharacterDetailPage() {
 
   const activateCharacter = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}/activate`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to activate')
-      }
-
-      const updated = await res.json()
+      const updated = await api.studio.activateCharacter(characterId)
       setCharacter(updated)
       setSaveMessage('Character activated!')
       setTimeout(() => setSaveMessage(null), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to activate')
+      setError(getErrorDetail(err, 'Failed to activate'))
     }
   }
 
   const deactivateCharacter = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}/deactivate`, {
-        method: 'POST',
-        credentials: 'include',
-      })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to deactivate')
-      }
-
-      const updated = await res.json()
+      const updated = await api.studio.deactivateCharacter(characterId)
       setCharacter(updated)
       setSaveMessage('Character moved to draft')
       setTimeout(() => setSaveMessage(null), 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to deactivate')
+      setError(getErrorDetail(err, 'Failed to deactivate'))
     }
   }
 
@@ -570,10 +515,7 @@ export default function CharacterDetailPage() {
                 onClick={async () => {
                   if (!confirm('Are you sure you want to delete this character? This cannot be undone.')) return
                   try {
-                    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}`, {
-                      method: 'DELETE',
-                      credentials: 'include',
-                    })
+                    await api.studio.deleteCharacter(characterId)
                     router.push('/studio')
                   } catch {
                     setError('Failed to delete character')

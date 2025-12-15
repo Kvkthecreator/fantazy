@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api/client'
 
 type CharacterSummary = {
   id: string
@@ -27,15 +28,9 @@ export default function StudioPage() {
 
   const fetchCharacters = async () => {
     try {
-      const statusParam = filter !== 'all' ? `?status_filter=${filter}` : ''
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters${statusParam}`, {
-        credentials: 'include',
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setCharacters(data)
-      }
+      const statusFilter = filter !== 'all' ? filter : undefined
+      const data = await api.studio.listCharacters(statusFilter)
+      setCharacters(data)
     } catch (err) {
       console.error('Failed to fetch characters:', err)
     } finally {

@@ -357,6 +357,7 @@ class CharacterUpdateInput(BaseModel):
     """Input for updating a character (post-creation editing).
 
     All fields optional - only provided fields are updated.
+    NOTE: system_prompt is NOT editable - it's generated from the locked template.
     """
 
     # Core (usually set at creation, but editable)
@@ -381,8 +382,7 @@ class CharacterUpdateInput(BaseModel):
     opening_situation: Optional[str] = Field(None, max_length=1000)
     opening_line: Optional[str] = Field(None, max_length=500)
 
-    # Conversation config
-    system_prompt: Optional[str] = None
+    # Conversation config (system_prompt intentionally excluded - locked template)
     starter_prompts: Optional[List[str]] = None
     example_messages: Optional[List[Dict[str, Any]]] = None
 
@@ -406,3 +406,76 @@ class CharacterCreatedResponse(BaseModel):
     name: str
     status: str
     message: str
+
+
+# =============================================================================
+# Chat-Ready Validation (canonical, used everywhere)
+# =============================================================================
+
+class ActivationError:
+    """Represents a validation error for character activation."""
+
+    def __init__(self, field: str, message: str):
+        self.field = field
+        self.message = message
+
+    def __str__(self) -> str:
+        return f"{self.field}: {self.message}"
+
+
+def validate_chat_ready(character: dict) -> List[ActivationError]:
+    """Canonical validation for character activation (draft -> active).
+
+    Use this single function everywhere:
+    - POST /activate endpoint
+    - Listing "available to chat" characters
+    - Bulk generation activation
+    - Any future activation flows
+
+    Returns list of errors. Empty list = valid for activation.
+    """
+    errors: List[ActivationError] = []
+
+    # Required core fields
+    if not character.get("name"):
+        errors.append(ActivationError("name", "required"))
+    if not character.get("slug"):
+        errors.append(ActivationError("slug", "required"))
+    if not character.get("archetype"):
+        errors.append(ActivationError("archetype", "required"))
+
+    # Personality must exist and be non-empty
+    personality = character.get("baseline_personality")
+    if not personality or not isinstance(personality, dict) or len(personality) == 0:
+        errors.append(ActivationError("baseline_personality", "required and must be non-empty"))
+
+    # Boundaries must exist
+    boundaries = character.get("boundaries")
+    if not boundaries or not isinstance(boundaries, dict):
+        errors.append(ActivationError("boundaries", "required"))
+
+    # Opening beat required
+    if not character.get("opening_situation"):
+        errors.append(ActivationError("opening_situation", "required for chat ignition"))
+    if not character.get("opening_line"):
+        errors.append(ActivationError("opening_line", "required for chat ignition"))
+
+    # Avatar required for activation
+    if not character.get("avatar_url"):
+        errors.append(ActivationError("avatar_url", "required for activation"))
+
+    # System prompt must exist
+    if not character.get("system_prompt"):
+        errors.append(ActivationError("system_prompt", "required (should be auto-generated)"))
+
+    # Content rating validation
+    content_rating = character.get("content_rating", "sfw")
+    if content_rating not in ("sfw", "adult"):
+        errors.append(ActivationError("content_rating", "must be 'sfw' or 'adult'"))
+
+    return errors
+
+
+def is_chat_ready(character: dict) -> bool:
+    """Quick check if character can be activated."""
+    return len(validate_chat_ready(character)) == 0

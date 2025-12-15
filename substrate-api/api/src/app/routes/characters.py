@@ -24,8 +24,12 @@ async def list_characters(
     include_premium: bool = Query(True, description="Include premium characters"),
     db=Depends(get_db),
 ):
-    """List all available characters with avatar URLs from kits."""
-    conditions = ["c.is_active = TRUE"]
+    """List all available characters with avatar URLs from kits.
+
+    Only returns active characters (status='active'). Drafts are never exposed.
+    """
+    # Belt-and-suspenders: check both status and is_active (trigger keeps them in sync)
+    conditions = ["c.status = 'active'", "c.is_active = TRUE"]
     values = {}
 
     if archetype:
@@ -72,10 +76,10 @@ async def list_characters(
 async def list_archetypes(
     db=Depends(get_db),
 ):
-    """List all available character archetypes."""
+    """List all available character archetypes (from active characters only)."""
     query = """
         SELECT DISTINCT archetype FROM characters
-        WHERE is_active = TRUE
+        WHERE status = 'active' AND is_active = TRUE
         ORDER BY archetype
     """
     rows = await db.fetch_all(query)
@@ -87,13 +91,16 @@ async def get_character(
     character_id: UUID,
     db=Depends(get_db),
 ):
-    """Get a specific character by ID with avatar from kit if available."""
+    """Get a specific character by ID with avatar from kit if available.
+
+    Only returns active characters. Drafts are never exposed via public API.
+    """
     query = """
         SELECT c.*, aa.storage_path as anchor_path
         FROM characters c
         LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id AND ak.status = 'active'
         LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id AND aa.is_active = TRUE
-        WHERE c.id = :character_id AND c.is_active = TRUE
+        WHERE c.id = :character_id AND c.status = 'active' AND c.is_active = TRUE
     """
     row = await db.fetch_one(query, {"character_id": str(character_id)})
 
@@ -119,13 +126,16 @@ async def get_character_by_slug(
     slug: str,
     db=Depends(get_db),
 ):
-    """Get a specific character by slug with avatar from kit if available."""
+    """Get a specific character by slug with avatar from kit if available.
+
+    Only returns active characters. Drafts are never exposed via public API.
+    """
     query = """
         SELECT c.*, aa.storage_path as anchor_path
         FROM characters c
         LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id AND ak.status = 'active'
         LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id AND aa.is_active = TRUE
-        WHERE c.slug = :slug AND c.is_active = TRUE
+        WHERE c.slug = :slug AND c.status = 'active' AND c.is_active = TRUE
     """
     row = await db.fetch_one(query, {"slug": slug})
 
@@ -151,14 +161,17 @@ async def get_character_profile(
     slug: str,
     db=Depends(get_db),
 ):
-    """Get character profile with avatar gallery for the detail page."""
-    # Get character
+    """Get character profile with avatar gallery for the detail page.
+
+    Only returns active characters. Drafts are never exposed via public API.
+    """
+    # Get character - only active ones
     query = """
         SELECT id, name, slug, archetype, avatar_url, short_backstory,
                full_backstory, likes, dislikes, starter_prompts, is_premium,
                active_avatar_kit_id
         FROM characters
-        WHERE slug = :slug AND is_active = TRUE
+        WHERE slug = :slug AND status = 'active' AND is_active = TRUE
     """
     row = await db.fetch_one(query, {"slug": slug})
 

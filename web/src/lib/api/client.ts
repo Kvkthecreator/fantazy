@@ -398,6 +398,53 @@ export const api = {
         body: JSON.stringify({ pack_name: packName }),
       }),
   },
+
+  // Studio endpoints (character creation/management)
+  studio: {
+    listCharacters: (statusFilter?: "draft" | "active") => {
+      const params = statusFilter ? `?status_filter=${statusFilter}` : "";
+      return request<import("@/types").CharacterSummary[]>(`/studio/characters${params}`);
+    },
+    getCharacter: (id: string) =>
+      request<import("@/types").Character>(`/studio/characters/${id}`),
+    createCharacter: (data: {
+      name: string;
+      archetype: string;
+      avatar_url?: string | null;
+      personality_preset?: string;
+      baseline_personality?: Record<string, unknown>;
+      boundaries?: Record<string, unknown>;
+      content_rating?: string;
+      opening_situation: string;
+      opening_line: string;
+      status?: "draft" | "active";
+    }) =>
+      request<{ id: string; slug: string; name: string; status: string; message: string }>(
+        "/studio/characters",
+        { method: "POST", body: JSON.stringify(data) }
+      ),
+    updateCharacter: (id: string, data: Record<string, unknown>) =>
+      request<import("@/types").Character>(`/studio/characters/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    activateCharacter: (id: string) =>
+      request<import("@/types").Character>(`/studio/characters/${id}/activate`, {
+        method: "POST",
+      }),
+    deactivateCharacter: (id: string) =>
+      request<import("@/types").Character>(`/studio/characters/${id}/deactivate`, {
+        method: "POST",
+      }),
+    deleteCharacter: (id: string) =>
+      request<null>(`/studio/characters/${id}`, { method: "DELETE" }),
+    getArchetypes: () =>
+      request<{ archetypes: string[] }>("/studio/archetypes"),
+    getPersonalityPresets: () =>
+      request<{ presets: Record<string, unknown> }>("/studio/personality-presets"),
+    getDefaultBoundaries: () =>
+      request<{ boundaries: Record<string, unknown> }>("/studio/default-boundaries"),
+  },
 };
 
 export default api;

@@ -57,6 +57,29 @@ CREATE POLICY characters_update_own ON characters
     USING (created_by = auth.uid())
     WITH CHECK (created_by = auth.uid());
 
+-- =============================================================================
+-- HARDENING: Enforce is_active = (status = 'active') at DB layer
+-- =============================================================================
+
+-- Trigger function to sync is_active with status
+CREATE OR REPLACE FUNCTION sync_character_status()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- is_active is derived from status, always
+    NEW.is_active := (NEW.status = 'active');
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Apply trigger on INSERT and UPDATE
+DROP TRIGGER IF EXISTS characters_sync_status ON characters;
+CREATE TRIGGER characters_sync_status
+    BEFORE INSERT OR UPDATE ON characters
+    FOR EACH ROW EXECUTE FUNCTION sync_character_status();
+
+-- Fix any existing drift
+UPDATE characters SET is_active = (status = 'active') WHERE is_active != (status = 'active');
+
 -- Add comment explaining the character creation contract
 COMMENT ON TABLE characters IS 'Character creation contract:
 REQUIRED for creation (wizard steps 1-3):

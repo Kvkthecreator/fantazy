@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
+import { api } from '@/lib/api/client'
 
 // =============================================================================
 // Types & Constants (aligned with backend contract)
@@ -134,7 +135,7 @@ export default function CreateCharacterWizard() {
     setError(null)
 
     try {
-      const payload = {
+      const result = await api.studio.createCharacter({
         name: draft.name.trim(),
         archetype: draft.archetype,
         avatar_url: draft.avatarUrl,
@@ -151,23 +152,8 @@ export default function CreateCharacterWizard() {
         opening_situation: draft.openingSituation.trim(),
         opening_line: draft.openingLine.trim(),
         status: draft.status,
-      }
-
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
       })
 
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.detail || 'Failed to create character')
-      }
-
-      const result = await res.json()
       router.push(`/studio/characters/${result.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
