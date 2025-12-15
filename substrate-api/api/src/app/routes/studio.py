@@ -1098,17 +1098,22 @@ CALIBRATION_APPEARANCE_HINTS = {
 
 @router.post("/admin/generate-calibration-avatars")
 async def generate_calibration_avatars(
+    name: Optional[str] = Query(None, description="Generate for specific character only"),
     db=Depends(get_db),
 ):
-    """Generate hero avatars for all calibration characters that need them.
+    """Generate hero avatars for calibration characters that need them.
 
     This endpoint is auth-exempt for calibration sprint use only.
-    Uses FLUX via Gemini for image generation.
+    Uses Gemini Flash for image generation.
+
+    Pass ?name=Luna to generate for a specific character (avoids rate limits).
     """
+    import asyncio
+
     service = get_avatar_generation_service()
 
-    # Get all characters without hero avatars
-    rows = await db.fetch_all("""
+    # Build query - optionally filter by name
+    query = """
         SELECT
             c.id,
             c.name,
@@ -1120,20 +1125,25 @@ async def generate_calibration_avatars(
         LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
         WHERE (ak.primary_anchor_id IS NULL OR c.active_avatar_kit_id IS NULL)
         AND c.name IN ('Luna', 'Raven', 'Felix', 'Morgan', 'Ash', 'Jade', 'River')
-        ORDER BY c.name
-    """)
+    """
+
+    if name:
+        query += " AND c.name = :name"
+        rows = await db.fetch_all(query + " ORDER BY c.name", {"name": name})
+    else:
+        rows = await db.fetch_all(query + " ORDER BY c.name")
 
     if not rows:
-        return {"message": "All calibration characters have hero avatars", "generated": 0}
+        return {"message": "All calibration characters have hero avatars (or name not found)", "generated": 0}
 
     results = []
-    for row in rows:
+    for i, row in enumerate(rows):
         row_dict = dict(row)
-        name = row_dict["name"]
+        char_name = row_dict["name"]
         character_id = row_dict["id"]
         user_id = row_dict["created_by"]
 
-        appearance_hint = CALIBRATION_APPEARANCE_HINTS.get(name, "")
+        appearance_hint = CALIBRATION_APPEARANCE_HINTS.get(char_name, "")
 
         try:
             result = await service.generate_hero_avatar(
@@ -1145,22 +1155,26 @@ async def generate_calibration_avatars(
 
             if result.success:
                 results.append({
-                    "name": name,
+                    "name": char_name,
                     "status": "generated",
                     "asset_id": str(result.asset_id),
-                    "avatar_url": result.avatar_url,
+                    "image_url": result.image_url,
                 })
             else:
                 results.append({
-                    "name": name,
+                    "name": char_name,
                     "status": f"failed: {result.error}",
                 })
 
         except Exception as e:
             results.append({
-                "name": name,
+                "name": char_name,
                 "status": f"error: {str(e)}",
             })
+
+        # Add delay between requests to avoid rate limiting
+        if i < len(rows) - 1:
+            await asyncio.sleep(3)
 
     return {
         "message": f"Processed {len(results)} characters",
