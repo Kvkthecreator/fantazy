@@ -5,10 +5,8 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SubscriptionCard } from "@/components/subscription";
-import { UsageMeter } from "@/components/usage";
 import { SparkBalance, TopupPacks } from "@/components/sparks";
 import { useUser } from "@/hooks/useUser";
-import { useUsage } from "@/hooks/useUsage";
 import { useSparks } from "@/hooks/useSparks";
 import { CheckCircle2, Sparkles, CreditCard, User } from "lucide-react";
 
@@ -16,7 +14,6 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { reload } = useUser();
-  const { reload: reloadUsage } = useUsage();
   const { reload: reloadSparks, sparkBalance, lifetimeEarned, lifetimeSpent } = useSparks();
   const [showSuccess, setShowSuccess] = useState(false);
   const [showTopupSuccess, setShowTopupSuccess] = useState(false);
@@ -46,7 +43,6 @@ export default function SettingsPage() {
     if (subscription === "success") {
       setShowSuccess(true);
       reload();
-      reloadUsage();
       reloadSparks();
       window.history.replaceState({}, "", "/settings?tab=subscription");
       const timer = setTimeout(() => setShowSuccess(false), 5000);
@@ -61,7 +57,7 @@ export default function SettingsPage() {
       const timer = setTimeout(() => setShowTopupSuccess(false), 5000);
       return () => clearTimeout(timer);
     }
-  }, [searchParams, reload, reloadUsage, reloadSparks]);
+  }, [searchParams, reload, reloadSparks]);
 
   return (
     <div className="space-y-8">
@@ -121,18 +117,6 @@ export default function SettingsPage() {
 
         {/* Subscription Tab */}
         <TabsContent value="subscription" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Usage This Month</CardTitle>
-              <CardDescription>
-                Track your image generation usage
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <UsageMeter />
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Subscription Plan</CardTitle>

@@ -8,15 +8,15 @@ import { Check, Crown, Loader2, Sparkles, Zap } from "lucide-react";
 
 const PREMIUM_FEATURES = [
   "Unlimited AI companion chat",
-  "50 AI scene generations per month",
+  "100 Sparks per month for AI scenes",
   "Priority response times",
   "Early access to new features",
 ];
 
 const FREE_FEATURES = [
   "Basic chat with companions",
+  "5 Sparks to start",
   "Pre-generated scene library",
-  "3 active relationships",
 ];
 
 export function SubscriptionCard() {
