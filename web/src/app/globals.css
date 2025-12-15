@@ -1,27 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  /* Neutral, low-noise base */
+  /* Neutral, warm-leaning base with soft accent */
   --background: 0 0% 99%;
-  --foreground: 220 15% 14%;
+  --foreground: 225 14% 12%;
   --muted: 210 15% 95%;
   --muted-foreground: 220 10% 46%;
   --card: 0 0% 100%;
-  --card-foreground: 220 15% 14%;
+  --card-foreground: 225 14% 12%;
   --popover: 0 0% 100%;
-  --popover-foreground: 220 15% 14%;
+  --popover-foreground: 225 14% 12%;
   --border: 220 13% 88%;
   --input: 220 13% 88%;
-  /* Warm accent to avoid feeling sterile */
-  --primary: 12 74% 52%;
+  /* Accent palette: coral primary, lilac accent, teal support */
+  --primary: 8 75% 60%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 12% 92%;
-  --secondary-foreground: 220 15% 18%;
-  --accent: 205 40% 45%;
-  --accent-foreground: 210 40% 98%;
+  --secondary-foreground: 225 14% 12%;
+  --accent: 265 45% 72%;
+  --accent-foreground: 225 14% 12%;
   --destructive: 0 72% 50%;
   --destructive-foreground: 0 0% 98%;
-  --ring: 12 74% 52%;
+  --ring: 8 75% 60%;
   --radius: 12px;
 }
 
@@ -36,15 +36,15 @@
   --popover-foreground: 210 20% 94%;
   --border: 220 10% 22%;
   --input: 220 10% 22%;
-  --primary: 12 74% 56%;
+  --primary: 8 75% 64%;
   --primary-foreground: 220 16% 8%;
   --secondary: 220 12% 16%;
   --secondary-foreground: 210 20% 94%;
-  --accent: 205 35% 60%;
+  --accent: 265 45% 68%;
   --accent-foreground: 220 16% 8%;
   --destructive: 0 84% 58%;
   --destructive-foreground: 220 16% 8%;
-  --ring: 12 74% 56%;
+  --ring: 8 75% 64%;
 }
 
 @theme inline {
@@ -85,4 +85,12 @@ body {
 
 ::selection {
   background: hsla(var(--primary), 0.15);
+}
+
+/* Subtle background texture for pages */
+.page-surface {
+  background:
+    radial-gradient(800px circle at 20% 20%, hsla(var(--accent), 0.07), transparent 50%),
+    radial-gradient(700px circle at 80% 10%, hsla(var(--primary), 0.08), transparent 50%),
+    hsla(var(--background));
 }

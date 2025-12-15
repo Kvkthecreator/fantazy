@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BackgroundBlob } from "@/components/ui/background-blob";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -55,17 +56,21 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex max-w-5xl items-center justify-center px-6 py-12">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <BackgroundBlob className="mx-auto max-w-5xl" />
+      <div className="relative mx-auto flex max-w-5xl items-center justify-center px-6 py-12">
         <div className="w-full max-w-md space-y-6">
           <Card className="border border-border/70 shadow-sm">
             <CardContent className="p-8">
-              <div className="mb-8 text-center">
+              <div className="mb-8 text-center space-y-2">
                 <Link href="/" className="inline-flex items-center gap-2">
                   <span className="text-2xl">✨</span>
                   <span className="text-xl font-semibold">Fantazy</span>
                 </Link>
-                <h1 className="mt-6 text-xl font-semibold">Welcome back</h1>
+                <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                  cozy • romcom • memory
+                </div>
+                <h1 className="mt-2 text-xl font-semibold">Welcome back</h1>
                 <p className="text-sm text-muted-foreground">Sign in to continue your story.</p>
               </div>
 
