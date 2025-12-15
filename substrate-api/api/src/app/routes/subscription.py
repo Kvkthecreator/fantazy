@@ -470,7 +470,8 @@ async def handle_subscription_resumed(
 async def handle_topup_purchase(db, user_id: str, custom_data: dict, attrs: dict):
     """Handle top-up spark pack purchase."""
     pack_name = custom_data.get("pack_name", "unknown")
-    sparks_amount = custom_data.get("sparks_amount", 0)
+    # sparks_amount comes as string from Lemon Squeezy custom data
+    sparks_amount = int(custom_data.get("sparks_amount", 0))
     order_id = str(attrs.get("order_number", ""))
 
     if not sparks_amount:

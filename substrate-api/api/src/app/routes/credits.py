@@ -275,7 +275,7 @@ async def create_topup_checkout(
                                 "custom": {
                                     "user_id": str(user_id),
                                     "pack_name": request.pack_name,
-                                    "sparks_amount": pack["sparks"],
+                                    "sparks_amount": str(pack["sparks"]),
                                     "purchase_type": "topup",
                                 }
                             },
