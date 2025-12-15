@@ -444,6 +444,48 @@ export const api = {
       request<{ presets: Record<string, unknown> }>("/studio/personality-presets"),
     getDefaultBoundaries: () =>
       request<{ boundaries: Record<string, unknown> }>("/studio/default-boundaries"),
+    // Conversation Ignition endpoints
+    generateOpeningBeat: (data: {
+      name: string;
+      archetype: string;
+      personality?: Record<string, unknown>;
+      personality_preset?: string;
+      boundaries?: Record<string, unknown>;
+      content_rating?: string;
+      world_context?: string;
+    }) =>
+      request<import("@/types").OpeningBeatResponse>("/studio/generate-opening-beat", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    regenerateOpeningBeat: (
+      characterId: string,
+      data: {
+        previous_situation: string;
+        previous_line: string;
+        feedback?: string;
+      }
+    ) =>
+      request<import("@/types").OpeningBeatResponse>(
+        `/studio/characters/${characterId}/regenerate-opening-beat`,
+        { method: "POST", body: JSON.stringify(data) }
+      ),
+    applyOpeningBeat: (
+      characterId: string,
+      data: {
+        opening_situation: string;
+        opening_line: string;
+        starter_prompts?: string[];
+      }
+    ) =>
+      request<import("@/types").Character>(
+        `/studio/characters/${characterId}/apply-opening-beat`,
+        { method: "POST", body: JSON.stringify(data) }
+      ),
+    getArchetypeRules: (archetype: string) =>
+      request<import("@/types").ArchetypeRulesResponse>(
+        `/studio/archetype-rules/${archetype}`
+      ),
   },
 };
 

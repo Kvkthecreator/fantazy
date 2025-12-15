@@ -499,3 +499,32 @@ export interface RateLimitError {
   cooldown_seconds?: number;
   remaining: number;
 }
+
+// ============================================================================
+// Conversation Ignition Types
+// ============================================================================
+
+export interface OpeningBeatValidationError {
+  field: string;
+  code: string;
+  message: string;
+}
+
+export interface OpeningBeatResponse {
+  opening_situation: string;
+  opening_line: string;
+  starter_prompts: string[];
+  is_valid: boolean;
+  validation_errors: OpeningBeatValidationError[];
+  model_used?: string;
+  latency_ms?: number;
+}
+
+export interface ArchetypeRulesResponse {
+  archetype: string;
+  tone_range: string[];
+  intimacy_ceiling: string;
+  typical_scenes: string[];
+  pacing: string;
+  emotional_register: string;
+}

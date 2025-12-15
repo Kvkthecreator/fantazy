@@ -115,6 +115,12 @@ export default function CreateCharacterWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Conversation Ignition state
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [generationError, setGenerationError] = useState<string | null>(null)
+  const [starterPrompts, setStarterPrompts] = useState<string[]>([])
+  const [showStarterPrompts, setShowStarterPrompts] = useState(false)
+
   // Validation helpers
   const isStep1Valid = draft.name.trim().length >= 1 && draft.archetype !== ''
   const isStep2Valid = draft.personalityPreset !== ''
@@ -127,6 +133,47 @@ export default function CreateCharacterWizard() {
       case 2: return isStep3Valid
       case 3: return true
       default: return false
+    }
+  }
+
+  // Generate Opening Beat using Conversation Ignition
+  const handleGenerateOpeningBeat = async () => {
+    if (!draft.name || !draft.archetype) {
+      setGenerationError('Please complete Step 1 (name and archetype) first')
+      return
+    }
+
+    setIsGenerating(true)
+    setGenerationError(null)
+
+    try {
+      const result = await api.studio.generateOpeningBeat({
+        name: draft.name.trim(),
+        archetype: draft.archetype,
+        personality_preset: draft.personalityPreset,
+        boundaries: {
+          nsfw_allowed: draft.boundaries.nsfw_allowed,
+          flirting_level: draft.boundaries.flirting_level,
+          can_reject_user: draft.boundaries.can_reject_user,
+        },
+        content_rating: draft.contentRating,
+      })
+
+      setDraft((prev) => ({
+        ...prev,
+        openingSituation: result.opening_situation,
+        openingLine: result.opening_line,
+      }))
+      setStarterPrompts(result.starter_prompts || [])
+
+      if (!result.is_valid && result.validation_errors.length > 0) {
+        const errorMsg = result.validation_errors.map(e => e.message).join('; ')
+        setGenerationError(`Generated with warnings: ${errorMsg}`)
+      }
+    } catch (err) {
+      setGenerationError(err instanceof Error ? err.message : 'Failed to generate opening beat')
+    } finally {
+      setIsGenerating(false)
     }
   }
 
