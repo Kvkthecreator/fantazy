@@ -86,7 +86,8 @@ export function Sidebar({ user }: { user: User }) {
       )}>
         {navigation.map((item) => {
           const isExactMatch = pathname === item.href
-          const isNested = pathname.startsWith(`${item.href}/`)
+          // Only treat nested routes as active for non-root items to avoid double-highlighting Dashboard on subpages.
+          const isNested = item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`)
           const isActive = isExactMatch || isNested
           return (
             <Link
