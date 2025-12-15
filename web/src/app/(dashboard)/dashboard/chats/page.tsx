@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, Clock } from "lucide-react";
 import type { RelationshipWithCharacter } from "@/types";
 
 export default function MyChatsPage() {
@@ -17,12 +17,6 @@ export default function MyChatsPage() {
     async function loadData() {
       try {
         const data = await api.relationships.list();
-        // Sort by last interaction (most recent first)
-        data.sort((a, b) => {
-          const dateA = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
-          const dateB = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
-          return dateB - dateA;
-        });
         setRelationships(data);
       } catch (err) {
         console.error("Failed to load relationships:", err);
@@ -32,6 +26,14 @@ export default function MyChatsPage() {
     }
     loadData();
   }, []);
+
+  const sortedRelationships = useMemo(() => {
+    return [...relationships].sort((a, b) => {
+      const timeA = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
+      const timeB = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
+      return timeB - timeA;
+    });
+  }, [relationships]);
 
   if (isLoading) {
     return (
@@ -65,7 +67,7 @@ export default function MyChatsPage() {
         </p>
       </div>
 
-      {relationships.length === 0 ? (
+      {sortedRelationships.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
             <MessageCircle className="h-8 w-8 text-muted-foreground" />
@@ -80,55 +82,50 @@ export default function MyChatsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {relationships.map((rel) => (
+          {sortedRelationships.map((rel) => (
             <Link key={rel.id} href={`/chat/${rel.character_id}`}>
-              <Card className="hover:shadow-md transition-all hover:-translate-y-0.5 cursor-pointer">
+              <Card className="cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <CardContent className="p-4">
                   <div className="flex items-center gap-4">
-                    {/* Avatar - full image, no gradient ring */}
-                    <div className="w-14 h-14 rounded-full shrink-0 overflow-hidden bg-muted">
+                    <div className="h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border/60 bg-muted">
                       {rel.character_avatar_url ? (
                         <img
                           src={rel.character_avatar_url}
                           alt={rel.character_name}
-                          className="w-full h-full object-cover"
+                          className="h-full w-full object-cover"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <span className="text-muted-foreground text-xl font-bold">
-                            {rel.character_name[0]}
-                          </span>
+                        <div className="flex h-full w-full items-center justify-center text-xl font-bold text-muted-foreground">
+                          {rel.character_name[0]}
                         </div>
                       )}
                     </div>
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <h3 className="font-semibold truncate">{rel.character_name}</h3>
-                        <Badge variant="secondary" className="text-xs shrink-0">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="truncate text-base font-semibold">{rel.character_name}</h3>
+                        <Badge variant="secondary" className="text-[11px]">
                           {stageLabels[rel.stage] || rel.stage}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground capitalize">
                         {rel.character_archetype}
                       </p>
-                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                        <span>{rel.total_episodes} episodes</span>
-                        <span>&bull;</span>
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                         <span>{rel.total_messages} messages</span>
-                        {rel.last_interaction_at && (
-                          <>
-                            <span>&bull;</span>
-                            <span>{formatRelativeTime(rel.last_interaction_at)}</span>
-                          </>
-                        )}
+                        <span>•</span>
+                        <span>{rel.total_episodes} episodes</span>
+                        <span>•</span>
+                        <span>
+                          {rel.last_interaction_at
+                            ? formatRelativeTime(rel.last_interaction_at)
+                            : "No chats yet"}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Arrow */}
                     <div className="text-muted-foreground">
-                      <MessageCircle className="h-5 w-5" />
+                      <Clock className="h-5 w-5" />
                     </div>
                   </div>
                 </CardContent>

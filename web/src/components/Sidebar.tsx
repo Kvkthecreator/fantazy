@@ -85,7 +85,9 @@ export function Sidebar({ user }: { user: User }) {
         isCollapsed ? "px-2" : "px-4"
       )}>
         {navigation.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+          const isExactMatch = pathname === item.href
+          const isNested = pathname.startsWith(`${item.href}/`)
+          const isActive = isExactMatch || isNested
           return (
             <Link
               key={item.name}
