@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api/client";
-import type { User, UserUpdate, OnboardingData } from "@/types";
+import type { User, UserUpdate } from "@/types";
 
 export function useUser() {
   const [user, setUser] = useState<User | null>(null);
@@ -33,17 +33,6 @@ export function useUser() {
     }
   }, []);
 
-  const completeOnboarding = useCallback(async (data: OnboardingData) => {
-    try {
-      const updated = await api.users.completeOnboarding(data);
-      setUser(updated);
-      return updated;
-    } catch (err) {
-      setError(err as Error);
-      throw err;
-    }
-  }, []);
-
   useEffect(() => {
     loadUser();
   }, [loadUser]);
@@ -54,6 +43,5 @@ export function useUser() {
     error,
     reload: loadUser,
     updateUser,
-    completeOnboarding,
   };
 }

@@ -35,15 +35,6 @@ export interface UserPreferences {
   vibe_preference?: string;
 }
 
-export interface OnboardingData {
-  display_name: string;
-  pronouns?: string;
-  timezone: string;
-  vibe_preference: "comforting" | "flirty" | "chill";
-  first_character_id: string;
-  age_confirmed: boolean;
-}
-
 // Character types
 export interface CharacterSummary {
   id: string;

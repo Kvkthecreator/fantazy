@@ -40,12 +40,6 @@ export default function DashboardPage() {
         setUser(userData);
         setCharacters(charactersData);
         setRelationships(relationshipsData);
-
-        // Check if user needs onboarding
-        if (userData && !userData.onboarding_completed) {
-          router.push("/onboarding");
-          return;
-        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load data");
       } finally {

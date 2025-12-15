@@ -76,11 +76,6 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
-    completeOnboarding: (data: import("@/types").OnboardingData) =>
-      request<import("@/types").User>("/users/onboarding", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
     usage: () => request<import("@/types").UsageResponse>("/users/me/usage"),
   },
 

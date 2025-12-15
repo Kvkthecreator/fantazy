@@ -11,33 +11,10 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      // Check if user has completed onboarding
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (user) {
-        // Check user profile for onboarding status
-        const { data: profile } = await supabase
-          .from("users")
-          .select("onboarding_completed")
-          .eq("id", user.id)
-          .single();
-
-        // Route based on onboarding status
-        if (next) {
-          return NextResponse.redirect(`${origin}${next}`);
-        }
-
-        if (profile?.onboarding_completed) {
-          return NextResponse.redirect(`${origin}/dashboard`);
-        } else {
-          return NextResponse.redirect(`${origin}/onboarding`);
-        }
+      if (next) {
+        return NextResponse.redirect(`${origin}${next}`);
       }
-
-      // Fallback to dashboard
-      return NextResponse.redirect(`${origin}${next ?? "/dashboard"}`);
+      return NextResponse.redirect(`${origin}/dashboard`);
     }
   }
 
