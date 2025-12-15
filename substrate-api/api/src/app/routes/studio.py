@@ -6,7 +6,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.deps import get_current_user, get_db
+from app.deps import get_db
+from app.dependencies import get_current_user_id
 from app.models.character import (
     ARCHETYPES,
     PERSONALITY_PRESETS,
@@ -111,12 +112,12 @@ async def get_default_boundaries():
 @router.get("/characters", response_model=List[CharacterSummary])
 async def list_my_characters(
     status_filter: Optional[str] = Query(None, pattern="^(draft|active)$"),
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """List characters created by the current user."""
     conditions = ["created_by = :user_id"]
-    values = {"user_id": str(user.id)}
+    values = {"user_id": str(user_id)}
 
     if status_filter:
         conditions.append("status = :status")
@@ -136,7 +137,7 @@ async def list_my_characters(
 @router.post("/characters", response_model=CharacterCreatedResponse, status_code=status.HTTP_201_CREATED)
 async def create_character(
     data: CharacterCreateInput,
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Create a new character.
@@ -212,7 +213,7 @@ async def create_character(
         "starter_prompts": [data.opening_line],  # Opening line is first starter
         "status": final_status,
         "is_active": final_status == "active",
-        "created_by": str(user.id),
+        "created_by": str(user_id),
     }
 
     row = await db.fetch_one(query, values)
@@ -233,7 +234,7 @@ async def create_character(
 @router.get("/characters/{character_id}", response_model=Character)
 async def get_my_character(
     character_id: UUID,
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Get a character owned by the current user."""
@@ -243,7 +244,7 @@ async def get_my_character(
     """
     row = await db.fetch_one(query, {
         "character_id": str(character_id),
-        "user_id": str(user.id),
+        "user_id": str(user_id),
     })
 
     if not row:
@@ -259,7 +260,7 @@ async def get_my_character(
 async def update_character(
     character_id: UUID,
     data: CharacterUpdateInput,
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Update a character owned by the current user.
@@ -270,7 +271,7 @@ async def update_character(
     # Verify ownership
     existing = await db.fetch_one(
         "SELECT * FROM characters WHERE id = :id AND created_by = :user_id",
-        {"id": str(character_id), "user_id": str(user.id)}
+        {"id": str(character_id), "user_id": str(user_id)}
     )
 
     if not existing:
@@ -340,7 +341,7 @@ async def update_character(
 @router.post("/characters/{character_id}/activate", response_model=Character)
 async def activate_character(
     character_id: UUID,
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Activate a draft character (make it chat-ready).
@@ -352,7 +353,7 @@ async def activate_character(
     # Get character
     existing = await db.fetch_one(
         "SELECT * FROM characters WHERE id = :id AND created_by = :user_id",
-        {"id": str(character_id), "user_id": str(user.id)}
+        {"id": str(character_id), "user_id": str(user_id)}
     )
 
     if not existing:
@@ -393,13 +394,13 @@ async def activate_character(
 @router.post("/characters/{character_id}/deactivate", response_model=Character)
 async def deactivate_character(
     character_id: UUID,
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Deactivate a character (move back to draft)."""
     existing = await db.fetch_one(
         "SELECT * FROM characters WHERE id = :id AND created_by = :user_id",
-        {"id": str(character_id), "user_id": str(user.id)}
+        {"id": str(character_id), "user_id": str(user_id)}
     )
 
     if not existing:
@@ -421,13 +422,13 @@ async def deactivate_character(
 @router.delete("/characters/{character_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_character(
     character_id: UUID,
-    user=Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
     """Delete a character owned by the current user."""
     result = await db.execute(
         "DELETE FROM characters WHERE id = :id AND created_by = :user_id",
-        {"id": str(character_id), "user_id": str(user.id)}
+        {"id": str(character_id), "user_id": str(user_id)}
     )
 
     # Note: result handling varies by DB driver
