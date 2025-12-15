@@ -24,13 +24,9 @@ router = APIRouter(prefix="/subscription", tags=["Subscription"])
 
 # Lemon Squeezy configuration
 LEMONSQUEEZY_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY")
-LEMONSQUEEZY_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "221652")
-LEMONSQUEEZY_VARIANT_ID = os.getenv(
-    "LEMONSQUEEZY_VARIANT_ID", "1145209"
-)
-LEMONSQUEEZY_WEBHOOK_SECRET = os.getenv(
-    "LEMONSQUEEZY_WEBHOOK_SECRET", "ls_wh_ftz_7k9X2mPqR4vL8n"
-)
+LEMONSQUEEZY_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID")
+LEMONSQUEEZY_VARIANT_ID = os.getenv("LEMONSQUEEZY_VARIANT_ID")
+LEMONSQUEEZY_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
 
 
 class CheckoutRequest(BaseModel):
@@ -119,7 +115,7 @@ async def create_checkout(
                 "product_options": {
                     "redirect_url": os.getenv(
                         "CHECKOUT_SUCCESS_URL",
-                        "https://fantazy-five.vercel.app/settings?subscription=success",
+                        "https://fantazy.app/settings?subscription=success",
                     ),
                 },
             },
@@ -211,8 +207,8 @@ webhook_router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 def verify_webhook_signature(payload: bytes, signature: str) -> bool:
     """Verify Lemon Squeezy webhook signature."""
     if not LEMONSQUEEZY_WEBHOOK_SECRET:
-        log.warning("Webhook secret not configured, skipping verification")
-        return True
+        log.error("LEMONSQUEEZY_WEBHOOK_SECRET not configured - rejecting webhook")
+        return False
 
     expected = hmac.new(
         LEMONSQUEEZY_WEBHOOK_SECRET.encode(),
