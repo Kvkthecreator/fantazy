@@ -26,6 +26,10 @@ from app.services.conversation_ignition import (
     validate_ignition_output,
     get_archetype_rules,
 )
+from app.services.avatar_generation import (
+    get_avatar_generation_service,
+    EXPRESSION_TYPES,
+)
 
 router = APIRouter(prefix="/studio", tags=["Studio"])
 
@@ -704,3 +708,193 @@ async def get_archetype_ignition_rules(
         pacing=rules.pacing,
         emotional_register=rules.emotional_register,
     )
+
+
+# =============================================================================
+# Avatar Generation Endpoints (Phase 4.1 & 4.2)
+# =============================================================================
+
+class GenerateAvatarRequest(BaseModel):
+    """Request for generating hero avatar."""
+    appearance_description: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Custom appearance description. If not provided, derived from archetype."
+    )
+
+
+class GenerateExpressionRequest(BaseModel):
+    """Request for generating expression variant."""
+    expression: str = Field(
+        ...,
+        description="Expression type: smile, shy, thoughtful, surprised, annoyed, flirty, sad"
+    )
+
+
+class AvatarGenerationResponse(BaseModel):
+    """Response from avatar generation."""
+    success: bool
+    asset_id: Optional[str] = None
+    kit_id: Optional[str] = None
+    image_url: Optional[str] = None
+    error: Optional[str] = None
+    model_used: Optional[str] = None
+    latency_ms: Optional[int] = None
+
+
+class ExpressionInfo(BaseModel):
+    """Info about a generated expression."""
+    id: str
+    expression: str
+    image_url: str
+
+
+class AvatarStatusResponse(BaseModel):
+    """Response with avatar kit status."""
+    has_kit: bool
+    kit_id: Optional[str] = None
+    has_hero_avatar: bool = False
+    hero_avatar_url: Optional[str] = None
+    expression_count: int = 0
+    expressions: List[ExpressionInfo] = Field(default_factory=list)
+    can_activate: bool = False
+    available_expressions: List[str] = Field(default_factory=list)
+
+
+@router.post("/characters/{character_id}/generate-avatar", response_model=AvatarGenerationResponse)
+async def generate_hero_avatar(
+    character_id: UUID,
+    data: GenerateAvatarRequest = Body(default=GenerateAvatarRequest()),
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Generate hero avatar for a character.
+
+    This creates the primary visual identity for the character.
+    Required for character activation.
+
+    The hero avatar is stored as an anchor_portrait in an avatar kit,
+    which ensures visual consistency for future expression generation.
+    """
+    service = get_avatar_generation_service()
+
+    result = await service.generate_hero_avatar(
+        character_id=character_id,
+        user_id=user_id,
+        db=db,
+        appearance_description=data.appearance_description,
+    )
+
+    return AvatarGenerationResponse(
+        success=result.success,
+        asset_id=str(result.asset_id) if result.asset_id else None,
+        kit_id=str(result.kit_id) if result.kit_id else None,
+        image_url=result.image_url,
+        error=result.error,
+        model_used=result.model_used,
+        latency_ms=result.latency_ms,
+    )
+
+
+@router.post("/characters/{character_id}/generate-expression", response_model=AvatarGenerationResponse)
+async def generate_expression(
+    character_id: UUID,
+    data: GenerateExpressionRequest,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Generate an expression variant for a character.
+
+    Requires a hero avatar to exist first. Uses the hero avatar as a
+    reference to maintain character identity while generating new expressions.
+
+    Available expressions: smile, shy, thoughtful, surprised, annoyed, flirty, sad
+    """
+    # Validate expression type
+    valid_expressions = [e["name"] for e in EXPRESSION_TYPES]
+    if data.expression not in valid_expressions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid expression. Available: {valid_expressions}",
+        )
+
+    service = get_avatar_generation_service()
+
+    result = await service.generate_expression(
+        character_id=character_id,
+        user_id=user_id,
+        expression=data.expression,
+        db=db,
+    )
+
+    if not result.success and "hero avatar" in (result.error or "").lower():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.error,
+        )
+
+    return AvatarGenerationResponse(
+        success=result.success,
+        asset_id=str(result.asset_id) if result.asset_id else None,
+        kit_id=str(result.kit_id) if result.kit_id else None,
+        image_url=result.image_url,
+        error=result.error,
+        model_used=result.model_used,
+        latency_ms=result.latency_ms,
+    )
+
+
+@router.get("/characters/{character_id}/avatar-status", response_model=AvatarStatusResponse)
+async def get_avatar_status(
+    character_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Get avatar kit status for a character.
+
+    Returns info about:
+    - Whether a hero avatar exists
+    - Hero avatar URL
+    - List of generated expressions
+    - Whether character can be activated
+    """
+    service = get_avatar_generation_service()
+
+    status_result = await service.get_avatar_status(
+        character_id=character_id,
+        user_id=user_id,
+        db=db,
+    )
+
+    # Get list of already generated expressions
+    generated_expressions = {e["expression"] for e in status_result.expressions}
+    available_expressions = [
+        e["name"] for e in EXPRESSION_TYPES
+        if e["name"] not in generated_expressions
+    ]
+
+    return AvatarStatusResponse(
+        has_kit=status_result.has_kit,
+        kit_id=str(status_result.kit_id) if status_result.kit_id else None,
+        has_hero_avatar=status_result.has_hero_avatar,
+        hero_avatar_url=status_result.hero_avatar_url,
+        expression_count=status_result.expression_count,
+        expressions=[
+            ExpressionInfo(**e) for e in status_result.expressions
+        ],
+        can_activate=status_result.can_activate,
+        available_expressions=available_expressions,
+    )
+
+
+@router.get("/expression-types")
+async def list_expression_types(
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """List available expression types for generation."""
+    return {
+        "expressions": [
+            {"name": e["name"], "description": e["prompt_modifier"]}
+            for e in EXPRESSION_TYPES
+        ]
+    }

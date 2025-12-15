@@ -433,6 +433,12 @@ def validate_chat_ready(character: dict) -> List[ActivationError]:
     - Any future activation flows
 
     Returns list of errors. Empty list = valid for activation.
+
+    HARD REQUIREMENTS (Phase 4.1):
+    - Must have active_avatar_kit_id (avatar kit exists)
+    - Must have avatar_url (derived from primary anchor)
+    - Typed/arbitrary avatar URLs do not satisfy activation - they must come
+      from a generated or uploaded anchor_portrait asset.
     """
     errors: List[ActivationError] = []
 
@@ -460,7 +466,15 @@ def validate_chat_ready(character: dict) -> List[ActivationError]:
     if not character.get("opening_line"):
         errors.append(ActivationError("opening_line", "required for chat ignition"))
 
-    # Avatar required for activation
+    # HARD Avatar Requirement (Phase 4.1):
+    # Character must have an avatar kit with a primary anchor.
+    # The avatar_url is a convenience mirror, but active_avatar_kit_id is the authority.
+    if not character.get("active_avatar_kit_id"):
+        errors.append(ActivationError(
+            "active_avatar_kit_id",
+            "required - generate a hero avatar first"
+        ))
+    # Also require avatar_url as the display cache
     if not character.get("avatar_url"):
         errors.append(ActivationError("avatar_url", "required for activation"))
 
@@ -472,6 +486,58 @@ def validate_chat_ready(character: dict) -> List[ActivationError]:
     content_rating = character.get("content_rating", "sfw")
     if content_rating not in ("sfw", "adult"):
         errors.append(ActivationError("content_rating", "must be 'sfw' or 'adult'"))
+
+    return errors
+
+
+async def validate_chat_ready_full(character: dict, db) -> List[ActivationError]:
+    """Full validation including database checks for avatar kit integrity.
+
+    This is the HARD validation that checks:
+    1. active_avatar_kit_id exists
+    2. The referenced avatar_kit has primary_anchor_id set
+    3. The primary anchor is asset_type='anchor_portrait'
+
+    Use this for the final activation check. The simpler validate_chat_ready()
+    can be used for quick UI feedback.
+    """
+    # Start with basic validation
+    errors = validate_chat_ready(character)
+
+    # If basic validation failed, return early
+    if errors:
+        return errors
+
+    # Full avatar kit integrity check
+    kit_id = character.get("active_avatar_kit_id")
+    if kit_id:
+        kit_data = await db.fetch_one(
+            """SELECT ak.id, ak.primary_anchor_id, ak.status,
+                      aa.asset_type
+               FROM avatar_kits ak
+               LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id
+               WHERE ak.id = :kit_id""",
+            {"kit_id": str(kit_id)}
+        )
+
+        if not kit_data:
+            errors.append(ActivationError(
+                "active_avatar_kit_id",
+                "avatar kit not found - regenerate hero avatar"
+            ))
+        elif not kit_data["primary_anchor_id"]:
+            errors.append(ActivationError(
+                "primary_anchor_id",
+                "no hero avatar set - generate hero avatar first"
+            ))
+        elif kit_data["asset_type"] != "anchor_portrait":
+            errors.append(ActivationError(
+                "primary_anchor_id",
+                "primary anchor must be an anchor_portrait asset"
+            ))
+        elif kit_data["status"] != "active":
+            # Auto-fix: activate the kit if it's in draft
+            pass  # We allow draft kits for now, just need the anchor
 
     return errors
 

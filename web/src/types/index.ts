@@ -528,3 +528,43 @@ export interface ArchetypeRulesResponse {
   pacing: string;
   emotional_register: string;
 }
+
+// ============================================================================
+// Avatar Generation Types (Phase 4.1 & 4.2)
+// ============================================================================
+
+export interface AvatarGenerationResponse {
+  success: boolean;
+  asset_id?: string;
+  kit_id?: string;
+  image_url?: string;
+  error?: string;
+  model_used?: string;
+  latency_ms?: number;
+}
+
+export interface ExpressionInfo {
+  id: string;
+  expression: string;
+  image_url: string;
+}
+
+export interface AvatarStatusResponse {
+  has_kit: boolean;
+  kit_id?: string;
+  has_hero_avatar: boolean;
+  hero_avatar_url?: string;
+  expression_count: number;
+  expressions: ExpressionInfo[];
+  can_activate: boolean;
+  available_expressions: string[];
+}
+
+export interface ExpressionType {
+  name: string;
+  description: string;
+}
+
+export interface ExpressionTypesResponse {
+  expressions: ExpressionType[];
+}

@@ -486,6 +486,29 @@ export const api = {
       request<import("@/types").ArchetypeRulesResponse>(
         `/studio/archetype-rules/${archetype}`
       ),
+    // Avatar Generation (Phase 4.1 & 4.2)
+    generateAvatar: (characterId: string, appearanceDescription?: string) =>
+      request<import("@/types").AvatarGenerationResponse>(
+        `/studio/characters/${characterId}/generate-avatar`,
+        {
+          method: "POST",
+          body: JSON.stringify({ appearance_description: appearanceDescription }),
+        }
+      ),
+    generateExpression: (characterId: string, expression: string) =>
+      request<import("@/types").AvatarGenerationResponse>(
+        `/studio/characters/${characterId}/generate-expression`,
+        {
+          method: "POST",
+          body: JSON.stringify({ expression }),
+        }
+      ),
+    getAvatarStatus: (characterId: string) =>
+      request<import("@/types").AvatarStatusResponse>(
+        `/studio/characters/${characterId}/avatar-status`
+      ),
+    getExpressionTypes: () =>
+      request<import("@/types").ExpressionTypesResponse>("/studio/expression-types"),
   },
 };
 

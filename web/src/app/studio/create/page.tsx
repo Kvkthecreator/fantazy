@@ -298,16 +298,17 @@ export default function CreateCharacterWizard() {
               </div>
             </div>
 
-            {/* Avatar (placeholder for now) */}
+            {/* Avatar Guidance */}
             <div className="space-y-2">
-              <Label>Avatar (optional for draft)</Label>
-              <div className="flex items-center gap-3 rounded-lg border border-dashed border-border p-4">
-                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-2xl">
+              <Label>Avatar</Label>
+              <div className="flex items-center gap-4 rounded-lg border border-dashed border-primary/30 bg-primary/5 p-4">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-2xl font-semibold text-muted-foreground">
                   {draft.name ? draft.name[0].toUpperCase() : '?'}
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm text-muted-foreground">
-                    Avatar upload/generation coming soon. Required for activation.
+                <div className="flex-1 space-y-1">
+                  <p className="font-medium text-sm">Generated after creation</p>
+                  <p className="text-xs text-muted-foreground">
+                    After saving, you&apos;ll be directed to the Assets tab where you can generate your character&apos;s hero avatar and expression pack. The avatar is required for character activation.
                   </p>
                 </div>
               </div>
@@ -581,57 +582,47 @@ export default function CreateCharacterWizard() {
               </div>
             </div>
 
-            {/* Status Selection */}
+            {/* Status Info */}
             <div className="space-y-3">
-              <Label>Save as</Label>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={() => setDraft((prev) => ({ ...prev, status: 'draft' }))}
-                  className={cn(
-                    'flex flex-col items-start rounded-lg border p-4 text-left transition',
-                    draft.status === 'draft'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-foreground/30'
-                  )}
-                >
+              <Label>Initial Status</Label>
+              <div className="rounded-lg border border-border p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-yellow-500"></span>
                   <span className="font-medium">Draft</span>
-                  <span className="text-xs text-muted-foreground">
-                    Save for later. Not visible to users, not chat-ready.
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDraft((prev) => ({ ...prev, status: 'active' }))}
-                  disabled={!draft.avatarUrl}
-                  className={cn(
-                    'flex flex-col items-start rounded-lg border p-4 text-left transition',
-                    draft.status === 'active'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-foreground/30',
-                    !draft.avatarUrl && 'opacity-50 cursor-not-allowed'
-                  )}
-                >
-                  <span className="font-medium">Active</span>
-                  <span className="text-xs text-muted-foreground">
-                    {draft.avatarUrl
-                      ? 'Chat-ready and visible to users.'
-                      : 'Requires avatar to activate.'}
-                  </span>
-                </button>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Your character will be saved as a draft. After creation, you&apos;ll generate the hero avatar in the Assets tab, then activate the character to make it chat-ready.
+                </p>
               </div>
             </div>
 
             {/* What's Next */}
+            <div className="rounded-lg bg-primary/5 border border-primary/20 p-4">
+              <p className="text-sm font-medium">Next Steps After Creation:</p>
+              <ol className="mt-2 space-y-2 text-sm text-muted-foreground">
+                <li className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary text-xs text-primary-foreground">1</span>
+                  <span><strong>Generate Hero Avatar</strong> - Required for activation</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs">2</span>
+                  <span>Generate Expression Pack (optional)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-xs">3</span>
+                  <span>Activate character to make chat-ready</span>
+                </li>
+              </ol>
+            </div>
+
+            {/* Additional Content */}
             <div className="rounded-lg bg-muted/50 p-4">
-              <p className="text-sm font-medium">What you can add later:</p>
+              <p className="text-sm font-medium">Optional additions:</p>
               <ul className="mt-2 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
                 <li>• Backstory (short & full)</li>
                 <li>• Current stressor / life context</li>
                 <li>• Likes & dislikes</li>
                 <li>• Additional starter prompts</li>
-                <li>• Expression images</li>
-                <li>• Scene images</li>
                 <li>• World attachment</li>
                 <li>• Advanced tone settings</li>
               </ul>
@@ -661,7 +652,7 @@ export default function CreateCharacterWizard() {
           </Button>
         ) : (
           <Button onClick={handleSubmit} disabled={isSubmitting || !canProceed()}>
-            {isSubmitting ? 'Creating...' : `Create ${draft.status === 'draft' ? 'Draft' : 'Character'}`}
+            {isSubmitting ? 'Creating...' : 'Create Character'}
           </Button>
         )}
       </div>

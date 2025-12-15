@@ -9,13 +9,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api, APIError } from '@/lib/api/client'
-import type { Character } from '@/types'
+import type { Character, AvatarStatusResponse } from '@/types'
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type EditTab = 'overview' | 'backstory' | 'opening' | 'conversation' | 'advanced'
+type EditTab = 'overview' | 'assets' | 'backstory' | 'opening' | 'conversation' | 'advanced'
+
+// Available expressions for the expression pack
+const EXPRESSION_TYPES = [
+  { name: 'smile', label: 'Smile', desc: 'Warmly smiling, happy' },
+  { name: 'shy', label: 'Shy', desc: 'Slight blush, looking down' },
+  { name: 'thoughtful', label: 'Thoughtful', desc: 'Contemplative, looking aside' },
+  { name: 'surprised', label: 'Surprised', desc: 'Eyes wide, eyebrows raised' },
+  { name: 'annoyed', label: 'Annoyed', desc: 'One eyebrow raised' },
+  { name: 'flirty', label: 'Flirty', desc: 'Playful smirk' },
+  { name: 'sad', label: 'Sad', desc: 'Downcast eyes, melancholic' },
+]
 
 // Helper to extract error detail from APIError
 function getErrorDetail(err: unknown, fallback: string): string {
@@ -48,6 +59,13 @@ export default function CharacterDetailPage() {
   const [regenerateFeedback, setRegenerateFeedback] = useState('')
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false)
 
+  // Avatar Generation state
+  const [avatarStatus, setAvatarStatus] = useState<AvatarStatusResponse | null>(null)
+  const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false)
+  const [generatingExpression, setGeneratingExpression] = useState<string | null>(null)
+  const [appearanceDescription, setAppearanceDescription] = useState('')
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+
   // Editable fields
   const [editForm, setEditForm] = useState({
     short_backstory: '',
@@ -62,7 +80,68 @@ export default function CharacterDetailPage() {
 
   useEffect(() => {
     fetchCharacter()
+    fetchAvatarStatus()
   }, [characterId])
+
+  const fetchAvatarStatus = async () => {
+    try {
+      const status = await api.studio.getAvatarStatus(characterId)
+      setAvatarStatus(status)
+    } catch {
+      // Avatar status might not exist yet, that's okay
+      setAvatarStatus(null)
+    }
+  }
+
+  const handleGenerateAvatar = async () => {
+    setIsGeneratingAvatar(true)
+    setAvatarError(null)
+
+    try {
+      const result = await api.studio.generateAvatar(
+        characterId,
+        appearanceDescription || undefined
+      )
+
+      if (!result.success) {
+        setAvatarError(result.error || 'Failed to generate avatar')
+        return
+      }
+
+      // Refresh character and avatar status
+      await fetchCharacter()
+      await fetchAvatarStatus()
+      setSaveMessage('Hero avatar generated successfully!')
+      setTimeout(() => setSaveMessage(null), 3000)
+    } catch (err) {
+      setAvatarError(getErrorDetail(err, 'Failed to generate avatar'))
+    } finally {
+      setIsGeneratingAvatar(false)
+    }
+  }
+
+  const handleGenerateExpression = async (expression: string) => {
+    setGeneratingExpression(expression)
+    setAvatarError(null)
+
+    try {
+      const result = await api.studio.generateExpression(characterId, expression)
+
+      if (!result.success) {
+        setAvatarError(result.error || `Failed to generate ${expression} expression`)
+        return
+      }
+
+      // Refresh avatar status
+      await fetchAvatarStatus()
+      setSaveMessage(`${expression} expression generated!`)
+      setTimeout(() => setSaveMessage(null), 3000)
+    } catch (err) {
+      setAvatarError(getErrorDetail(err, `Failed to generate ${expression} expression`))
+    } finally {
+      setGeneratingExpression(null)
+    }
+  }
 
   const fetchCharacter = async () => {
     try {
@@ -183,6 +262,7 @@ export default function CharacterDetailPage() {
 
   const tabs: { id: EditTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
+    { id: 'assets', label: 'Assets' },
     { id: 'backstory', label: 'Backstory' },
     { id: 'opening', label: 'Opening Beat' },
     { id: 'conversation', label: 'Conversation' },
@@ -222,8 +302,11 @@ export default function CharacterDetailPage() {
         </div>
         <div className="flex items-center gap-2">
           {character.status === 'draft' ? (
-            <Button onClick={activateCharacter} disabled={!character.avatar_url}>
-              {character.avatar_url ? 'Activate' : 'Add Avatar to Activate'}
+            <Button
+              onClick={activateCharacter}
+              disabled={!avatarStatus?.can_activate}
+            >
+              {avatarStatus?.can_activate ? 'Activate' : 'Generate Avatar First'}
             </Button>
           ) : (
             <Button variant="outline" onClick={deactivateCharacter}>
@@ -329,6 +412,198 @@ export default function CharacterDetailPage() {
               <pre className="text-xs overflow-auto max-h-40 bg-muted p-2 rounded">
                 {JSON.stringify(character.boundaries, null, 2)}
               </pre>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'assets' && (
+        <div className="space-y-6">
+          {/* Avatar Error Display */}
+          {avatarError && (
+            <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              {avatarError}
+            </div>
+          )}
+
+          {/* Hero Avatar Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                Hero Avatar
+                {avatarStatus?.has_hero_avatar && (
+                  <span className="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                )}
+              </CardTitle>
+              <CardDescription>
+                The primary visual identity for your character. Required for activation.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {avatarStatus?.has_hero_avatar ? (
+                <div className="flex items-start gap-6">
+                  <div className="relative">
+                    <img
+                      src={avatarStatus.hero_avatar_url}
+                      alt={`${character.name} hero avatar`}
+                      className="h-40 w-40 rounded-lg object-cover border border-border"
+                    />
+                    <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
+                      Primary
+                    </div>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <p className="text-sm text-muted-foreground">
+                      Your character has a hero avatar. You can regenerate it with a different appearance.
+                    </p>
+                    <div className="space-y-2">
+                      <Label className="text-sm">Appearance Description (optional)</Label>
+                      <Input
+                        placeholder="e.g., Silver hair, bright blue eyes, wearing a cozy sweater..."
+                        value={appearanceDescription}
+                        onChange={(e) => setAppearanceDescription(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Leave empty to auto-derive from archetype and personality.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleGenerateAvatar}
+                      disabled={isGeneratingAvatar}
+                      variant="outline"
+                    >
+                      {isGeneratingAvatar ? 'Regenerating...' : 'Regenerate Avatar'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-6">
+                    <div className="h-24 w-24 rounded-lg bg-muted flex items-center justify-center text-4xl text-muted-foreground">
+                      {character.name[0].toUpperCase()}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <p className="font-medium">No Hero Avatar Yet</p>
+                      <p className="text-sm text-muted-foreground">
+                        Generate a hero avatar to complete your character&apos;s visual identity.
+                        This is required before you can activate the character.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Appearance Description (optional)</Label>
+                    <Input
+                      placeholder="e.g., Silver hair, bright blue eyes, wearing a cozy sweater..."
+                      value={appearanceDescription}
+                      onChange={(e) => setAppearanceDescription(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Describe how your character looks. Leave empty to auto-derive from archetype and personality.
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={handleGenerateAvatar}
+                    disabled={isGeneratingAvatar}
+                    className="w-full"
+                  >
+                    {isGeneratingAvatar ? 'Generating Hero Avatar...' : 'Generate Hero Avatar'}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Expression Pack Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Expression Pack</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {avatarStatus?.expression_count || 0} / 7
+                </span>
+              </CardTitle>
+              <CardDescription>
+                Generate expression variants to make your character feel more alive.
+                {!avatarStatus?.has_hero_avatar && ' Generate a hero avatar first.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+                {EXPRESSION_TYPES.map((expr) => {
+                  const generated = avatarStatus?.expressions.find(e => e.expression === expr.name)
+                  const isGenerating = generatingExpression === expr.name
+
+                  return (
+                    <div
+                      key={expr.name}
+                      className={cn(
+                        'relative rounded-lg border p-2 text-center transition',
+                        generated ? 'border-green-500/50 bg-green-500/5' : 'border-border',
+                        !avatarStatus?.has_hero_avatar && 'opacity-50'
+                      )}
+                    >
+                      {generated ? (
+                        <img
+                          src={generated.image_url}
+                          alt={`${character.name} ${expr.label}`}
+                          className="aspect-square w-full rounded object-cover"
+                        />
+                      ) : (
+                        <div className="aspect-square w-full rounded bg-muted flex items-center justify-center">
+                          {isGenerating ? (
+                            <span className="text-xs text-muted-foreground">Generating...</span>
+                          ) : (
+                            <span className="text-2xl text-muted-foreground/50">+</span>
+                          )}
+                        </div>
+                      )}
+                      <p className="mt-1 text-xs font-medium">{expr.label}</p>
+                      {!generated && avatarStatus?.has_hero_avatar && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="mt-1 h-6 text-xs w-full"
+                          onClick={() => handleGenerateExpression(expr.name)}
+                          disabled={isGenerating || !!generatingExpression}
+                        >
+                          {isGenerating ? '...' : 'Generate'}
+                        </Button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Activation Ready Status */}
+          <Card>
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    'h-3 w-3 rounded-full',
+                    avatarStatus?.can_activate ? 'bg-green-500' : 'bg-yellow-500'
+                  )} />
+                  <div>
+                    <p className="font-medium">
+                      {avatarStatus?.can_activate ? 'Ready for Activation' : 'Not Ready for Activation'}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {avatarStatus?.can_activate
+                        ? 'Your character has a hero avatar and can be activated.'
+                        : 'Generate a hero avatar to enable activation.'}
+                    </p>
+                  </div>
+                </div>
+                {avatarStatus?.can_activate && character.status === 'draft' && (
+                  <Button onClick={activateCharacter}>
+                    Activate Character
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         </div>
