@@ -1,48 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 225 14% 12%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
+  /* Neutral, low-noise base */
+  --background: 0 0% 99%;
+  --foreground: 220 15% 14%;
+  --muted: 210 15% 95%;
+  --muted-foreground: 220 10% 46%;
   --card: 0 0% 100%;
-  --card-foreground: 225 14% 12%;
+  --card-foreground: 220 15% 14%;
   --popover: 0 0% 100%;
-  --popover-foreground: 225 14% 12%;
-  --border: 220 14% 90%;
-  --input: 220 14% 90%;
-  --ring: 228 67% 53%;
-  --primary: 228 67% 53%;
+  --popover-foreground: 220 15% 14%;
+  --border: 220 13% 88%;
+  --input: 220 13% 88%;
+  /* Warm accent to avoid feeling sterile */
+  --primary: 12 74% 52%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 225 14% 12%;
-  --accent: 210 100% 50%;
-  --accent-foreground: 0 0% 100%;
+  --secondary: 210 12% 92%;
+  --secondary-foreground: 220 15% 18%;
+  --accent: 205 40% 45%;
+  --accent-foreground: 210 40% 98%;
   --destructive: 0 72% 50%;
   --destructive-foreground: 0 0% 98%;
+  --ring: 12 74% 52%;
   --radius: 12px;
 }
 
 .dark {
-  --background: 222 47% 6%;
-  --foreground: 210 40% 98%;
-  --muted: 222 47% 10%;
-  --muted-foreground: 215 16% 70%;
-  --card: 222 47% 8%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222 47% 8%;
-  --popover-foreground: 210 40% 98%;
-  --border: 217 19% 27%;
-  --input: 217 19% 27%;
-  --ring: 228 67% 60%;
-  --primary: 228 67% 60%;
-  --primary-foreground: 222 47% 6%;
-  --secondary: 217 19% 16%;
-  --secondary-foreground: 210 40% 98%;
-  --accent: 196 100% 70%;
-  --accent-foreground: 222 47% 6%;
-  --destructive: 0 90% 63%;
-  --destructive-foreground: 222 47% 6%;
+  --background: 220 16% 8%;
+  --foreground: 210 20% 94%;
+  --muted: 220 12% 14%;
+  --muted-foreground: 215 15% 70%;
+  --card: 220 12% 10%;
+  --card-foreground: 210 20% 94%;
+  --popover: 220 12% 10%;
+  --popover-foreground: 210 20% 94%;
+  --border: 220 10% 22%;
+  --input: 220 10% 22%;
+  --primary: 12 74% 56%;
+  --primary-foreground: 220 16% 8%;
+  --secondary: 220 12% 16%;
+  --secondary-foreground: 210 20% 94%;
+  --accent: 205 35% 60%;
+  --accent-foreground: 220 16% 8%;
+  --destructive: 0 84% 58%;
+  --destructive-foreground: 220 16% 8%;
+  --ring: 12 74% 56%;
 }
 
 @theme inline {

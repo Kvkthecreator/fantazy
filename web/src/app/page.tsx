@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SectionHeader } from "@/components/ui/section-header";
+import { CharacterPreviewCard } from "@/components/characters";
 
 const CHARACTERS = [
   {
@@ -86,23 +88,18 @@ export default async function Home() {
         </section>
 
         <section id="characters" className="space-y-6">
-          <div>
-            <h2 className="text-2xl font-semibold">Featured characters</h2>
-            <p className="text-sm text-muted-foreground">
-              A taste of who you can meet. See the full roster after sign-in.
-            </p>
-          </div>
+          <SectionHeader
+            title="Featured characters"
+            description="A taste of who you can meet. See the full roster after sign-in."
+          />
           <div className="grid gap-4 md:grid-cols-3">
             {CHARACTERS.map((char) => (
-              <div key={char.name} className="rounded-xl border bg-card p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{char.name}</h3>
-                  <span className="rounded-full bg-muted px-2 py-1 text-xs font-medium capitalize text-muted-foreground">
-                    {char.archetype}
-                  </span>
-                </div>
-                <p className="mt-2 text-sm text-muted-foreground">{char.description}</p>
-              </div>
+              <CharacterPreviewCard
+                key={char.name}
+                name={char.name}
+                archetype={char.archetype}
+                description={char.description}
+              />
             ))}
           </div>
           <div>
@@ -116,7 +113,7 @@ export default async function Home() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold">How it works</h2>
+          <SectionHeader title="How it works" />
           <div className="grid gap-3 sm:grid-cols-3">
             {HOW_IT_WORKS.map((item) => (
               <div key={item} className="rounded-lg border bg-card p-4 text-sm text-foreground">
@@ -127,7 +124,7 @@ export default async function Home() {
         </section>
 
         <section className="space-y-3 rounded-xl border bg-card p-6">
-          <h3 className="text-lg font-semibold">Privacy & Safety</h3>
+          <SectionHeader title="Privacy & Safety" />
           <p className="text-sm text-muted-foreground">
             Sign-in is required to chat. Characters are SFW by default; you control adult mode. Your conversations stay private.
           </p>

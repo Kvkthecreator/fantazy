@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { CharacterSummary } from "@/types";
+import { SectionHeader } from "@/components/ui/section-header";
 
 export default function DiscoverPage() {
   const [characters, setCharacters] = useState<CharacterSummary[]>([]);
@@ -59,12 +60,10 @@ export default function DiscoverPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Discover</h1>
-        <p className="text-muted-foreground">
-          Find your next cozy companion
-        </p>
-      </div>
+      <SectionHeader
+        title="Discover"
+        description="Find your next cozy companion."
+      />
 
       {/* Archetype filters */}
       <div className="flex flex-wrap gap-2">
