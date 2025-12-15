@@ -14,9 +14,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.deps import get_db
+from app.services.storage import StorageService
 
 
 router = APIRouter(prefix="/episode-templates", tags=["Episode Templates"])
+
+
+async def _get_signed_url(path: Optional[str]) -> Optional[str]:
+    """Generate a signed URL for a storage path."""
+    if not path:
+        return None
+    storage = StorageService.get_instance()
+    return await storage.create_signed_url("scenes", path, expires_in=3600)
 
 
 # =============================================================================
@@ -102,7 +111,14 @@ async def list_character_episodes(
         "status": status,
     })
 
-    return [EpisodeTemplateSummary(**dict(row)) for row in rows]
+    # Generate signed URLs for background images
+    results = []
+    for row in rows:
+        data = dict(row)
+        data["background_image_url"] = await _get_signed_url(data.get("background_image_url"))
+        results.append(EpisodeTemplateSummary(**data))
+
+    return results
 
 
 @router.get("/{template_id}", response_model=EpisodeTemplate)
@@ -127,7 +143,9 @@ async def get_episode_template(
             detail="Episode template not found"
         )
 
-    return EpisodeTemplate(**dict(row))
+    data = dict(row)
+    data["background_image_url"] = await _get_signed_url(data.get("background_image_url"))
+    return EpisodeTemplate(**data)
 
 
 @router.get("/character/{character_id}/default", response_model=EpisodeTemplate)
@@ -154,7 +172,9 @@ async def get_default_episode(
             detail="No default episode template found for character"
         )
 
-    return EpisodeTemplate(**dict(row))
+    data = dict(row)
+    data["background_image_url"] = await _get_signed_url(data.get("background_image_url"))
+    return EpisodeTemplate(**data)
 
 
 @router.post("", response_model=EpisodeTemplate, status_code=status.HTTP_201_CREATED)
