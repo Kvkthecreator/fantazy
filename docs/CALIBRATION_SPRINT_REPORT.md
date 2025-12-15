@@ -15,13 +15,15 @@ End-to-end validation of the Studio pipeline: Character Core → Conversation Ig
 | Mira | barista | active | ✓ | ✓ | 0 | ✓ |
 | Kai | neighbor | active | ✓ | ✓ | 0 | ✓ |
 | Sora | coworker | active | ✓ | ✓ | 0 | ✓ |
-| Luna | comforting | draft | - | - | 0 | ✓ |
-| Raven | mysterious | draft | - | - | 0 | ✓ |
-| Felix | playful | draft | - | - | 0 | ✓ |
-| Morgan | mentor | draft | - | - | 0 | ✓ |
-| Ash | brooding | draft | - | - | 0 | ✓ |
-| Jade | flirty | draft | - | - | 0 | ✓ |
-| River | chaotic | draft | - | - | 0 | ✓ |
+| Luna | comforting | draft | ✓ | ✓ | 0 | ✓ |
+| Raven | mysterious | draft | ✓ | ✓ | 0 | ✓ |
+| Felix | playful | draft | ✓ | ✓ | 0 | ✓ |
+| Morgan | mentor | draft | ✓ | ✓ | 0 | ✓ |
+| Ash | brooding | draft | ✓ | ✓ | 0 | ✓ |
+| Jade | flirty | draft | ✓ | ✓ | 0 | ✓ |
+| River | chaotic | draft | ✓ | ✓ | 0 | ✓ |
+
+**All 10 characters now have hero avatars generated via FLUX (Replicate).**
 
 ---
 
@@ -131,12 +133,13 @@ Score each character 1-5:
 - [x] Opening beat quality review (all 3 existing)
 - [x] Created 7 new characters with opening beats
 - [x] All 10 characters have ignition content
+- [x] Generated hero avatars for all 7 new characters
+- [x] All 10 characters have avatar_url set
 
-### Pending (Manual via Studio UI)
-- [ ] Generate hero avatars for 7 new characters
+### Pending (Optional Enhancement)
 - [ ] Generate expressions for all 10 characters (30 total)
 - [ ] Apply rubric scoring after visual assets complete
-- [ ] Activate characters meeting threshold
+- [ ] Activate new characters (change status draft → active)
 
 ---
 
