@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { isInternalEmail } from '@/lib/internal-access'
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -32,14 +33,25 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  const path = request.nextUrl.pathname
+
   // Protected routes - redirect to login if not authenticated
-  const isProtectedRoute = request.nextUrl.pathname.startsWith('/dashboard')
+  const isProtectedRoute =
+    path.startsWith('/dashboard') ||
+    path.startsWith('/studio')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
                       request.nextUrl.pathname.startsWith('/signup')
 
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  // Internal-only routes
+  if (path.startsWith('/studio') && user && !isInternalEmail(user.email)) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
     return NextResponse.redirect(url)
   }
 
