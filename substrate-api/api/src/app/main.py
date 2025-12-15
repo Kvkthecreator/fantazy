@@ -27,6 +27,7 @@ from app.routes import (
     messages,
     relationships,
     scenes,
+    studio,
     subscription,
     users,
 )
@@ -119,6 +120,7 @@ app.include_router(subscription.router, tags=["Subscription"])
 app.include_router(subscription.webhook_router, tags=["Webhooks"])
 app.include_router(credits.router, tags=["Credits"])
 app.include_router(credits.topup_router, tags=["Top-Up"])
+app.include_router(studio.router, tags=["Studio"])
 
 
 @app.get("/")

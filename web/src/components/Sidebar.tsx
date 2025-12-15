@@ -1,15 +1,13 @@
 'use client'
 
 import Link from "next/link"
-import { usePathname, useRouter } from "next/navigation"
-import { createClient } from "@/lib/supabase/client"
+import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { Compass, Heart, Images, LayoutDashboard, LogOut, MessageCircle, ChevronLeft, ChevronRight, Settings } from "lucide-react"
+import { Compass, Heart, Images, LayoutDashboard, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
-import { Button } from "@/components/ui/button"
+import { UserMenu } from "@/components/UserMenu"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
-import { SparkBalance } from "@/components/sparks"
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -17,13 +15,10 @@ const navigation = [
   { name: "My Chats", href: "/dashboard/chats", icon: MessageCircle },
   { name: "Our Story", href: "/dashboard/story", icon: Images },
   { name: "Memories", href: "/dashboard/memories", icon: Heart },
-  { name: "Settings", href: "/settings", icon: Settings },
 ]
 
 export function Sidebar({ user }: { user: User }) {
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
   // Persist collapsed state
@@ -38,11 +33,6 @@ export function Sidebar({ user }: { user: User }) {
     const newValue = !isCollapsed
     setIsCollapsed(newValue)
     localStorage.setItem("sidebar-collapsed", String(newValue))
-  }
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push("/login")
   }
 
   return (
@@ -121,60 +111,12 @@ export function Sidebar({ user }: { user: User }) {
         })}
       </nav>
 
-      {/* Spark Balance */}
+      {/* User Menu (includes sparks, settings, sign out) */}
       <div className={cn(
         "border-t border-border py-3",
-        isCollapsed ? "px-2" : "px-4"
+        isCollapsed ? "px-2 flex justify-center" : "px-3"
       )}>
-        <SparkBalance
-          compact={isCollapsed}
-          showBuyButton={!isCollapsed}
-          className={isCollapsed ? "justify-center" : ""}
-        />
-      </div>
-
-      {/* User section */}
-      <div className={cn(
-        "border-t border-border py-4",
-        isCollapsed ? "px-2" : "px-4"
-      )}>
-        {isCollapsed ? (
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-              {user.email?.[0].toUpperCase()}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 text-muted-foreground hover:text-foreground"
-              onClick={handleSignOut}
-              title="Sign out"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 rounded-xl bg-muted/60 p-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary shrink-0">
-                {user.email?.[0].toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-foreground truncate">{user.email}</p>
-                <p className="text-xs text-muted-foreground">Signed in</p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-3 w-full justify-center gap-2 text-muted-foreground hover:text-foreground"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4" />
-              Sign out
-            </Button>
-          </>
-        )}
+        <UserMenu user={user} collapsed={isCollapsed} />
       </div>
     </aside>
   )

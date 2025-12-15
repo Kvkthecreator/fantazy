@@ -1,0 +1,591 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useParams, useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { cn } from '@/lib/utils'
+
+// =============================================================================
+// Types
+// =============================================================================
+
+type Character = {
+  id: string
+  name: string
+  slug: string
+  archetype: string
+  avatar_url: string | null
+  baseline_personality: Record<string, unknown>
+  tone_style: Record<string, unknown>
+  speech_patterns: Record<string, unknown>
+  short_backstory: string | null
+  full_backstory: string | null
+  current_stressor: string | null
+  likes: string[]
+  dislikes: string[]
+  opening_situation: string | null
+  opening_line: string | null
+  system_prompt: string
+  starter_prompts: string[]
+  boundaries: Record<string, unknown>
+  world_id: string | null
+  status: 'draft' | 'active'
+  categories: string[]
+  content_rating: string
+  created_at: string
+  updated_at: string
+}
+
+type EditTab = 'overview' | 'backstory' | 'opening' | 'conversation' | 'advanced'
+
+// =============================================================================
+// Component
+// =============================================================================
+
+export default function CharacterDetailPage() {
+  const params = useParams()
+  const router = useRouter()
+  const characterId = params.id as string
+
+  const [character, setCharacter] = useState<Character | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<EditTab>('overview')
+  const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  // Editable fields
+  const [editForm, setEditForm] = useState({
+    short_backstory: '',
+    full_backstory: '',
+    current_stressor: '',
+    likes: [] as string[],
+    dislikes: [] as string[],
+    opening_situation: '',
+    opening_line: '',
+    starter_prompts: [] as string[],
+  })
+
+  useEffect(() => {
+    fetchCharacter()
+  }, [characterId])
+
+  const fetchCharacter = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}`, {
+        credentials: 'include',
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to load character')
+      }
+
+      const data = await res.json()
+      setCharacter(data)
+      setEditForm({
+        short_backstory: data.short_backstory || '',
+        full_backstory: data.full_backstory || '',
+        current_stressor: data.current_stressor || '',
+        likes: data.likes || [],
+        dislikes: data.dislikes || [],
+        opening_situation: data.opening_situation || '',
+        opening_line: data.opening_line || '',
+        starter_prompts: data.starter_prompts || [],
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load character')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveChanges = async (fields: Partial<typeof editForm>) => {
+    setSaving(true)
+    setSaveMessage(null)
+
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(fields),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to save')
+      }
+
+      const updated = await res.json()
+      setCharacter(updated)
+      setSaveMessage('Saved successfully')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const activateCharacter = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}/activate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to activate')
+      }
+
+      const updated = await res.json()
+      setCharacter(updated)
+      setSaveMessage('Character activated!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to activate')
+    }
+  }
+
+  const deactivateCharacter = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}/deactivate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to deactivate')
+      }
+
+      const updated = await res.json()
+      setCharacter(updated)
+      setSaveMessage('Character moved to draft')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to deactivate')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-muted-foreground">Loading character...</p>
+      </div>
+    )
+  }
+
+  if (error || !character) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <p className="text-destructive">{error || 'Character not found'}</p>
+        </div>
+        <Button variant="outline" asChild>
+          <Link href="/studio">Back to Studio</Link>
+        </Button>
+      </div>
+    )
+  }
+
+  const tabs: { id: EditTab; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'backstory', label: 'Backstory' },
+    { id: 'opening', label: 'Opening Beat' },
+    { id: 'conversation', label: 'Conversation' },
+    { id: 'advanced', label: 'Advanced' },
+  ]
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div className="flex items-center gap-4">
+          <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center text-2xl">
+            {character.avatar_url ? (
+              <img src={character.avatar_url} alt={character.name} className="h-full w-full rounded-full object-cover" />
+            ) : (
+              character.name[0].toUpperCase()
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">{character.name}</h1>
+              <span
+                className={cn(
+                  'rounded-full px-2 py-0.5 text-xs font-medium',
+                  character.status === 'active'
+                    ? 'bg-green-500/20 text-green-600'
+                    : 'bg-yellow-500/20 text-yellow-600'
+                )}
+              >
+                {character.status}
+              </span>
+            </div>
+            <p className="text-sm text-muted-foreground capitalize">
+              {character.archetype} &middot; {character.content_rating.toUpperCase()}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {character.status === 'draft' ? (
+            <Button onClick={activateCharacter} disabled={!character.avatar_url}>
+              {character.avatar_url ? 'Activate' : 'Add Avatar to Activate'}
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={deactivateCharacter}>
+              Move to Draft
+            </Button>
+          )}
+          <Button variant="ghost" asChild>
+            <Link href="/studio">Back</Link>
+          </Button>
+        </div>
+      </div>
+
+      {/* Save feedback */}
+      {saveMessage && (
+        <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3 text-sm text-green-600">
+          {saveMessage}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              'px-4 py-2 text-sm font-medium transition border-b-2 -mb-px',
+              activeTab === tab.id
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Character Info</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Name</p>
+                <p className="font-medium">{character.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Archetype</p>
+                <p className="font-medium capitalize">{character.archetype}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Slug</p>
+                <p className="font-mono text-sm">{character.slug}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Created</p>
+                <p className="text-sm">{new Date(character.created_at).toLocaleDateString()}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Opening Beat</CardTitle>
+              <CardDescription>How the first conversation starts</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {character.opening_situation ? (
+                <>
+                  <p className="text-sm italic text-muted-foreground">{character.opening_situation}</p>
+                  <div className="flex gap-2">
+                    <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+                      {character.name[0]}
+                    </div>
+                    <p className="text-sm">{character.opening_line}</p>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">No opening beat configured</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Personality</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs overflow-auto max-h-40 bg-muted p-2 rounded">
+                {JSON.stringify(character.baseline_personality, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Boundaries</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs overflow-auto max-h-40 bg-muted p-2 rounded">
+                {JSON.stringify(character.boundaries, null, 2)}
+              </pre>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {activeTab === 'backstory' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Backstory & Life Context</CardTitle>
+            <CardDescription>Optional enrichment that deepens the character</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label>Short Backstory</Label>
+              <p className="text-xs text-muted-foreground">Brief intro shown on character cards (max 500 chars)</p>
+              <textarea
+                maxLength={500}
+                className="min-h-[100px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={editForm.short_backstory}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, short_backstory: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Full Backstory</Label>
+              <p className="text-xs text-muted-foreground">Detailed history, only used for context (max 5000 chars)</p>
+              <textarea
+                maxLength={5000}
+                className="min-h-[200px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={editForm.full_backstory}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, full_backstory: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Current Stressor</Label>
+              <p className="text-xs text-muted-foreground">What&apos;s on their mind lately? Adds depth to conversations.</p>
+              <Input
+                maxLength={500}
+                value={editForm.current_stressor}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, current_stressor: e.target.value }))}
+                placeholder="e.g., Deadline stress, relationship trouble..."
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Likes</Label>
+                <p className="text-xs text-muted-foreground">Comma-separated</p>
+                <Input
+                  value={editForm.likes.join(', ')}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      likes: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                    }))
+                  }
+                  placeholder="coffee, rainy days, music..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Dislikes</Label>
+                <p className="text-xs text-muted-foreground">Comma-separated</p>
+                <Input
+                  value={editForm.dislikes.join(', ')}
+                  onChange={(e) =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      dislikes: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
+                    }))
+                  }
+                  placeholder="rudeness, early mornings..."
+                />
+              </div>
+            </div>
+
+            <Button
+              onClick={() =>
+                saveChanges({
+                  short_backstory: editForm.short_backstory || null,
+                  full_backstory: editForm.full_backstory || null,
+                  current_stressor: editForm.current_stressor || null,
+                  likes: editForm.likes,
+                  dislikes: editForm.dislikes,
+                })
+              }
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save Backstory'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'opening' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Opening Beat</CardTitle>
+            <CardDescription>The first impression that defines the chat experience</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label>Opening Situation</Label>
+              <p className="text-xs text-muted-foreground">Set the scene for the first message</p>
+              <textarea
+                maxLength={1000}
+                className="min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={editForm.opening_situation}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, opening_situation: e.target.value }))}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Opening Line</Label>
+              <p className="text-xs text-muted-foreground">Character&apos;s first message</p>
+              <textarea
+                maxLength={500}
+                className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={editForm.opening_line}
+                onChange={(e) => setEditForm((prev) => ({ ...prev, opening_line: e.target.value }))}
+              />
+            </div>
+
+            {/* Preview */}
+            {editForm.opening_situation && editForm.opening_line && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Preview</p>
+                <p className="text-sm italic text-muted-foreground">{editForm.opening_situation}</p>
+                <div className="flex gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+                    {character.name[0]}
+                  </div>
+                  <div className="flex-1 rounded-lg bg-background p-3 text-sm">{editForm.opening_line}</div>
+                </div>
+              </div>
+            )}
+
+            <Button
+              onClick={() =>
+                saveChanges({
+                  opening_situation: editForm.opening_situation || null,
+                  opening_line: editForm.opening_line || null,
+                })
+              }
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save Opening Beat'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'conversation' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Conversation Config</CardTitle>
+            <CardDescription>Starter prompts and example messages</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label>Additional Starter Prompts</Label>
+              <p className="text-xs text-muted-foreground">
+                Alternative opening lines (one per line). The opening_line is always first.
+              </p>
+              <textarea
+                className="min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                value={editForm.starter_prompts.slice(1).join('\n')}
+                onChange={(e) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    starter_prompts: [
+                      prev.opening_line || character.opening_line || '',
+                      ...e.target.value.split('\n').filter(Boolean),
+                    ],
+                  }))
+                }
+                placeholder="One prompt per line..."
+              />
+            </div>
+
+            <Button
+              onClick={() => saveChanges({ starter_prompts: editForm.starter_prompts })}
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save Conversation Config'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeTab === 'advanced' && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>System Prompt</CardTitle>
+              <CardDescription>Auto-generated from character config. Read-only for now.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs overflow-auto max-h-80 bg-muted p-3 rounded whitespace-pre-wrap">
+                {character.system_prompt}
+              </pre>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>World Attachment</CardTitle>
+              <CardDescription>Optional: attach this character to a world</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {character.world_id ? (
+                <p className="text-sm">Attached to world: {character.world_id}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No world attached. World management coming soon.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Danger Zone</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Button
+                variant="destructive"
+                onClick={async () => {
+                  if (!confirm('Are you sure you want to delete this character? This cannot be undone.')) return
+                  try {
+                    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters/${characterId}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    })
+                    router.push('/studio')
+                  } catch {
+                    setError('Failed to delete character')
+                  }
+                }}
+              >
+                Delete Character
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}

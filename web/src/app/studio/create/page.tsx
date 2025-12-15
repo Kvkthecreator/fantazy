@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -9,198 +10,208 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 
-type Orientation = 'all' | 'female' | 'male'
-type Rating = 'sfw' | 'adult'
-type Visibility = 'private' | 'link-only'
+// =============================================================================
+// Types & Constants (aligned with backend contract)
+// =============================================================================
 
-type LoreEntry = { id: string; keyword: string; text: string }
-type AssetEntry = { id: string; label: string; fileName?: string }
+type CharacterStatus = 'draft' | 'active'
+type ContentRating = 'sfw' | 'adult'
+type FlirtingLevel = 'none' | 'playful' | 'moderate' | 'intense'
 
 type StudioDraft = {
-  profile: { name: string; intro: string }
-  details: string
-  opening: { situation: string; firstLine: string }
-  tags: { orientation: Orientation; rating: Rating; categories: string[] }
-  assets: {
-    hero?: string
-    expressions: AssetEntry[]
-    scenes: AssetEntry[]
+  // Step 1: Character Core
+  name: string
+  archetype: string
+  avatarUrl: string | null
+
+  // Step 2: Personality & Boundaries
+  personalityPreset: string
+  boundaries: {
+    nsfw_allowed: boolean
+    flirting_level: FlirtingLevel
+    can_reject_user: boolean
   }
-  lorebook: LoreEntry[]
-  visibility: Visibility
+  contentRating: ContentRating
+
+  // Step 3: Opening Beat
+  openingSituation: string
+  openingLine: string
+
+  // Step 4: Status
+  status: CharacterStatus
 }
 
-const categories = [
-  'romance',
-  'fantasy',
-  'slice-of-life',
-  'drama',
-  'action',
-  'scifi',
-  'horror',
-  'comedy',
-  'sports',
-  'other',
+// Locked archetype set (matches backend)
+const ARCHETYPES = [
+  { id: 'comforting', label: 'Comforting', desc: 'Warm, supportive, safe' },
+  { id: 'flirty', label: 'Flirty', desc: 'Playful romantic energy' },
+  { id: 'mysterious', label: 'Mysterious', desc: 'Intriguing, slow reveal' },
+  { id: 'cheerful', label: 'Cheerful', desc: 'Upbeat, energetic' },
+  { id: 'brooding', label: 'Brooding', desc: 'Deep, thoughtful, intense' },
+  { id: 'nurturing', label: 'Nurturing', desc: 'Caring, protective' },
+  { id: 'adventurous', label: 'Adventurous', desc: 'Bold, exciting' },
+  { id: 'intellectual', label: 'Intellectual', desc: 'Curious, analytical' },
+]
+
+// Personality presets (matches backend)
+const PERSONALITY_PRESETS = [
+  { id: 'warm_supportive', label: 'Warm & Supportive', desc: 'Patient, understanding, high agreeableness' },
+  { id: 'playful_teasing', label: 'Playful & Teasing', desc: 'Witty, charming, moderately extraverted' },
+  { id: 'mysterious_reserved', label: 'Mysterious & Reserved', desc: 'Guarded, intriguing, lower extraversion' },
+  { id: 'cheerful_energetic', label: 'Cheerful & Energetic', desc: 'Optimistic, enthusiastic, high extraversion' },
+  { id: 'calm_intellectual', label: 'Calm & Intellectual', desc: 'Analytical, curious, high openness' },
+]
+
+const FLIRTING_LEVELS: { id: FlirtingLevel; label: string }[] = [
+  { id: 'none', label: 'None' },
+  { id: 'playful', label: 'Playful' },
+  { id: 'moderate', label: 'Moderate' },
+  { id: 'intense', label: 'Intense' },
 ]
 
 const steps = [
-  'Profile',
-  'Details',
-  'Opening',
-  'Tags & Safety',
-  'Assets',
-  'Lorebook (Optional)',
-  'Review & Submit',
+  'Character Core',
+  'Personality & Boundaries',
+  'Opening Beat',
+  'Review & Save',
 ]
 
 function buildEmptyDraft(): StudioDraft {
   return {
-    profile: { name: '', intro: '' },
-    details: '',
-    opening: { situation: '', firstLine: '' },
-    tags: { orientation: 'all', rating: 'sfw', categories: [] },
-    assets: { expressions: [], scenes: [] },
-    lorebook: [],
-    visibility: 'private',
+    name: '',
+    archetype: '',
+    avatarUrl: null,
+    personalityPreset: 'warm_supportive',
+    boundaries: {
+      nsfw_allowed: false,
+      flirting_level: 'playful',
+      can_reject_user: true,
+    },
+    contentRating: 'sfw',
+    openingSituation: '',
+    openingLine: '',
+    status: 'draft',
   }
 }
 
 function pill(selected: boolean) {
   return cn(
-    'rounded-full border px-3 py-1 text-sm transition',
+    'rounded-full border px-3 py-1 text-sm transition cursor-pointer',
     selected
       ? 'border-primary bg-primary/10 text-primary'
-      : 'border-border bg-muted text-muted-foreground hover:text-foreground'
+      : 'border-border bg-muted text-muted-foreground hover:text-foreground hover:border-foreground/30'
   )
 }
 
+// =============================================================================
+// Component
+// =============================================================================
+
 export default function CreateCharacterWizard() {
+  const router = useRouter()
   const [draft, setDraft] = useState<StudioDraft>(buildEmptyDraft)
   const [currentStep, setCurrentStep] = useState(0)
-  const [status, setStatus] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  const expressionTargetText = useMemo(() => {
-    const count = draft.assets.expressions.length
-    if (count >= 7) return `${count}/7 (target 5–7 expressions)`
-    return `${count}/7 (aim for 5–7 expressions)`
-  }, [draft.assets.expressions.length])
+  // Validation helpers
+  const isStep1Valid = draft.name.trim().length >= 1 && draft.archetype !== ''
+  const isStep2Valid = draft.personalityPreset !== ''
+  const isStep3Valid = draft.openingSituation.trim().length >= 10 && draft.openingLine.trim().length >= 1
 
-  const sceneTargetText = useMemo(() => {
-    const count = draft.assets.scenes.length
-    if (count >= 2) return `${count}/2 (target 2 scenes)`
-    return `${count}/2 (aim for 2 scenes)`
-  }, [draft.assets.scenes.length])
-
-  const addExpression = () => {
-    const label = window.prompt('Label for this expression (e.g., shy, smile)')?.trim()
-    if (!label) return
-    setDraft((prev) => ({
-      ...prev,
-      assets: {
-        ...prev.assets,
-        expressions: [...prev.assets.expressions, { id: crypto.randomUUID(), label }],
-      },
-    }))
+  const canProceed = () => {
+    switch (currentStep) {
+      case 0: return isStep1Valid
+      case 1: return isStep2Valid
+      case 2: return isStep3Valid
+      case 3: return true
+      default: return false
+    }
   }
 
-  const addScene = () => {
-    const label = window.prompt('Scene label (e.g., cafe afternoon, home night)')?.trim()
-    if (!label) return
-    setDraft((prev) => ({
-      ...prev,
-      assets: {
-        ...prev.assets,
-        scenes: [...prev.assets.scenes, { id: crypto.randomUUID(), label }],
-      },
-    }))
-  }
+  const handleSubmit = async () => {
+    setIsSubmitting(true)
+    setError(null)
 
-  const removeExpression = (id: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      assets: {
-        ...prev.assets,
-        expressions: prev.assets.expressions.filter((item) => item.id !== id),
-      },
-    }))
-  }
-
-  const removeScene = (id: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      assets: {
-        ...prev.assets,
-        scenes: prev.assets.scenes.filter((item) => item.id !== id),
-      },
-    }))
-  }
-
-  const addLoreEntry = () => {
-    const keyword = window.prompt('Keyword trigger? (e.g., coffee, rooftop)')?.trim()
-    if (!keyword) return
-    const text = window.prompt('Lore text to inject when keyword appears?')?.trim()
-    if (!text) return
-    setDraft((prev) => ({
-      ...prev,
-      lorebook: [...prev.lorebook, { id: crypto.randomUUID(), keyword, text }],
-    }))
-  }
-
-  const removeLore = (id: string) => {
-    setDraft((prev) => ({
-      ...prev,
-      lorebook: prev.lorebook.filter((entry) => entry.id !== id),
-    }))
-  }
-
-  const toggleCategory = (category: string) => {
-    setDraft((prev) => {
-      const exists = prev.tags.categories.includes(category)
-      return {
-        ...prev,
-        tags: {
-          ...prev.tags,
-          categories: exists
-            ? prev.tags.categories.filter((c) => c !== category)
-            : [...prev.tags.categories, category],
+    try {
+      const payload = {
+        name: draft.name.trim(),
+        archetype: draft.archetype,
+        avatar_url: draft.avatarUrl,
+        personality_preset: draft.personalityPreset,
+        boundaries: {
+          nsfw_allowed: draft.boundaries.nsfw_allowed,
+          flirting_level: draft.boundaries.flirting_level,
+          relationship_max_stage: 'intimate',
+          avoided_topics: [],
+          can_reject_user: draft.boundaries.can_reject_user,
+          has_own_boundaries: true,
         },
+        content_rating: draft.contentRating,
+        opening_situation: draft.openingSituation.trim(),
+        opening_line: draft.openingLine.trim(),
+        status: draft.status,
       }
-    })
-  }
 
-  const handleSubmit = () => {
-    setStatus('Submitted (stub) — see console for payload.')
-    // eslint-disable-next-line no-console
-    console.log('Studio draft submission', draft)
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/studio/characters`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.detail || 'Failed to create character')
+      }
+
+      const result = await res.json()
+      router.push(`/studio/characters/${result.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const StepNav = () => (
     <div className="flex flex-wrap gap-2">
       {steps.map((label, index) => (
-        <div
+        <button
           key={label}
+          type="button"
+          onClick={() => {
+            // Allow going back, but only forward if valid
+            if (index < currentStep || canProceed()) {
+              setCurrentStep(index)
+            }
+          }}
           className={cn(
-            'rounded-full px-3 py-1 text-xs font-medium',
+            'rounded-full px-3 py-1 text-xs font-medium transition',
             index === currentStep
               ? 'bg-primary text-primary-foreground'
+              : index < currentStep
+              ? 'bg-primary/20 text-primary cursor-pointer'
               : 'bg-muted text-muted-foreground'
           )}
         >
-          {label}
-        </div>
+          {index + 1}. {label}
+        </button>
       ))}
     </div>
   )
 
   return (
     <div className="space-y-8">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">Studio</p>
-          <h1 className="mt-2 text-3xl font-semibold">Create Character Wizard (v0)</h1>
+          <h1 className="mt-2 text-3xl font-semibold">Create Character</h1>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Minimal, internal-only scaffolding for character creation. Required fields are capped and
-            we stub asset handling and submission for now.
+            Define identity, personality, and opening beat. Everything else can be added later.
           </p>
         </div>
         <Button variant="ghost" asChild>
@@ -210,340 +221,340 @@ export default function CreateCharacterWizard() {
 
       <StepNav />
 
+      {/* Step 1: Character Core */}
       {currentStep === 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Profile</CardTitle>
-            <CardDescription>Keep it short; helpers can be added later.</CardDescription>
+            <CardTitle>Character Core</CardTitle>
+            <CardDescription>Name, archetype, and visual anchor.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
+            {/* Name */}
             <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">Name *</Label>
               <Input
                 id="name"
-                maxLength={20}
+                maxLength={50}
                 placeholder="Enter character name"
-                value={draft.profile.name}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, profile: { ...prev.profile, name: e.target.value } }))
-                }
+                value={draft.name}
+                onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))}
               />
-              <p className="text-xs text-muted-foreground">{draft.profile.name.length}/20</p>
+              <p className="text-xs text-muted-foreground">{draft.name.length}/50</p>
             </div>
+
+            {/* Archetype */}
+            <div className="space-y-3">
+              <Label>Archetype *</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {ARCHETYPES.map((arch) => (
+                  <button
+                    key={arch.id}
+                    type="button"
+                    onClick={() => setDraft((prev) => ({ ...prev, archetype: arch.id }))}
+                    className={cn(
+                      'flex flex-col items-start rounded-lg border p-3 text-left transition',
+                      draft.archetype === arch.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-foreground/30'
+                    )}
+                  >
+                    <span className="font-medium">{arch.label}</span>
+                    <span className="text-xs text-muted-foreground">{arch.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Avatar (placeholder for now) */}
             <div className="space-y-2">
-              <Label htmlFor="intro">Short Introduction</Label>
-              <textarea
-                id="intro"
-                maxLength={500}
-                className="min-h-[120px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-0 focus:border-primary focus:ring-1 focus:ring-primary"
-                placeholder="One or two sentences to set the vibe"
-                value={draft.profile.intro}
-                onChange={(e) =>
-                  setDraft((prev) => ({ ...prev, profile: { ...prev.profile, intro: e.target.value } }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">{draft.profile.intro.length}/500</p>
+              <Label>Avatar (optional for draft)</Label>
+              <div className="flex items-center gap-3 rounded-lg border border-dashed border-border p-4">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center text-2xl">
+                  {draft.name ? draft.name[0].toUpperCase() : '?'}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">
+                    Avatar upload/generation coming soon. Required for activation.
+                  </p>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
+      {/* Step 2: Personality & Boundaries */}
       {currentStep === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Character Core / Detailed Settings</CardTitle>
-            <CardDescription>
-              Appearance, backstory, boundaries, occupation—everything that defines this character.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <textarea
-              maxLength={5000}
-              className="min-h-[260px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-0 focus:border-primary focus:ring-1 focus:ring-primary"
-              placeholder="Appearance, backstory, current stressor, likes/dislikes, boundaries, goals..."
-              value={draft.details}
-              onChange={(e) => setDraft((prev) => ({ ...prev, details: e.target.value }))}
-            />
-            <p className="text-xs text-muted-foreground">{draft.details.length}/5000</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {currentStep === 2 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Opening</CardTitle>
-            <CardDescription>Require an initial situation + first line so the character starts strong.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="situation">Situation</Label>
-              <textarea
-                id="situation"
-                maxLength={1000}
-                className="min-h-[140px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-0 focus:border-primary focus:ring-1 focus:ring-primary"
-                placeholder="Door opens, you meet at the counter..."
-                value={draft.opening.situation}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    opening: { ...prev.opening, situation: e.target.value },
-                  }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">{draft.opening.situation.length}/1000</p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="firstLine">First Line</Label>
-              <textarea
-                id="firstLine"
-                maxLength={500}
-                className="min-h-[100px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-0 focus:border-primary focus:ring-1 focus:ring-primary"
-                placeholder="“Insert the card at the front... oh, the other way around.”"
-                value={draft.opening.firstLine}
-                onChange={(e) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    opening: { ...prev.opening, firstLine: e.target.value },
-                  }))
-                }
-              />
-              <p className="text-xs text-muted-foreground">{draft.opening.firstLine.length}/500</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {currentStep === 3 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tags & Safety</CardTitle>
-            <CardDescription>Collect discovery + safety metadata during creation.</CardDescription>
+            <CardTitle>Personality & Boundaries</CardTitle>
+            <CardDescription>Define how the character behaves and interacts.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Orientation</Label>
-              <div className="flex flex-wrap gap-2">
-                {(['all', 'female', 'male'] as Orientation[]).map((value) => (
+            {/* Personality Preset */}
+            <div className="space-y-3">
+              <Label>Personality Preset *</Label>
+              <div className="space-y-2">
+                {PERSONALITY_PRESETS.map((preset) => (
                   <button
-                    key={value}
+                    key={preset.id}
                     type="button"
-                    className={pill(draft.tags.orientation === value)}
-                    onClick={() =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        tags: { ...prev.tags, orientation: value },
-                      }))
-                    }
+                    onClick={() => setDraft((prev) => ({ ...prev, personalityPreset: preset.id }))}
+                    className={cn(
+                      'flex w-full items-start rounded-lg border p-3 text-left transition',
+                      draft.personalityPreset === preset.id
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-foreground/30'
+                    )}
                   >
-                    {value === 'all' ? 'All' : value === 'female' ? 'Female-oriented' : 'Male-oriented'}
+                    <div className="flex-1">
+                      <span className="font-medium">{preset.label}</span>
+                      <p className="text-xs text-muted-foreground">{preset.desc}</p>
+                    </div>
+                    {draft.personalityPreset === preset.id && (
+                      <span className="text-primary">✓</span>
+                    )}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <div>
-                <p className="text-sm font-medium">Content rating</p>
-                <p className="text-xs text-muted-foreground">Toggle adult if content is not SFW.</p>
-              </div>
-              <Switch
-                checked={draft.tags.rating === 'adult'}
-                onCheckedChange={(checked) =>
-                  setDraft((prev) => ({
-                    ...prev,
-                    tags: { ...prev.tags, rating: checked ? 'adult' : 'sfw' },
-                  }))
-                }
-              />
-              <span className="text-sm text-muted-foreground">
-                {draft.tags.rating === 'adult' ? 'Adult' : 'SFW'}
-              </span>
-            </div>
+            {/* Boundaries */}
+            <div className="space-y-4 rounded-lg border border-border p-4">
+              <h4 className="font-medium">Safety & Boundaries</h4>
 
-            <div className="space-y-2">
-              <Label>Categories</Label>
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={pill(draft.tags.categories.includes(category))}
-                    onClick={() => toggleCategory(category)}
-                  >
-                    {category}
-                  </button>
-                ))}
+              {/* Flirting Level */}
+              <div className="space-y-2">
+                <Label className="text-sm">Flirting Level</Label>
+                <div className="flex flex-wrap gap-2">
+                  {FLIRTING_LEVELS.map((level) => (
+                    <button
+                      key={level.id}
+                      type="button"
+                      className={pill(draft.boundaries.flirting_level === level.id)}
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          boundaries: { ...prev.boundaries, flirting_level: level.id },
+                        }))
+                      }
+                    >
+                      {level.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Choose at least one. Romance / slice-of-life / fantasy are common here.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {currentStep === 4 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Assets</CardTitle>
-            <CardDescription>
-              Stubbed for now. Target: hero avatar + 5–7 expressions + 2 scenes. Track progress.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Hero Avatar</Label>
-              <div className="flex items-center gap-3">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
+              {/* Content Rating */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Adult Content</p>
+                  <p className="text-xs text-muted-foreground">Allow NSFW interactions</p>
+                </div>
+                <Switch
+                  checked={draft.boundaries.nsfw_allowed}
+                  onCheckedChange={(checked) => {
                     setDraft((prev) => ({
                       ...prev,
-                      assets: { ...prev.assets, hero: file.name },
+                      contentRating: checked ? 'adult' : 'sfw',
+                      boundaries: { ...prev.boundaries, nsfw_allowed: checked },
                     }))
                   }}
                 />
-                <span className="text-sm text-muted-foreground">
-                  {draft.assets.hero ? `Selected: ${draft.assets.hero}` : 'No file selected'}
-                </span>
               </div>
-            </div>
 
-            <div className="space-y-3 rounded-lg border border-dashed border-border p-4">
+              {/* Can Reject */}
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Expressions</p>
-                  <p className="text-xs text-muted-foreground">{expressionTargetText}</p>
+                  <p className="text-sm font-medium">Character Can Decline</p>
+                  <p className="text-xs text-muted-foreground">Character can refuse uncomfortable requests</p>
                 </div>
-                <Button variant="outline" onClick={addExpression}>Add expression</Button>
+                <Switch
+                  checked={draft.boundaries.can_reject_user}
+                  onCheckedChange={(checked) =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      boundaries: { ...prev.boundaries, can_reject_user: checked },
+                    }))
+                  }
+                />
               </div>
-              {draft.assets.expressions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No expressions added yet.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {draft.assets.expressions.map((expr) => (
-                    <span
-                      key={expr.id}
-                      className="flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm text-foreground"
-                    >
-                      {expr.label}
-                      <button
-                        type="button"
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => removeExpression(expr.id)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-3 rounded-lg border border-dashed border-border p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Scenes</p>
-                  <p className="text-xs text-muted-foreground">{sceneTargetText}</p>
-                </div>
-                <Button variant="outline" onClick={addScene}>Add scene</Button>
-              </div>
-              {draft.assets.scenes.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No scenes added yet.</p>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {draft.assets.scenes.map((scene) => (
-                    <span
-                      key={scene.id}
-                      className="flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-sm text-foreground"
-                    >
-                      {scene.label}
-                      <button
-                        type="button"
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => removeScene(scene.id)}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {currentStep === 5 && (
+      {/* Step 3: Opening Beat */}
+      {currentStep === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Lorebook (optional)</CardTitle>
-            <CardDescription>Keyword-triggered inserts for world info or callbacks.</CardDescription>
+            <CardTitle>Opening Beat</CardTitle>
+            <CardDescription>
+              The opening beat determines the first chat experience. This is critical for user engagement.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Button variant="outline" onClick={addLoreEntry}>Add lore entry</Button>
-            {draft.lorebook.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No lore entries added.</p>
-            ) : (
-              <div className="space-y-2">
-                {draft.lorebook.map((entry) => (
-                  <div
-                    key={entry.id}
-                    className="flex items-start justify-between rounded-md border border-border bg-card/60 p-3"
-                  >
-                    <div>
-                      <p className="text-sm font-medium">Keyword: {entry.keyword}</p>
-                      <p className="text-sm text-muted-foreground whitespace-pre-line">{entry.text}</p>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => removeLore(entry.id)}>
-                      Remove
-                    </Button>
+          <CardContent className="space-y-4">
+            {/* Opening Situation */}
+            <div className="space-y-2">
+              <Label htmlFor="situation">Opening Situation *</Label>
+              <p className="text-xs text-muted-foreground">
+                Set the scene. Where are you? What&apos;s happening? This context shapes the conversation.
+              </p>
+              <textarea
+                id="situation"
+                maxLength={1000}
+                className="min-h-[140px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                placeholder="Example: You're at the counter of a cozy coffee shop. The morning rush just ended, and the barista looks up as you approach..."
+                value={draft.openingSituation}
+                onChange={(e) => setDraft((prev) => ({ ...prev, openingSituation: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">
+                {draft.openingSituation.length}/1000 (min 10 characters)
+              </p>
+            </div>
+
+            {/* Opening Line */}
+            <div className="space-y-2">
+              <Label htmlFor="openingLine">Opening Line *</Label>
+              <p className="text-xs text-muted-foreground">
+                The character&apos;s first message. This sets the tone for the entire relationship.
+              </p>
+              <textarea
+                id="openingLine"
+                maxLength={500}
+                className="min-h-[100px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                placeholder='Example: "oh hey~ wasn&apos;t sure I&apos;d see you today. the usual?"'
+                value={draft.openingLine}
+                onChange={(e) => setDraft((prev) => ({ ...prev, openingLine: e.target.value }))}
+              />
+              <p className="text-xs text-muted-foreground">{draft.openingLine.length}/500</p>
+            </div>
+
+            {/* Preview */}
+            {draft.openingSituation && draft.openingLine && (
+              <div className="rounded-lg border border-border bg-muted/30 p-4 space-y-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Preview</p>
+                <p className="text-sm italic text-muted-foreground">{draft.openingSituation}</p>
+                <div className="flex gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+                    {draft.name ? draft.name[0].toUpperCase() : '?'}
                   </div>
-                ))}
+                  <div className="flex-1 rounded-lg bg-background p-3 text-sm">
+                    {draft.openingLine}
+                  </div>
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {currentStep === 6 && (
+      {/* Step 4: Review & Save */}
+      {currentStep === 3 && (
         <Card>
           <CardHeader>
-            <CardTitle>Review & Submit</CardTitle>
+            <CardTitle>Review & Save</CardTitle>
             <CardDescription>
-              Internal-only. We log the JSON payload and will wire storage later.
+              Review your character and choose whether to save as draft or activate immediately.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <Label className="text-sm font-medium">Visibility</Label>
-              {(['private', 'link-only'] as Visibility[]).map((value) => (
+          <CardContent className="space-y-6">
+            {/* Summary */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Character</p>
+                <p className="mt-1 text-lg font-semibold">{draft.name || '(unnamed)'}</p>
+                <p className="text-sm text-muted-foreground capitalize">{draft.archetype || '(no archetype)'}</p>
+              </div>
+              <div className="rounded-lg border border-border p-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Personality</p>
+                <p className="mt-1 font-medium">
+                  {PERSONALITY_PRESETS.find((p) => p.id === draft.personalityPreset)?.label || draft.personalityPreset}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Flirting: {draft.boundaries.flirting_level} | {draft.contentRating.toUpperCase()}
+                </p>
+              </div>
+            </div>
+
+            {/* Opening Beat Preview */}
+            <div className="rounded-lg border border-border p-4 space-y-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Opening Beat</p>
+              <p className="text-sm italic text-muted-foreground">{draft.openingSituation}</p>
+              <div className="flex gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-sm">
+                  {draft.name ? draft.name[0].toUpperCase() : '?'}
+                </div>
+                <div className="flex-1 rounded-lg bg-muted p-3 text-sm">{draft.openingLine}</div>
+              </div>
+            </div>
+
+            {/* Status Selection */}
+            <div className="space-y-3">
+              <Label>Save as</Label>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <button
-                  key={value}
                   type="button"
-                  className={pill(draft.visibility === value)}
-                  onClick={() => setDraft((prev) => ({ ...prev, visibility: value }))}
+                  onClick={() => setDraft((prev) => ({ ...prev, status: 'draft' }))}
+                  className={cn(
+                    'flex flex-col items-start rounded-lg border p-4 text-left transition',
+                    draft.status === 'draft'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-foreground/30'
+                  )}
                 >
-                  {value === 'private' ? 'Private' : 'Link-only'}
+                  <span className="font-medium">Draft</span>
+                  <span className="text-xs text-muted-foreground">
+                    Save for later. Not visible to users, not chat-ready.
+                  </span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setDraft((prev) => ({ ...prev, status: 'active' }))}
+                  disabled={!draft.avatarUrl}
+                  className={cn(
+                    'flex flex-col items-start rounded-lg border p-4 text-left transition',
+                    draft.status === 'active'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-foreground/30',
+                    !draft.avatarUrl && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <span className="font-medium">Active</span>
+                  <span className="text-xs text-muted-foreground">
+                    {draft.avatarUrl
+                      ? 'Chat-ready and visible to users.'
+                      : 'Requires avatar to activate.'}
+                  </span>
+                </button>
+              </div>
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-border bg-muted/30">
-              <pre className="max-h-[420px] overflow-auto p-4 text-xs">
-{JSON.stringify(draft, null, 2)}
-              </pre>
+            {/* What's Next */}
+            <div className="rounded-lg bg-muted/50 p-4">
+              <p className="text-sm font-medium">What you can add later:</p>
+              <ul className="mt-2 grid gap-1 text-sm text-muted-foreground sm:grid-cols-2">
+                <li>• Backstory (short & full)</li>
+                <li>• Current stressor / life context</li>
+                <li>• Likes & dislikes</li>
+                <li>• Additional starter prompts</li>
+                <li>• Expression images</li>
+                <li>• Scene images</li>
+                <li>• World attachment</li>
+                <li>• Advanced tone settings</li>
+              </ul>
             </div>
 
-            {status && <p className="text-sm text-primary">{status}</p>}
+            {error && (
+              <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
+      {/* Navigation */}
       <div className="flex items-center justify-between">
         <Button
           variant="outline"
@@ -553,11 +564,13 @@ export default function CreateCharacterWizard() {
           Back
         </Button>
         {currentStep < steps.length - 1 ? (
-          <Button onClick={() => setCurrentStep((step) => Math.min(steps.length - 1, step + 1))}>
+          <Button onClick={() => setCurrentStep((step) => step + 1)} disabled={!canProceed()}>
             Next
           </Button>
         ) : (
-          <Button onClick={handleSubmit}>Submit (stub)</Button>
+          <Button onClick={handleSubmit} disabled={isSubmitting || !canProceed()}>
+            {isSubmitting ? 'Creating...' : `Create ${draft.status === 'draft' ? 'Draft' : 'Character'}`}
+          </Button>
         )}
       </div>
     </div>
