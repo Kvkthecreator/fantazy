@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.deps import get_db
 from app.dependencies import get_current_user_id
 from app.services.usage import UsageService
+from app.services.credits import CreditsService
 
 log = logging.getLogger("uvicorn.error")
 
@@ -316,7 +317,7 @@ async def handle_lemonsqueezy_webhook(
         log.warning(f"Payment failed for user {user_id}")
         # Could send notification, but don't downgrade yet (grace period)
     elif event_name == "subscription_payment_success":
-        # Renewal successful - update expiry
+        # Renewal successful - update expiry and grant monthly sparks
         renews_at = parse_iso_date(attrs.get("renews_at"))
         if renews_at:
             await db.execute(
@@ -327,6 +328,21 @@ async def handle_lemonsqueezy_webhook(
                 """,
                 {"user_id": user_id, "renews_at": renews_at},
             )
+
+        # Grant monthly subscription sparks on renewal
+        credits_service = CreditsService.get_instance()
+        await credits_service.grant_subscription_sparks(
+            user_id=UUID(user_id),
+            subscription_id=subscription_id,
+            is_premium=True,
+        )
+        log.info(f"Granted monthly sparks to user {user_id} on renewal")
+
+    elif event_name == "order_created":
+        # Handle top-up purchases
+        purchase_type = custom_data.get("purchase_type")
+        if purchase_type == "topup":
+            await handle_topup_purchase(db, user_id, custom_data, attrs)
 
     return {"status": "ok"}
 
@@ -364,7 +380,15 @@ async def handle_subscription_created(
     usage_service = UsageService.get_instance()
     await usage_service.reset_on_subscription_change(user_id)
 
-    log.info(f"Activated premium subscription for user {user_id}")
+    # Grant initial subscription sparks
+    credits_service = CreditsService.get_instance()
+    await credits_service.grant_subscription_sparks(
+        user_id=UUID(user_id),
+        subscription_id=subscription_id,
+        is_premium=(sub_status == "premium"),
+    )
+
+    log.info(f"Activated premium subscription for user {user_id} with sparks granted")
 
 
 async def handle_subscription_updated(
@@ -436,4 +460,53 @@ async def handle_subscription_resumed(
     usage_service = UsageService.get_instance()
     await usage_service.reset_on_subscription_change(user_id)
 
-    log.info(f"Resumed subscription for user {user_id}")
+    # Grant subscription sparks on resume
+    credits_service = CreditsService.get_instance()
+    await credits_service.grant_subscription_sparks(
+        user_id=UUID(user_id),
+        subscription_id=subscription_id,
+        is_premium=True,
+    )
+
+    log.info(f"Resumed subscription for user {user_id} with sparks granted")
+
+
+async def handle_topup_purchase(db, user_id: str, custom_data: dict, attrs: dict):
+    """Handle top-up spark pack purchase."""
+    pack_name = custom_data.get("pack_name", "unknown")
+    sparks_amount = custom_data.get("sparks_amount", 0)
+    order_id = str(attrs.get("order_number", ""))
+
+    if not sparks_amount:
+        log.warning(f"Topup purchase with no sparks_amount for user {user_id}")
+        return
+
+    # Record the purchase in topup_purchases table
+    await db.execute(
+        """
+        INSERT INTO topup_purchases
+            (user_id, ls_order_id, ls_variant_id, pack_name, sparks_amount, price_cents, status)
+        VALUES
+            (:user_id, :order_id, :variant_id, :pack_name, :sparks_amount, :price_cents, 'completed')
+        ON CONFLICT (ls_order_id) DO NOTHING
+        """,
+        {
+            "user_id": user_id,
+            "order_id": order_id,
+            "variant_id": custom_data.get("variant_id", ""),
+            "pack_name": pack_name,
+            "sparks_amount": sparks_amount,
+            "price_cents": attrs.get("total", 0),
+        },
+    )
+
+    # Grant the sparks
+    credits_service = CreditsService.get_instance()
+    await credits_service.grant_topup_sparks(
+        user_id=UUID(user_id),
+        pack_name=pack_name,
+        amount=sparks_amount,
+        order_id=order_id,
+    )
+
+    log.info(f"Granted {sparks_amount} sparks to user {user_id} from {pack_name} pack purchase")

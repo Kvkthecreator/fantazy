@@ -13,6 +13,7 @@ from app.models.relationship import Relationship
 from app.services.llm import LLMService
 from app.services.memory import MemoryService
 from app.services.usage import UsageService
+from app.services.rate_limiter import MessageRateLimiter, RateLimitExceededError
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class ConversationService:
         self.llm = LLMService.get_instance()
         self.memory_service = MemoryService(db)
         self.usage_service = UsageService.get_instance()
+        self.rate_limiter = MessageRateLimiter.get_instance()
 
     async def send_message(
         self,
@@ -38,13 +40,27 @@ class ConversationService:
         """Send a message and get a response.
 
         This orchestrates the full conversation flow:
-        1. Get or create active episode
-        2. Build conversation context
-        3. Save user message
-        4. Generate LLM response
-        5. Save assistant message
-        6. Extract memories and hooks (async)
+        1. Check rate limit (abuse prevention)
+        2. Get or create active episode
+        3. Build conversation context
+        4. Save user message
+        5. Generate LLM response
+        6. Save assistant message
+        7. Extract memories and hooks (async)
+        8. Record message for rate limiting
         """
+        # Check rate limit (messages are FREE but rate-limited for abuse prevention)
+        subscription_status = await self._get_user_subscription_status(user_id)
+        rate_check = await self.rate_limiter.check_rate_limit(user_id, subscription_status)
+
+        if not rate_check.allowed:
+            raise RateLimitExceededError(
+                message=rate_check.message or "Rate limit exceeded",
+                reset_at=rate_check.reset_at,
+                cooldown_seconds=rate_check.cooldown_seconds,
+                remaining=rate_check.remaining,
+            )
+
         # Get or create episode
         episode = await self.get_or_create_episode(user_id, character_id)
 
@@ -99,7 +115,18 @@ class ConversationService:
         except Exception as e:
             log.error(f"Memory extraction failed: {e}")
 
+        # Record message for rate limiting (after successful send)
+        await self.rate_limiter.record_message(user_id)
+
         return assistant_message
+
+    async def _get_user_subscription_status(self, user_id: UUID) -> str:
+        """Get user's subscription status for rate limiting."""
+        row = await self.db.fetch_one(
+            "SELECT subscription_status FROM users WHERE id = :user_id",
+            {"user_id": str(user_id)},
+        )
+        return row["subscription_status"] if row and row["subscription_status"] else "free"
 
     async def send_message_stream(
         self,
@@ -108,6 +135,18 @@ class ConversationService:
         content: str,
     ) -> AsyncIterator[str]:
         """Send a message and stream the response."""
+        # Check rate limit (messages are FREE but rate-limited for abuse prevention)
+        subscription_status = await self._get_user_subscription_status(user_id)
+        rate_check = await self.rate_limiter.check_rate_limit(user_id, subscription_status)
+
+        if not rate_check.allowed:
+            raise RateLimitExceededError(
+                message=rate_check.message or "Rate limit exceeded",
+                reset_at=rate_check.reset_at,
+                cooldown_seconds=rate_check.cooldown_seconds,
+                remaining=rate_check.remaining,
+            )
+
         # Get or create episode
         episode = await self.get_or_create_episode(user_id, character_id)
 
@@ -163,6 +202,9 @@ class ConversationService:
             )
         except Exception as e:
             log.error(f"Memory extraction failed: {e}")
+
+        # Record message for rate limiting (after successful exchange)
+        await self.rate_limiter.record_message(user_id)
 
         # Check if we should suggest scene generation
         # (frontend can show a "visualize" prompt)

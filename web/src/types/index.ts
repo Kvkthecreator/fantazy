@@ -431,3 +431,73 @@ export interface QuotaExceededError {
     remaining: number;
   };
 }
+
+// ============================================================================
+// Sparks (Credits) Types
+// ============================================================================
+
+export interface SparkBalance {
+  balance: number;
+  lifetime_earned: number;
+  lifetime_spent: number;
+  subscription_status: string;
+}
+
+export interface SparkCheck {
+  allowed: boolean;
+  balance: number;
+  cost: number;
+  balance_after: number;
+  message?: string;
+}
+
+export interface SparkTransaction {
+  id: string;
+  amount: number;
+  balance_after: number;
+  transaction_type: string;
+  description?: string;
+  created_at: string;
+}
+
+export interface SparkTransactionHistory {
+  transactions: SparkTransaction[];
+  count: number;
+}
+
+export interface FeatureCost {
+  feature_key: string;
+  display_name: string;
+  spark_cost: number;
+  description?: string;
+  premium_only: boolean;
+}
+
+export interface TopupPack {
+  pack_name: string;
+  sparks: number;
+  price_cents: number;
+  price_display: string;
+  per_spark_cents: number;
+  bonus_percent: number;
+}
+
+export interface TopupCheckoutResponse {
+  checkout_url: string;
+}
+
+export interface InsufficientSparksError {
+  error: "insufficient_sparks";
+  message: string;
+  balance: number;
+  cost: number;
+  upgrade_url: string;
+}
+
+export interface RateLimitError {
+  error: "rate_limit_exceeded";
+  message: string;
+  reset_at?: string;
+  cooldown_seconds?: number;
+  remaining: number;
+}

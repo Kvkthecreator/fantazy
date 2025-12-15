@@ -12,6 +12,7 @@ from app.routes import (
     conversation,
     scenes,
     subscription,
+    credits,
 )
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "conversation",
     "scenes",
     "subscription",
+    "credits",
 ]

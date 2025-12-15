@@ -367,6 +367,36 @@ export const api = {
     getPortal: () =>
       request<import("@/types").PortalResponse>("/subscription/portal"),
   },
+
+  // Credits (Sparks) endpoints
+  credits: {
+    getBalance: () =>
+      request<import("@/types").SparkBalance>("/credits/balance"),
+    check: (featureKey: string) =>
+      request<import("@/types").SparkCheck>(`/credits/check/${featureKey}`),
+    getHistory: (limit?: number, offset?: number) => {
+      const params = new URLSearchParams();
+      if (limit) params.set("limit", String(limit));
+      if (offset) params.set("offset", String(offset));
+      const query = params.toString();
+      return request<import("@/types").SparkTransactionHistory>(
+        `/credits/history${query ? `?${query}` : ""}`
+      );
+    },
+    getCosts: () =>
+      request<import("@/types").FeatureCost[]>("/credits/costs"),
+  },
+
+  // Top-up endpoints
+  topup: {
+    getPacks: () =>
+      request<import("@/types").TopupPack[]>("/topup/packs"),
+    checkout: (packName: string) =>
+      request<import("@/types").TopupCheckoutResponse>("/topup/checkout", {
+        method: "POST",
+        body: JSON.stringify({ pack_name: packName }),
+      }),
+  },
 };
 
 export default api;

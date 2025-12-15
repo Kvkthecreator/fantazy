@@ -19,6 +19,7 @@ from app.routes import (
     avatars,
     characters,
     conversation,
+    credits,
     episodes,
     health,
     hooks,
@@ -116,6 +117,8 @@ app.include_router(scenes.router, tags=["Scenes"])
 app.include_router(avatars.router, tags=["Avatar Kits"])
 app.include_router(subscription.router, tags=["Subscription"])
 app.include_router(subscription.webhook_router, tags=["Webhooks"])
+app.include_router(credits.router, tags=["Credits"])
+app.include_router(credits.topup_router, tags=["Top-Up"])
 
 
 @app.get("/")

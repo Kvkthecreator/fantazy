@@ -19,6 +19,7 @@ from app.services.image import ImageService
 from app.services.llm import LLMService
 from app.services.storage import StorageService
 from app.services.usage import UsageService
+from app.services.credits import CreditsService, InsufficientSparksError
 
 log = logging.getLogger(__name__)
 
@@ -63,21 +64,19 @@ async def generate_scene(
     If no prompt is provided, one will be auto-generated from episode context.
     Uses avatar kit for character consistency when available.
     """
-    # Check quota before generation
-    usage_service = UsageService.get_instance()
-    quota_check = await usage_service.check_flux_quota(str(user_id))
+    # Check spark balance before generation
+    credits_service = CreditsService.get_instance()
+    spark_check = await credits_service.check_balance(user_id, "flux_generation")
 
-    if not quota_check.allowed:
+    if not spark_check.allowed:
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
-                "error": "quota_exceeded",
-                "message": quota_check.message,
-                "usage": {
-                    "used": quota_check.current_usage,
-                    "quota": quota_check.quota,
-                    "remaining": quota_check.remaining,
-                },
+                "error": "insufficient_sparks",
+                "message": spark_check.message,
+                "balance": spark_check.balance,
+                "cost": spark_check.cost,
+                "upgrade_url": "/settings?tab=sparks",
             },
         )
 
@@ -299,7 +298,20 @@ async def generate_scene(
     # Create signed URL for the new image
     image_url = await storage.create_signed_url("scenes", storage_path)
 
-    # Increment usage counter after successful generation
+    # Spend sparks after successful generation
+    await credits_service.spend(
+        user_id=user_id,
+        feature_key="flux_generation",
+        reference_id=str(image_id),
+        metadata={
+            "character_id": str(episode["character_id"]),
+            "episode_id": str(data.episode_id),
+            "model_used": image_response.model,
+        },
+    )
+
+    # Also track in usage_events for analytics (keep existing tracking)
+    usage_service = UsageService.get_instance()
     await usage_service.increment_flux_usage(
         user_id=str(user_id),
         character_id=str(episode["character_id"]),

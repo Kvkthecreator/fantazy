@@ -1,4 +1,5 @@
 """Conversation API routes - the main chat endpoint."""
+import json
 from typing import Optional
 from uuid import UUID
 
@@ -10,6 +11,7 @@ from app.dependencies import get_current_user_id
 from app.models.message import MessageCreate, Message
 from app.models.episode import Episode
 from app.services.conversation import ConversationService
+from app.services.rate_limiter import RateLimitExceededError
 
 router = APIRouter(prefix="/conversation", tags=["Conversation"])
 
@@ -39,6 +41,21 @@ async def send_message(
             content=data.content,
         )
         return response
+    except RateLimitExceededError as e:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "rate_limit_exceeded",
+                "message": e.message,
+                "reset_at": e.reset_at.isoformat() if e.reset_at else None,
+                "cooldown_seconds": e.cooldown_seconds,
+                "remaining": e.remaining,
+                "upgrade_url": "/settings?tab=subscription",
+            },
+            headers={
+                "Retry-After": str(e.cooldown_seconds) if e.cooldown_seconds else "60"
+            },
+        )
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -68,6 +85,17 @@ async def send_message_stream(
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"
+        except RateLimitExceededError as e:
+            # Send rate limit error as structured SSE event
+            error_data = json.dumps({
+                "type": "error",
+                "error": "rate_limit_exceeded",
+                "message": e.message,
+                "reset_at": e.reset_at.isoformat() if e.reset_at else None,
+                "cooldown_seconds": e.cooldown_seconds,
+                "remaining": e.remaining,
+            })
+            yield f"data: {error_data}\n\n"
         except Exception as e:
             yield f"data: [ERROR] {str(e)}\n\n"
 
