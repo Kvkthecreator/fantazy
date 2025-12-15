@@ -1196,10 +1196,9 @@ async def generate_episode_backgrounds(
             image_bytes = response.images[0]
 
             # Upload to storage
-            from uuid import UUID
             storage_path = await storage.upload_episode_background(
                 image_bytes=image_bytes,
-                character_id=UUID(ep["character_id"]),
+                character_id=ep["character_id"],  # Already UUID-like from DB
                 episode_number=ep["episode_number"],
             )
 

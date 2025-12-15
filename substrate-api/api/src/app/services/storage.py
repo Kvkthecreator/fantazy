@@ -85,7 +85,9 @@ class StorageService:
 
         Returns the storage path (not full URL).
         """
-        storage_path = f"episodes/{character_id}/{episode_number}.png"
+        # Convert UUID to string if needed
+        char_id_str = str(character_id)
+        storage_path = f"episodes/{char_id_str}/{episode_number}.png"
         bucket = "scenes"
 
         await self._upload(bucket, storage_path, image_bytes, content_type)
