@@ -590,11 +590,11 @@ export const api = {
       request<import("@/types").EpisodeTemplate>(`/episode-templates/${templateId}/activate`, {
         method: "POST",
       }),
-    generateEpisodeBackground: (characterId: string, episodeNumber: number) =>
-      request<{ message: string; generated: number }>("/studio/admin/generate-episode-backgrounds", {
-        method: "POST",
-        body: JSON.stringify({ character: characterId, episode_number: episodeNumber }),
-      }),
+    generateEpisodeBackground: (characterName: string, episodeNumber: number) =>
+      request<{ message: string; generated: number }>(
+        `/studio/admin/generate-episode-backgrounds?character=${encodeURIComponent(characterName)}&episode_number=${episodeNumber}`,
+        { method: "POST" }
+      ),
   },
 };
 
