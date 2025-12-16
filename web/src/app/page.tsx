@@ -53,7 +53,7 @@ export default async function Home() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
             <span className="text-xl">✨</span>
-            <span className="text-lg font-semibold">Fantazy</span>
+            <span className="text-lg font-semibold">ep-0</span>
           </div>
           <Link
             href="/login?next=/discover"
@@ -159,7 +159,7 @@ export default async function Home() {
 
       <footer className="border-t bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 text-sm text-muted-foreground">
-          <span>Fantazy — moments that matter.</span>
+          <span>ep-0 — moments that matter.</span>
           <Link href="/login?next=/discover" className="font-semibold text-primary hover:underline">
             Start your story
           </Link>

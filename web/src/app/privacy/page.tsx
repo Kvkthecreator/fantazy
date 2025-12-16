@@ -3,7 +3,7 @@ export default function PrivacyPage() {
     <div className="mx-auto max-w-3xl px-6 py-12 text-sm text-foreground">
       <h1 className="text-2xl font-semibold tracking-tight">Privacy Policy</h1>
       <p className="mt-4 text-muted-foreground">
-        We respect your privacy. This page summarizes how Fantazy collects and uses your data.
+        We respect your privacy. This page summarizes how ep-0 collects and uses your data.
       </p>
       <ul className="mt-6 list-disc space-y-2 pl-5 text-muted-foreground">
         <li>We collect account info (email, profile details) to provide access.</li>

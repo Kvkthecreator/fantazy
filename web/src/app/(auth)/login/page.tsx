@@ -65,7 +65,7 @@ export default function LoginPage() {
               <div className="mb-8 text-center space-y-2">
                 <Link href="/" className="inline-flex items-center gap-2">
                   <span className="text-2xl">✨</span>
-                  <span className="text-xl font-semibold">Fantazy</span>
+                  <span className="text-xl font-semibold">ep-0</span>
                 </Link>
                 <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   cozy • romcom • memory

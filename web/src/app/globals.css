@@ -1,50 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  /* Neutral, warm-leaning base with soft accent */
-  --background: 0 0% 99%;
-  --foreground: 225 14% 12%;
-  --muted: 210 15% 95%;
-  --muted-foreground: 220 10% 46%;
+  /* Minimal, monochrome-leaning palette with a subtle accent */
+  --background: 0 0% 98%;
+  --foreground: 220 12% 10%;
+  --muted: 220 10% 93%;
+  --muted-foreground: 220 8% 40%;
   --card: 0 0% 100%;
-  --card-foreground: 225 14% 12%;
+  --card-foreground: 220 12% 10%;
   --popover: 0 0% 100%;
-  --popover-foreground: 225 14% 12%;
-  --border: 220 13% 88%;
-  --input: 220 13% 88%;
-  /* Accent palette: coral primary, lilac accent, teal support */
-  --primary: 8 75% 60%;
+  --popover-foreground: 220 12% 10%;
+  --border: 220 10% 85%;
+  --input: 220 10% 85%;
+  --primary: 220 12% 15%; /* deep charcoal */
   --primary-foreground: 0 0% 100%;
-  --secondary: 210 12% 92%;
-  --secondary-foreground: 225 14% 12%;
-  --accent: 265 45% 72%;
-  --accent-foreground: 225 14% 12%;
+  --secondary: 220 8% 92%;
+  --secondary-foreground: 220 12% 15%;
+  --accent: 210 10% 30%; /* soft slate */
+  --accent-foreground: 0 0% 100%;
   --destructive: 0 72% 50%;
   --destructive-foreground: 0 0% 98%;
-  --ring: 8 75% 60%;
+  --ring: 220 12% 20%;
   --radius: 12px;
 }
 
 .dark {
-  --background: 220 16% 8%;
-  --foreground: 210 20% 94%;
+  --background: 220 15% 8%;
+  --foreground: 220 25% 92%;
   --muted: 220 12% 14%;
-  --muted-foreground: 215 15% 70%;
+  --muted-foreground: 215 12% 70%;
   --card: 220 12% 10%;
-  --card-foreground: 210 20% 94%;
+  --card-foreground: 220 25% 92%;
   --popover: 220 12% 10%;
-  --popover-foreground: 210 20% 94%;
+  --popover-foreground: 220 25% 92%;
   --border: 220 10% 22%;
   --input: 220 10% 22%;
-  --primary: 8 75% 64%;
-  --primary-foreground: 220 16% 8%;
+  --primary: 220 10% 92%;
+  --primary-foreground: 220 15% 8%;
   --secondary: 220 12% 16%;
-  --secondary-foreground: 210 20% 94%;
-  --accent: 265 45% 68%;
-  --accent-foreground: 220 16% 8%;
+  --secondary-foreground: 220 25% 92%;
+  --accent: 210 10% 40%;
+  --accent-foreground: 220 15% 8%;
   --destructive: 0 84% 58%;
-  --destructive-foreground: 220 16% 8%;
-  --ring: 8 75% 64%;
+  --destructive-foreground: 220 15% 8%;
+  --ring: 220 10% 60%;
 }
 
 @theme inline {

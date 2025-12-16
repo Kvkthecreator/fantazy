@@ -38,7 +38,7 @@ export function SubscriptionCard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Crown className="h-5 w-5 text-yellow-500" />
-              <CardTitle>Fantazy Premium</CardTitle>
+          <CardTitle>ep-0 Premium</CardTitle>
             </div>
             <Badge className="bg-gradient-to-r from-pink-500 to-purple-500 text-white border-0">
               Active
@@ -79,7 +79,7 @@ export function SubscriptionCard() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Free</CardTitle>
-          <CardDescription>Get started with Fantazy</CardDescription>
+          <CardDescription>Get started with ep-0</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-3xl font-bold">$0</div>

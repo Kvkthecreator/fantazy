@@ -69,10 +69,10 @@ export function Sidebar({ user }: { user: User }) {
           </div>
           {!isCollapsed && (
             <div>
-              <h1 className="text-xl font-bold leading-tight bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent">
-                Fantazy
+              <h1 className="text-xl font-bold leading-tight text-foreground">
+                ep-0
               </h1>
-              <p className="text-xs text-muted-foreground">Cozy Companions</p>
+              <p className="text-xs text-muted-foreground">Interactive episodes</p>
             </div>
           )}
         </Link>

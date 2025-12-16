@@ -8,8 +8,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Fantazy - Cozy AI Companions",
-  description: "Connect with AI characters who remember you, grow with you, and feel like real friends",
+  title: "ep-0 — Interactive Episodes",
+  description: "Step into Episode 0 and continue your story with AI characters who remember every chapter.",
 };
 
 export const dynamic = 'force-dynamic';
