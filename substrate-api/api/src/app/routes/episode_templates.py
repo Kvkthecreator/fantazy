@@ -65,6 +65,7 @@ class EpisodeTemplate(EpisodeTemplateBase):
     id: UUID
     character_id: UUID
     episode_number: int
+    episode_type: str = "core"  # entry, core, expansion, special
     background_image_url: Optional[str] = None
     is_default: bool
     sort_order: int
@@ -78,6 +79,7 @@ class EpisodeTemplateSummary(BaseModel):
     """Summary for episode selection UI."""
     id: UUID
     episode_number: int
+    episode_type: str = "core"  # entry, core, expansion, special
     title: str
     slug: str
     background_image_url: Optional[str] = None
@@ -88,6 +90,7 @@ class EpisodeDiscoveryItem(BaseModel):
     """Episode with character context for discovery UI."""
     id: UUID
     episode_number: int
+    episode_type: str = "core"  # entry, core, expansion, special
     title: str
     slug: str
     situation: str
@@ -121,6 +124,7 @@ async def list_all_episodes(
         SELECT
             et.id,
             et.episode_number,
+            et.episode_type,
             et.title,
             et.slug,
             et.situation,
@@ -173,7 +177,7 @@ async def list_character_episodes(
     Returns episodes in sort order for episode selection UI.
     """
     query = """
-        SELECT id, episode_number, title, slug, background_image_url, is_default
+        SELECT id, episode_number, episode_type, title, slug, background_image_url, is_default
         FROM episode_templates
         WHERE character_id = :character_id
         AND status = :status

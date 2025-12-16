@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CharacterGrid } from "@/components/characters";
+import { EpisodeCard } from "@/components/episodes/EpisodeCard";
 import type { CharacterSummary, RelationshipWithCharacter, User } from "@/types";
 
 export default function DashboardPage() {
@@ -54,10 +54,18 @@ export default function DashboardPage() {
     return <DashboardSkeleton />;
   }
 
-  // Separate characters with and without relationships
   const relationshipCharacterIds = new Set(relationships.map((r) => r.character_id));
   const myCharacters = characters.filter((c) => relationshipCharacterIds.has(c.id));
   const newCharacters = characters.filter((c) => !relationshipCharacterIds.has(c.id));
+  const sortedRelationships = [...relationships].sort((a, b) => {
+    const timeA = a.last_interaction_at ? new Date(a.last_interaction_at).getTime() : 0;
+    const timeB = b.last_interaction_at ? new Date(b.last_interaction_at).getTime() : 0;
+    return timeB - timeA;
+  });
+  const heroRelationship = sortedRelationships[0];
+  const heroCharacter = heroRelationship
+    ? characters.find((c) => c.id === heroRelationship.character_id)
+    : null;
 
   return (
     <div className="space-y-8">
@@ -82,90 +90,79 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription>Your Characters</CardDescription>
-            <HeartIcon className="h-4 w-4 text-pink-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{relationships.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {relationships.length === 0
-                ? "Start your first story"
-                : relationships.length === 1
-                  ? "connection made"
-                  : "connections made"}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription>Total Episodes</CardDescription>
-            <BookIcon className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {relationships.reduce((sum, r) => sum + r.total_episodes, 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              chapters in your story
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardDescription>Messages Shared</CardDescription>
-            <MessageIcon className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {relationships.reduce((sum, r) => sum + r.total_messages, 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              conversations and memories
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* My Characters */}
-      {relationships.length > 0 && (
+      {/* Continue / Hero */}
+      {heroRelationship && heroCharacter ? (
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-semibold">Continue Your Story</h2>
-              <p className="text-sm text-muted-foreground">
-                Pick up where you left off
-              </p>
-            </div>
-          </div>
-          <CharacterGrid
-            characters={myCharacters}
-            relationships={relationships}
+          <h2 className="mb-3 text-xl font-semibold">Continue</h2>
+          <EpisodeCard
+            title={heroCharacter.name}
+            subtitle={`${heroCharacter.archetype}`}
+            hook={
+              heroCharacter.short_backstory ||
+              "Pick up where you left off—your episode is still unfolding."
+            }
+            badge={heroRelationship.stage === "acquaintance" ? "Episode 0" : "Episode in progress"}
+            href={`/chat/${heroRelationship.character_id}`}
+            imageUrl={heroCharacter.avatar_url}
+            meta={
+              heroRelationship.last_interaction_at
+                ? `Last chat ${formatRelativeTime(heroRelationship.last_interaction_at)}`
+                : undefined
+            }
+            ctaText="Resume Episode"
+            tone="primary"
           />
         </section>
-      )}
+      ) : null}
 
-      {/* Discover New Characters */}
-      {newCharacters.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-xl font-semibold">
-                {relationships.length > 0 ? "Meet Someone New" : "Meet Your Characters"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Start a new story with a cozy companion
-              </p>
-            </div>
-          </div>
-          <CharacterGrid characters={newCharacters} />
-        </section>
-      )}
+      {/* Next Episodes */}
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Next Episodes</h2>
+        <p className="text-sm text-muted-foreground">
+          Start Episode 0 or move to the next beat with characters you’ve met.
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          {sortedRelationships.slice(heroRelationship ? 1 : 0, (heroRelationship ? 1 : 0) + 4).map((rel) => {
+            const character = characters.find((c) => c.id === rel.character_id);
+            if (!character) return null;
+            return (
+              <EpisodeCard
+                key={rel.id}
+                title={character.name}
+                subtitle={`${character.archetype}`}
+                hook={
+                  character.short_backstory ||
+                  "A new episode is ready. Step back into the moment."
+                }
+                badge={rel.stage === "acquaintance" ? "Episode 0" : `Stage: ${rel.stage}`}
+                href={`/chat/${rel.character_id}`}
+                imageUrl={character.avatar_url}
+                meta={
+                  rel.last_interaction_at
+                    ? `Last chat ${formatRelativeTime(rel.last_interaction_at)}`
+                    : `${rel.total_messages} messages • ${rel.total_episodes} episodes`
+                }
+                ctaText="Resume"
+              />
+            );
+          })}
+
+          {/* New characters as Episode 0 */}
+          {newCharacters.slice(0, 4).map((character) => (
+            <EpisodeCard
+              key={character.id}
+              title={character.name}
+              subtitle={`${character.archetype}`}
+              hook={character.short_backstory || "Episode 0: meet for the first time."}
+              badge="Episode 0"
+              href={`/chat/${character.id}`}
+              imageUrl={character.avatar_url}
+              meta="New story"
+              ctaText="Start Episode 0"
+            />
+          ))}
+        </div>
+      </section>
 
       {/* Empty state */}
       {characters.length === 0 && (

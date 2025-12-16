@@ -155,11 +155,17 @@ export interface Episode extends EpisodeSummary {
 // ============================================================================
 
 /**
+ * Episode type per EPISODES_CANON_PHILOSOPHY.md Section 5
+ */
+export type EpisodeType = "entry" | "core" | "expansion" | "special";
+
+/**
  * Episode Template Summary - for episode selection UI
  */
 export interface EpisodeTemplateSummary {
   id: string;
   episode_number: number;
+  episode_type: EpisodeType;
   title: string;
   slug: string;
   background_image_url: string | null;
