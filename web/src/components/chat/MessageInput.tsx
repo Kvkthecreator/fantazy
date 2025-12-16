@@ -57,7 +57,7 @@ export function MessageInput({
 
   return (
     <div className="border-t bg-card/85 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-card/70">
-      <div className="flex w-full items-end gap-2 rounded-full border-2 border-primary/15 bg-background/70 px-3 py-2 shadow-sm">
+      <div className="flex w-full items-end gap-2 rounded-full border border-white/20 bg-background/80 px-3 py-2 shadow-sm">
         {/* Visualize button */}
         {showVisualizeButton && onVisualize && (
           <div className="relative">
