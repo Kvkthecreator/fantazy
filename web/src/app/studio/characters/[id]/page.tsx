@@ -9,24 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api, APIError } from '@/lib/api/client'
-import type { Character, AvatarStatusResponse, EpisodeTemplate, EpisodeTemplateSummary } from '@/types'
+import type { Character, GalleryStatusResponse, EpisodeTemplate, EpisodeTemplateSummary, AvatarGalleryItem } from '@/types'
 
 // =============================================================================
 // Types
 // =============================================================================
 
 type EditTab = 'overview' | 'assets' | 'backstory' | 'opening' | 'episodes' | 'conversation' | 'advanced'
-
-// Available expressions for the expression pack
-const EXPRESSION_TYPES = [
-  { name: 'smile', label: 'Smile', desc: 'Warmly smiling, happy' },
-  { name: 'shy', label: 'Shy', desc: 'Slight blush, looking down' },
-  { name: 'thoughtful', label: 'Thoughtful', desc: 'Contemplative, looking aside' },
-  { name: 'surprised', label: 'Surprised', desc: 'Eyes wide, eyebrows raised' },
-  { name: 'annoyed', label: 'Annoyed', desc: 'One eyebrow raised' },
-  { name: 'flirty', label: 'Flirty', desc: 'Playful smirk' },
-  { name: 'sad', label: 'Sad', desc: 'Downcast eyes, melancholic' },
-]
 
 // Helper to extract error detail from APIError
 function getErrorDetail(err: unknown, fallback: string): string {
@@ -59,12 +48,14 @@ export default function CharacterDetailPage() {
   const [regenerateFeedback, setRegenerateFeedback] = useState('')
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false)
 
-  // Avatar Generation state
-  const [avatarStatus, setAvatarStatus] = useState<AvatarStatusResponse | null>(null)
+  // Avatar Gallery state
+  const [galleryStatus, setGalleryStatus] = useState<GalleryStatusResponse | null>(null)
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false)
-  const [generatingExpression, setGeneratingExpression] = useState<string | null>(null)
   const [appearanceDescription, setAppearanceDescription] = useState('')
+  const [newAvatarLabel, setNewAvatarLabel] = useState('')
   const [avatarError, setAvatarError] = useState<string | null>(null)
+  const [settingPrimary, setSettingPrimary] = useState<string | null>(null)
+  const [deletingItem, setDeletingItem] = useState<string | null>(null)
 
   // Episode Templates state
   const [episodeTemplates, setEpisodeTemplates] = useState<EpisodeTemplate[]>([])
@@ -86,7 +77,7 @@ export default function CharacterDetailPage() {
 
   useEffect(() => {
     fetchCharacter()
-    fetchAvatarStatus()
+    fetchGalleryStatus()
     fetchEpisodeTemplates()
   }, [characterId])
 
@@ -108,13 +99,13 @@ export default function CharacterDetailPage() {
     }
   }
 
-  const fetchAvatarStatus = async () => {
+  const fetchGalleryStatus = async () => {
     try {
-      const status = await api.studio.getAvatarStatus(characterId)
-      setAvatarStatus(status)
+      const status = await api.studio.getGalleryStatus(characterId)
+      setGalleryStatus(status)
     } catch {
-      // Avatar status might not exist yet, that's okay
-      setAvatarStatus(null)
+      // Gallery might not exist yet, that's okay
+      setGalleryStatus(null)
     }
   }
 
@@ -125,7 +116,8 @@ export default function CharacterDetailPage() {
     try {
       const result = await api.studio.generateAvatar(
         characterId,
-        appearanceDescription || undefined
+        appearanceDescription || undefined,
+        newAvatarLabel || undefined
       )
 
       if (!result.success) {
@@ -133,10 +125,11 @@ export default function CharacterDetailPage() {
         return
       }
 
-      // Refresh character and avatar status
+      // Refresh character and gallery status
       await fetchCharacter()
-      await fetchAvatarStatus()
-      setSaveMessage('Hero avatar generated successfully!')
+      await fetchGalleryStatus()
+      setNewAvatarLabel('')
+      setSaveMessage('Avatar generated successfully!')
       setTimeout(() => setSaveMessage(null), 3000)
     } catch (err) {
       setAvatarError(getErrorDetail(err, 'Failed to generate avatar'))
@@ -145,26 +138,39 @@ export default function CharacterDetailPage() {
     }
   }
 
-  const handleGenerateExpression = async (expression: string) => {
-    setGeneratingExpression(expression)
+  const handleSetPrimary = async (assetId: string) => {
+    setSettingPrimary(assetId)
     setAvatarError(null)
 
     try {
-      const result = await api.studio.generateExpression(characterId, expression)
-
-      if (!result.success) {
-        setAvatarError(result.error || `Failed to generate ${expression} expression`)
-        return
-      }
-
-      // Refresh avatar status
-      await fetchAvatarStatus()
-      setSaveMessage(`${expression} expression generated!`)
+      await api.studio.setGalleryPrimary(characterId, assetId)
+      await fetchCharacter()
+      await fetchGalleryStatus()
+      setSaveMessage('Primary avatar updated!')
       setTimeout(() => setSaveMessage(null), 3000)
     } catch (err) {
-      setAvatarError(getErrorDetail(err, `Failed to generate ${expression} expression`))
+      setAvatarError(getErrorDetail(err, 'Failed to set primary avatar'))
     } finally {
-      setGeneratingExpression(null)
+      setSettingPrimary(null)
+    }
+  }
+
+  const handleDeleteGalleryItem = async (assetId: string) => {
+    if (!confirm('Are you sure you want to delete this avatar?')) return
+
+    setDeletingItem(assetId)
+    setAvatarError(null)
+
+    try {
+      await api.studio.deleteGalleryItem(characterId, assetId)
+      await fetchCharacter()
+      await fetchGalleryStatus()
+      setSaveMessage('Avatar deleted!')
+      setTimeout(() => setSaveMessage(null), 3000)
+    } catch (err) {
+      setAvatarError(getErrorDetail(err, 'Failed to delete avatar'))
+    } finally {
+      setDeletingItem(null)
     }
   }
 
@@ -376,9 +382,9 @@ export default function CharacterDetailPage() {
           {character.status === 'draft' ? (
             <Button
               onClick={activateCharacter}
-              disabled={!avatarStatus?.can_activate}
+              disabled={!galleryStatus?.can_activate}
             >
-              {avatarStatus?.can_activate ? 'Activate' : 'Generate Avatar First'}
+              {galleryStatus?.can_activate ? 'Activate' : 'Generate Avatar First'}
             </Button>
           ) : (
             <Button variant="outline" onClick={deactivateCharacter}>
@@ -502,154 +508,131 @@ export default function CharacterDetailPage() {
             </div>
           )}
 
-          {/* Hero Avatar Section */}
+          {/* Avatar Gallery */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                Hero Avatar
-                {avatarStatus?.has_hero_avatar && (
-                  <span className="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
-                )}
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  Avatar Gallery
+                  {galleryStatus?.has_gallery && (
+                    <span className="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
+                  )}
+                </span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {galleryStatus?.gallery.length || 0} images
+                </span>
               </CardTitle>
               <CardDescription>
-                The primary visual identity for your character. Required for activation.
+                Your character&apos;s visual identity. Click any image to set it as primary.
+                {!galleryStatus?.has_gallery && ' Generate at least one avatar to activate.'}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {avatarStatus?.has_hero_avatar ? (
-                <div className="flex items-start gap-6">
-                  <div className="relative">
-                    <img
-                      src={avatarStatus.hero_avatar_url}
-                      alt={`${character.name} hero avatar`}
-                      className="h-40 w-40 rounded-lg object-cover border border-border"
-                    />
-                    <div className="absolute -top-2 -right-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full">
-                      Primary
-                    </div>
-                  </div>
-                  <div className="flex-1 space-y-3">
-                    <p className="text-sm text-muted-foreground">
-                      Your character has a hero avatar. You can regenerate it with a different appearance.
-                    </p>
-                    <div className="space-y-2">
-                      <Label className="text-sm">Appearance Description (optional)</Label>
-                      <Input
-                        placeholder="e.g., Silver hair, bright blue eyes, wearing a cozy sweater..."
-                        value={appearanceDescription}
-                        onChange={(e) => setAppearanceDescription(e.target.value)}
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Leave empty to auto-derive from archetype and personality.
-                      </p>
-                    </div>
-                    <Button
-                      onClick={handleGenerateAvatar}
-                      disabled={isGeneratingAvatar}
-                      variant="outline"
+            <CardContent className="space-y-6">
+              {/* Gallery Grid */}
+              {galleryStatus?.gallery && galleryStatus.gallery.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {galleryStatus.gallery.map((item) => (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        'group relative rounded-lg border-2 overflow-hidden transition-all',
+                        item.is_primary
+                          ? 'border-green-500 ring-2 ring-green-500/20'
+                          : 'border-border hover:border-primary/50'
+                      )}
                     >
-                      {isGeneratingAvatar ? 'Regenerating...' : 'Regenerate Avatar'}
-                    </Button>
-                  </div>
+                      <img
+                        src={item.url}
+                        alt={item.label || `${character.name} avatar`}
+                        className="aspect-square w-full object-cover"
+                      />
+                      {/* Primary badge */}
+                      {item.is_primary && (
+                        <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-0.5 rounded-full font-medium">
+                          Primary
+                        </div>
+                      )}
+                      {/* Label */}
+                      {item.label && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2">
+                          <p className="text-xs text-white truncate">{item.label}</p>
+                        </div>
+                      )}
+                      {/* Hover Actions */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        {!item.is_primary && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => handleSetPrimary(item.id)}
+                            disabled={settingPrimary === item.id}
+                          >
+                            {settingPrimary === item.id ? '...' : 'Set Primary'}
+                          </Button>
+                        )}
+                        {galleryStatus.gallery.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => handleDeleteGalleryItem(item.id)}
+                            disabled={deletingItem === item.id || item.is_primary}
+                          >
+                            {deletingItem === item.id ? '...' : 'Delete'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-6">
-                    <div className="h-24 w-24 rounded-lg bg-muted flex items-center justify-center text-4xl text-muted-foreground">
-                      {character.name[0].toUpperCase()}
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <p className="font-medium">No Hero Avatar Yet</p>
-                      <p className="text-sm text-muted-foreground">
-                        Generate a hero avatar to complete your character&apos;s visual identity.
-                        This is required before you can activate the character.
-                      </p>
-                    </div>
+                <div className="flex items-center gap-4 rounded-lg border border-dashed border-primary/50 bg-primary/5 p-6">
+                  <div className="h-24 w-24 rounded-lg bg-muted flex items-center justify-center text-4xl text-muted-foreground">
+                    {character.name[0].toUpperCase()}
                   </div>
+                  <div className="flex-1 space-y-2">
+                    <p className="font-medium">No Avatars Yet</p>
+                    <p className="text-sm text-muted-foreground">
+                      Generate your first avatar to complete your character&apos;s visual identity.
+                      This is required before you can activate the character.
+                    </p>
+                  </div>
+                </div>
+              )}
 
+              {/* Generate New Avatar */}
+              <div className="rounded-lg border border-dashed border-border p-4 space-y-4">
+                <p className="font-medium text-sm">Generate New Avatar</p>
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Appearance Description (optional)</Label>
+                    <Label className="text-sm">Appearance Description (optional)</Label>
                     <Input
-                      placeholder="e.g., Silver hair, bright blue eyes, wearing a cozy sweater..."
+                      placeholder="e.g., Silver hair, bright blue eyes, cozy sweater..."
                       value={appearanceDescription}
                       onChange={(e) => setAppearanceDescription(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Describe how your character looks. Leave empty to auto-derive from archetype and personality.
+                      Leave empty to auto-derive from archetype and personality.
                     </p>
                   </div>
-
-                  <Button
-                    onClick={handleGenerateAvatar}
-                    disabled={isGeneratingAvatar}
-                    className="w-full"
-                  >
-                    {isGeneratingAvatar ? 'Generating Hero Avatar...' : 'Generate Hero Avatar'}
-                  </Button>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Label (optional)</Label>
+                    <Input
+                      placeholder="e.g., Casual, Office, Evening..."
+                      value={newAvatarLabel}
+                      onChange={(e) => setNewAvatarLabel(e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      A short description to identify this avatar.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Expression Pack Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Expression Pack</span>
-                <span className="text-sm font-normal text-muted-foreground">
-                  {avatarStatus?.expression_count || 0} / 7
-                </span>
-              </CardTitle>
-              <CardDescription>
-                Generate expression variants to make your character feel more alive.
-                {!avatarStatus?.has_hero_avatar && ' Generate a hero avatar first.'}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-                {EXPRESSION_TYPES.map((expr) => {
-                  const generated = avatarStatus?.expressions.find(e => e.expression === expr.name)
-                  const isGenerating = generatingExpression === expr.name
-
-                  return (
-                    <div
-                      key={expr.name}
-                      className={cn(
-                        'relative rounded-lg border p-2 text-center transition',
-                        generated ? 'border-green-500/50 bg-green-500/5' : 'border-border',
-                        !avatarStatus?.has_hero_avatar && 'opacity-50'
-                      )}
-                    >
-                      {generated ? (
-                        <img
-                          src={generated.image_url}
-                          alt={`${character.name} ${expr.label}`}
-                          className="aspect-square w-full rounded object-cover"
-                        />
-                      ) : (
-                        <div className="aspect-square w-full rounded bg-muted flex items-center justify-center">
-                          {isGenerating ? (
-                            <span className="text-xs text-muted-foreground">Generating...</span>
-                          ) : (
-                            <span className="text-2xl text-muted-foreground/50">+</span>
-                          )}
-                        </div>
-                      )}
-                      <p className="mt-1 text-xs font-medium">{expr.label}</p>
-                      {!generated && avatarStatus?.has_hero_avatar && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="mt-1 h-6 text-xs w-full"
-                          onClick={() => handleGenerateExpression(expr.name)}
-                          disabled={isGenerating || !!generatingExpression}
-                        >
-                          {isGenerating ? '...' : 'Generate'}
-                        </Button>
-                      )}
-                    </div>
-                  )
-                })}
+                <Button
+                  onClick={handleGenerateAvatar}
+                  disabled={isGeneratingAvatar}
+                  className="w-full sm:w-auto"
+                >
+                  {isGeneratingAvatar ? 'Generating Avatar...' : 'Generate Avatar'}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -661,20 +644,20 @@ export default function CharacterDetailPage() {
                 <div className="flex items-center gap-3">
                   <div className={cn(
                     'h-3 w-3 rounded-full',
-                    avatarStatus?.can_activate ? 'bg-green-500' : 'bg-yellow-500'
+                    galleryStatus?.can_activate ? 'bg-green-500' : 'bg-yellow-500'
                   )} />
                   <div>
                     <p className="font-medium">
-                      {avatarStatus?.can_activate ? 'Ready for Activation' : 'Not Ready for Activation'}
+                      {galleryStatus?.can_activate ? 'Ready for Activation' : 'Not Ready for Activation'}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {avatarStatus?.can_activate
-                        ? 'Your character has a hero avatar and can be activated.'
-                        : 'Generate a hero avatar to enable activation.'}
+                      {galleryStatus?.can_activate
+                        ? 'Your character has an avatar and can be activated.'
+                        : 'Generate an avatar to enable activation.'}
                     </p>
                   </div>
                 </div>
-                {avatarStatus?.can_activate && character.status === 'draft' && (
+                {galleryStatus?.can_activate && character.status === 'draft' && (
                   <Button onClick={activateCharacter}>
                     Activate Character
                   </Button>

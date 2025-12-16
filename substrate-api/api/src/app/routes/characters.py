@@ -200,7 +200,7 @@ async def get_character_profile(
 
             # Get all active assets for this kit
             assets_query = """
-                SELECT id, asset_type, expression, storage_path
+                SELECT id, label, storage_path
                 FROM avatar_assets
                 WHERE avatar_kit_id = :kit_id AND is_active = TRUE
                 ORDER BY is_canonical DESC, created_at ASC
@@ -217,9 +217,8 @@ async def get_character_profile(
 
                     gallery.append(AvatarGalleryItem(
                         id=asset["id"],
-                        asset_type=asset["asset_type"],
-                        expression=asset["expression"],
-                        image_url=signed_url,
+                        url=signed_url,
+                        label=asset["label"],
                         is_primary=is_primary,
                     ))
 

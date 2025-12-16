@@ -69,7 +69,7 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
   }
 
   const displayImages = profile.gallery.length > 0
-    ? profile.gallery.map((g) => ({ url: g.image_url, label: g.expression || g.asset_type }))
+    ? profile.gallery.map((g) => ({ url: g.url, label: g.label || "Portrait" }))
     : profile.avatar_url
       ? [{ url: profile.avatar_url, label: "Portrait" }]
       : [];

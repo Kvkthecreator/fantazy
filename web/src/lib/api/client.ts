@@ -516,29 +516,29 @@ export const api = {
       request<import("@/types").ArchetypeRulesResponse>(
         `/studio/archetype-rules/${archetype}`
       ),
-    // Avatar Generation (Phase 4.1 & 4.2)
-    generateAvatar: (characterId: string, appearanceDescription?: string) =>
+    // Avatar Gallery (simplified model)
+    generateAvatar: (characterId: string, appearanceDescription?: string, label?: string) =>
       request<import("@/types").AvatarGenerationResponse>(
         `/studio/characters/${characterId}/generate-avatar`,
         {
           method: "POST",
-          body: JSON.stringify({ appearance_description: appearanceDescription }),
+          body: JSON.stringify({ appearance_description: appearanceDescription, label }),
         }
       ),
-    generateExpression: (characterId: string, expression: string) =>
-      request<import("@/types").AvatarGenerationResponse>(
-        `/studio/characters/${characterId}/generate-expression`,
-        {
-          method: "POST",
-          body: JSON.stringify({ expression }),
-        }
+    getGalleryStatus: (characterId: string) =>
+      request<import("@/types").GalleryStatusResponse>(
+        `/studio/characters/${characterId}/gallery`
       ),
-    getAvatarStatus: (characterId: string) =>
-      request<import("@/types").AvatarStatusResponse>(
-        `/studio/characters/${characterId}/avatar-status`
+    setGalleryPrimary: (characterId: string, assetId: string) =>
+      request<{ success: boolean; primary_url: string }>(
+        `/studio/characters/${characterId}/gallery/${assetId}/set-primary`,
+        { method: "POST" }
       ),
-    getExpressionTypes: () =>
-      request<import("@/types").ExpressionTypesResponse>("/studio/expression-types"),
+    deleteGalleryItem: (characterId: string, assetId: string) =>
+      request<{ success: boolean }>(
+        `/studio/characters/${characterId}/gallery/${assetId}`,
+        { method: "DELETE" }
+      ),
     // Admin / Calibration endpoints
     fixAvatarUrls: () =>
       request<{ message: string; results: Array<{ name: string; status: string }> }>(

@@ -51,9 +51,8 @@ export interface CharacterSummary {
 
 export interface AvatarGalleryItem {
   id: string;
-  asset_type: string;
-  expression: string | null;
-  image_url: string;
+  url: string;
+  label: string | null;
   is_primary: boolean;
 }
 
@@ -371,11 +370,9 @@ export interface SceneMemory {
 export type AvatarKitStatus = "draft" | "active" | "archived";
 
 export type AvatarAssetType =
-  | "anchor_portrait"
-  | "anchor_fullbody"
-  | "expression"
-  | "pose"
-  | "outfit";
+  | "portrait"
+  | "fullbody"
+  | "scene";
 
 export type AvatarAssetSource = "manual_upload" | "ai_generated" | "imported";
 
@@ -393,7 +390,6 @@ export interface AvatarKit {
   style_prompt: string;
   negative_prompt: string | null;
   primary_anchor_id: string | null;
-  secondary_anchor_id: string | null;
   status: AvatarKitStatus;
   is_default: boolean;
   created_at: string;
@@ -402,18 +398,16 @@ export interface AvatarKit {
 
 export interface AvatarKitWithAnchors extends AvatarKit {
   primary_anchor_url: string | null;
-  secondary_anchor_url: string | null;
 }
 
 /**
- * Avatar Asset - Canonical character image (anchor, expression, pose).
+ * Avatar Asset - Canonical character image (portrait, fullbody, scene).
  */
 export interface AvatarAsset {
   id: string;
   avatar_kit_id: string;
   asset_type: AvatarAssetType;
-  expression: string | null;
-  emotion_tags: string[];
+  label: string | null;
   storage_bucket: string;
   storage_path: string;
   source_type: AvatarAssetSource;
@@ -598,28 +592,13 @@ export interface AvatarGenerationResponse {
   latency_ms?: number;
 }
 
-export interface ExpressionInfo {
-  id: string;
-  expression: string;
-  image_url: string;
-}
-
-export interface AvatarStatusResponse {
-  has_kit: boolean;
+/**
+ * Gallery Status Response - Simple avatar gallery model
+ */
+export interface GalleryStatusResponse {
+  has_gallery: boolean;
   kit_id?: string;
-  has_hero_avatar: boolean;
-  hero_avatar_url?: string;
-  expression_count: number;
-  expressions: ExpressionInfo[];
+  primary_url?: string;
+  gallery: AvatarGalleryItem[];
   can_activate: boolean;
-  available_expressions: string[];
-}
-
-export interface ExpressionType {
-  name: string;
-  description: string;
-}
-
-export interface ExpressionTypesResponse {
-  expressions: ExpressionType[];
 }

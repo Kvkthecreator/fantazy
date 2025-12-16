@@ -57,9 +57,8 @@ class AvatarGalleryItem(BaseModel):
     """Single gallery image for character profile."""
 
     id: UUID
-    asset_type: str
-    expression: Optional[str] = None
-    image_url: str
+    url: str
+    label: Optional[str] = None
     is_primary: bool = False
 
 
