@@ -178,14 +178,24 @@ export default function CharacterDetailPage() {
     try {
       const data = await api.studio.getCharacter(characterId)
       setCharacter(data)
+      // Fetch default episode template for opening beat (EP-01 Episode-First Pivot)
+      const summaries = await api.studio.listEpisodeTemplates(characterId, true)
+      const defaultSummary = summaries.find(s => s.is_default)
+      let openingSituation = ''
+      let openingLine = ''
+      if (defaultSummary) {
+        const defaultTemplate = await api.studio.getEpisodeTemplate(defaultSummary.id)
+        openingSituation = defaultTemplate.situation || ''
+        openingLine = defaultTemplate.opening_line || ''
+      }
       setEditForm({
         short_backstory: data.short_backstory || '',
         full_backstory: data.full_backstory || '',
         current_stressor: data.current_stressor || '',
         likes: data.likes || [],
         dislikes: data.dislikes || [],
-        opening_situation: data.opening_situation || '',
-        opening_line: data.opening_line || '',
+        opening_situation: openingSituation,
+        opening_line: openingLine,
         starter_prompts: data.starter_prompts || [],
       })
     } catch (err) {
@@ -242,8 +252,9 @@ export default function CharacterDetailPage() {
 
     try {
       const result = await api.studio.regenerateOpeningBeat(characterId, {
-        previous_situation: editForm.opening_situation || character.opening_situation || '',
-        previous_line: editForm.opening_line || character.opening_line || '',
+        // Opening beat comes from editForm or default episode template (not character)
+        previous_situation: editForm.opening_situation || '',
+        previous_line: editForm.opening_line || '',
         feedback: regenerateFeedback || undefined,
       })
 
@@ -456,17 +467,17 @@ export default function CharacterDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Opening Beat</CardTitle>
-              <CardDescription>How the first conversation starts</CardDescription>
+              <CardDescription>How the first conversation starts (from Episode 0)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {character.opening_situation ? (
+              {editForm.opening_situation ? (
                 <>
-                  <p className="text-sm italic text-muted-foreground">{character.opening_situation}</p>
+                  <p className="text-sm italic text-muted-foreground">{editForm.opening_situation}</p>
                   <div className="flex gap-2">
                     <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
                       {character.name[0]}
                     </div>
-                    <p className="text-sm">{character.opening_line}</p>
+                    <p className="text-sm">{editForm.opening_line}</p>
                   </div>
                 </>
               ) : (
@@ -852,13 +863,25 @@ export default function CharacterDetailPage() {
             )}
 
             <Button
-              onClick={() =>
-                saveChanges({
-                  opening_situation: editForm.opening_situation || null,
-                  opening_line: editForm.opening_line || null,
-                })
-              }
-              disabled={saving}
+              onClick={async () => {
+                // Use applyOpeningBeat to save to episode_templates (EP-01 Episode-First Pivot)
+                setSaving(true)
+                try {
+                  await api.studio.applyOpeningBeat(characterId, {
+                    opening_situation: editForm.opening_situation || '',
+                    opening_line: editForm.opening_line || '',
+                    starter_prompts: editForm.starter_prompts,
+                  })
+                  setSaveMessage('Opening beat saved to Episode 0')
+                  setTimeout(() => setSaveMessage(null), 2000)
+                  await fetchEpisodeTemplates() // Refresh episode templates
+                } catch (err) {
+                  setError(getErrorDetail(err, 'Failed to save opening beat'))
+                } finally {
+                  setSaving(false)
+                }
+              }}
+              disabled={saving || !editForm.opening_situation || !editForm.opening_line}
             >
               {saving ? 'Saving...' : 'Save Opening Beat'}
             </Button>
@@ -1074,7 +1097,7 @@ export default function CharacterDetailPage() {
                   setEditForm((prev) => ({
                     ...prev,
                     starter_prompts: [
-                      prev.opening_line || character.opening_line || '',
+                      prev.opening_line || '',  // Opening line from episode_template
                       ...e.target.value.split('\n').filter(Boolean),
                     ],
                   }))

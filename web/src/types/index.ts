@@ -83,9 +83,8 @@ export interface Character extends CharacterSummary {
   relationship_stage_thresholds: Record<string, number>;
   is_active: boolean;
   sort_order: number;
-  // Character creation contract fields (Studio)
-  opening_situation: string | null;
-  opening_line: string | null;
+  // NOTE: opening_situation and opening_line are now in episode_templates only
+  // (EP-01 Episode-First Pivot - single source of truth)
   status: "draft" | "active";
   categories: string[];
   content_rating: string;

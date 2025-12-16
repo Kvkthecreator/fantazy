@@ -190,18 +190,16 @@ async def create_character(
     if final_status == "active" and not data.avatar_url:
         final_status = "draft"  # Can't activate without avatar
 
-    # Insert character
+    # Insert character (opening beat now goes to episode_templates, not characters)
     query = """
         INSERT INTO characters (
             name, slug, archetype, avatar_url,
             baseline_personality, boundaries, content_rating,
-            opening_situation, opening_line,
             system_prompt, starter_prompts,
             status, is_active, created_by
         ) VALUES (
             :name, :slug, :archetype, :avatar_url,
             :baseline_personality, :boundaries, :content_rating,
-            :opening_situation, :opening_line,
             :system_prompt, :starter_prompts,
             :status, :is_active, :created_by
         )
@@ -216,8 +214,6 @@ async def create_character(
         "baseline_personality": json.dumps(personality),
         "boundaries": json.dumps(data.boundaries),
         "content_rating": data.content_rating,
-        "opening_situation": data.opening_situation,
-        "opening_line": data.opening_line,
         "system_prompt": system_prompt,
         "starter_prompts": [data.opening_line],  # Opening line is first starter
         "status": final_status,
@@ -226,6 +222,31 @@ async def create_character(
     }
 
     row = await db.fetch_one(query, values)
+    character_id = row["id"]
+
+    # Create default Episode 0 template with opening beat (EP-01 Episode-First Pivot)
+    episode_template_query = """
+        INSERT INTO episode_templates (
+            character_id, episode_number, title, slug,
+            situation, opening_line,
+            episode_type, is_default, sort_order, status
+        ) VALUES (
+            :character_id, 0, :title, :ep_slug,
+            :situation, :opening_line,
+            'entry', TRUE, 0, :status
+        )
+    """
+    episode_title = f"Episode 0: {data.name}"
+    episode_slug = f"episode-0-{slug}"
+
+    await db.execute(episode_template_query, {
+        "character_id": str(character_id),
+        "title": episode_title,
+        "ep_slug": episode_slug,
+        "situation": data.opening_situation,
+        "opening_line": data.opening_line,
+        "status": final_status,  # Episode template status matches character
+    })
 
     message = "Character created as draft" if final_status == "draft" else "Character created and activated"
     if data.status == "active" and final_status == "draft":
@@ -358,7 +379,7 @@ async def activate_character(
     Requirements (Phase 4.1 hardened):
     - Character must have active_avatar_kit_id (generated via generate-avatar endpoint)
     - Character must have avatar_url (set by avatar generation)
-    - Character must have opening_situation and opening_line (chat ignition)
+    - Character must have a default episode_template with opening beat (chat ignition)
     - Character must have system_prompt (auto-generated)
     """
     # Get character
@@ -659,24 +680,33 @@ async def apply_opening_beat(
     if starter_prompts:
         final_starter_prompts.extend(starter_prompts)
 
-    # Update character
-    query = """
+    # Update character (system_prompt and starter_prompts only - opening beat goes to episode_template)
+    char_query = """
         UPDATE characters
-        SET opening_situation = :opening_situation,
-            opening_line = :opening_line,
-            starter_prompts = :starter_prompts,
+        SET starter_prompts = :starter_prompts,
             system_prompt = :system_prompt,
             updated_at = NOW()
         WHERE id = :id
         RETURNING *
     """
 
-    row = await db.fetch_one(query, {
+    row = await db.fetch_one(char_query, {
         "id": str(character_id),
-        "opening_situation": opening_situation,
-        "opening_line": opening_line,
         "starter_prompts": final_starter_prompts,
         "system_prompt": system_prompt,
+    })
+
+    # Update or create default episode_template with opening beat (EP-01 Episode-First Pivot)
+    await db.execute("""
+        UPDATE episode_templates
+        SET situation = :situation,
+            opening_line = :opening_line,
+            updated_at = NOW()
+        WHERE character_id = :character_id AND is_default = TRUE
+    """, {
+        "character_id": str(character_id),
+        "situation": opening_situation,
+        "opening_line": opening_line,
     })
 
     return Character(**dict(row))
@@ -1014,19 +1044,17 @@ Personality traits: {json.dumps(personality.get('traits', []))}
 Stay in character. Be {archetype} in your responses.
 """
 
-        # Insert character
+        # Insert character (opening beat goes to episode_templates, not characters)
         try:
             row = await db.fetch_one("""
                 INSERT INTO characters (
                     name, slug, archetype,
                     baseline_personality, boundaries, content_rating,
-                    opening_situation, opening_line,
                     system_prompt, starter_prompts,
                     status, is_active, created_by
                 ) VALUES (
                     :name, :slug, :archetype,
                     :personality, :boundaries, :content_rating,
-                    :opening_situation, :opening_line,
                     :system_prompt, :starter_prompts,
                     'draft', FALSE, :user_id
                 )
@@ -1038,17 +1066,36 @@ Stay in character. Be {archetype} in your responses.
                 "personality": json.dumps(personality),
                 "boundaries": json.dumps(DEFAULT_BOUNDARIES),
                 "content_rating": config.get("content_rating", "sfw"),
-                "opening_situation": opening_situation,
-                "opening_line": opening_line,
                 "system_prompt": system_prompt,
                 "starter_prompts": starter_prompts,
                 "user_id": str(user_id),
             })
 
+            character_id = row["id"]
+
+            # Create Episode 0 template with opening beat (EP-01 Episode-First Pivot)
+            await db.execute("""
+                INSERT INTO episode_templates (
+                    character_id, episode_number, title, slug,
+                    situation, opening_line,
+                    episode_type, is_default, sort_order, status
+                ) VALUES (
+                    :character_id, 0, :title, :ep_slug,
+                    :situation, :opening_line,
+                    'entry', TRUE, 0, 'draft'
+                )
+            """, {
+                "character_id": str(character_id),
+                "title": f"Episode 0: {name}",
+                "ep_slug": f"episode-0-{slug}",
+                "situation": opening_situation,
+                "opening_line": opening_line,
+            })
+
             results.append({
                 "name": name,
                 "status": "created",
-                "id": str(row["id"]),
+                "id": str(character_id),
                 "appearance_hint": config.get("appearance_hint"),
             })
 

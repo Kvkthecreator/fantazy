@@ -170,7 +170,7 @@ async def audit_existing_characters(conn) -> List[CalibrationResult]:
 
     results = []
 
-    # Get all characters with their avatar info
+    # Get all characters with their avatar info and opening beat from episode_templates
     rows = await conn.fetch("""
         SELECT
             c.id,
@@ -179,8 +179,8 @@ async def audit_existing_characters(conn) -> List[CalibrationResult]:
             c.status,
             c.avatar_url,
             c.active_avatar_kit_id,
-            c.opening_situation,
-            c.opening_line,
+            et.situation as opening_situation,
+            et.opening_line,
             c.content_rating,
             ak.primary_anchor_id,
             ak.appearance_prompt,
@@ -192,6 +192,7 @@ async def audit_existing_characters(conn) -> List[CalibrationResult]:
         FROM characters c
         LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
         LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id
+        LEFT JOIN episode_templates et ON et.character_id = c.id AND et.is_default = TRUE
         ORDER BY c.created_at
     """)
 
@@ -342,20 +343,18 @@ Personality traits: {json.dumps(personality.get('traits', []))}
 Stay in character. Be {template['archetype']} in your responses.
 """
 
-    # Insert character
+    # Insert character (opening beat goes to episode_templates - EP-01 Episode-First Pivot)
     row = await conn.fetchrow("""
         INSERT INTO characters (
             name, slug, archetype,
             baseline_personality, boundaries, content_rating,
-            opening_situation, opening_line,
             system_prompt, starter_prompts,
             status, is_active, created_by
         ) VALUES (
             $1, $2, $3,
             $4, $5, $6,
             $7, $8,
-            $9, $10,
-            'draft', FALSE, $11
+            'draft', FALSE, $9
         )
         RETURNING id
     """,
@@ -365,8 +364,6 @@ Stay in character. Be {template['archetype']} in your responses.
         json.dumps(personality),
         json.dumps(DEFAULT_BOUNDARIES),
         template.get("content_rating", "sfw"),
-        ignition_result.opening_situation,
-        ignition_result.opening_line,
         system_prompt,
         ignition_result.starter_prompts if hasattr(ignition_result, 'starter_prompts') else [ignition_result.opening_line],
         user_id,
@@ -374,6 +371,22 @@ Stay in character. Be {template['archetype']} in your responses.
 
     character_id = str(row["id"])
     log.info(f"  ✓ Created character {character_id}")
+
+    # Create Episode 0 template with opening beat (EP-01 Episode-First Pivot)
+    await conn.execute("""
+        INSERT INTO episode_templates (
+            character_id, episode_number, title, slug,
+            situation, opening_line,
+            episode_type, is_default, sort_order, status
+        ) VALUES ($1, 0, $2, $3, $4, $5, 'entry', TRUE, 0, 'draft')
+    """,
+        character_id,
+        f"Episode 0: {template['name']}",
+        f"episode-0-{slug}",
+        ignition_result.opening_situation,
+        ignition_result.opening_line,
+    )
+    log.info(f"  ✓ Created Episode 0 template")
 
     return character_id
 

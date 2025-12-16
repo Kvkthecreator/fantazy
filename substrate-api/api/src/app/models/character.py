@@ -130,9 +130,8 @@ class Character(BaseModel):
     starter_prompts: List[str] = Field(default_factory=list)
     example_messages: List[Dict[str, Any]] = Field(default_factory=list)
 
-    # Opening beat (first-class fields for chat ignition)
-    opening_situation: Optional[str] = None
-    opening_line: Optional[str] = None
+    # NOTE: opening_situation and opening_line are now in episode_templates only
+    # (EP-01 Episode-First Pivot - single source of truth)
 
     # Boundaries
     boundaries: Dict[str, Any] = Field(default_factory=dict)
@@ -327,18 +326,19 @@ class CharacterCreateInput(BaseModel):
     )
     content_rating: str = Field(default="sfw", pattern="^(sfw|adult)$")
 
-    # Step 3: Opening Beat (required for good first chat experience)
+    # Step 3: Opening Beat (stored in episode_templates, not characters)
+    # These are used to create the default Episode 0 template
     opening_situation: str = Field(
         ...,
         min_length=10,
         max_length=1000,
-        description="Scene setup for the first chat"
+        description="Scene setup for Episode 0 (stored in episode_templates)"
     )
     opening_line: str = Field(
         ...,
         min_length=1,
         max_length=500,
-        description="Character's first message"
+        description="Character's first message for Episode 0 (stored in episode_templates)"
     )
 
     # Step 4: Status
@@ -379,9 +379,8 @@ class CharacterUpdateInput(BaseModel):
     likes: Optional[List[str]] = None
     dislikes: Optional[List[str]] = None
 
-    # Opening beat
-    opening_situation: Optional[str] = Field(None, max_length=1000)
-    opening_line: Optional[str] = Field(None, max_length=500)
+    # NOTE: opening_situation and opening_line removed - edit via episode_templates
+    # (EP-01 Episode-First Pivot - single source of truth)
 
     # Conversation config (system_prompt intentionally excluded - locked template)
     starter_prompts: Optional[List[str]] = None
@@ -461,11 +460,9 @@ def validate_chat_ready(character: dict) -> List[ActivationError]:
     if not boundaries or not isinstance(boundaries, dict):
         errors.append(ActivationError("boundaries", "required"))
 
-    # Opening beat required
-    if not character.get("opening_situation"):
-        errors.append(ActivationError("opening_situation", "required for chat ignition"))
-    if not character.get("opening_line"):
-        errors.append(ActivationError("opening_line", "required for chat ignition"))
+    # NOTE: opening_situation/opening_line validation removed
+    # Opening beat is now in episode_templates (EP-01 Episode-First Pivot)
+    # Character needs a default episode_template to be chat-ready (checked separately)
 
     # HARD Avatar Requirement (Phase 4.1):
     # Character must have an avatar kit with a primary anchor.
