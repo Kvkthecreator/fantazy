@@ -2,30 +2,32 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SectionHeader } from "@/components/ui/section-header";
-import { CharacterPreviewCard } from "@/components/characters";
 
-const CHARACTERS = [
+const FEATURED_MOMENTS = [
   {
-    name: "Mira",
+    title: "Late Night at the Café",
+    situation: "The shop is closed. She's still here. So are you.",
+    character: "Luna",
     archetype: "Barista",
-    description: "Warm, observant, playfully teasing—remembers your usual.",
   },
   {
-    name: "Kai",
+    title: "Rooftop After Hours",
+    situation: "He found you up here again. Neither of you is surprised anymore.",
+    character: "Kai",
     archetype: "Neighbor",
-    description: "Easygoing night owl with dry humor and quiet care.",
   },
   {
-    name: "Sora",
+    title: "Last One in the Office",
+    situation: "Everyone else went home. The deadline is tomorrow. She hasn't moved.",
+    character: "Sora",
     archetype: "Coworker",
-    description: "Driven, sarcastic at work, secretly soft outside of it.",
   },
 ];
 
 const HOW_IT_WORKS = [
-  "Characters remember your story—names, hooks, promises.",
-  "Chats are episodic: each session is a chapter with callbacks.",
-  "Distinct personalities and boundaries; switching characters feels like switching shows.",
+  "Episodes are moments — step into a scene already in motion.",
+  "Characters remember your story — callbacks, inside jokes, shared history.",
+  "Every reply matters — silence feels like loss.",
 ];
 
 export default async function Home() {
@@ -61,16 +63,17 @@ export default async function Home() {
         </header>
 
         <main className="relative mx-auto flex max-w-5xl flex-col gap-16 px-6 py-16">
+          {/* Hero - Episode-first messaging */}
           <section className="flex flex-col gap-6">
             <div className="inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-              Cozy companions that remember you
+              Interactive episodic experiences
             </div>
             <div className="space-y-4">
               <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
-                Start chatting with AI characters who remember every chapter.
+                Step into moments that matter.
               </h1>
               <p className="max-w-2xl text-lg text-muted-foreground">
-                A cozy romcom experience: episodic chats, stable personalities, and callbacks to your shared history.
+                Choose a scene. The story begins now. AI characters who remember every chapter of your shared history.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
@@ -78,33 +81,52 @@ export default async function Home() {
                 href="/login?next=/discover"
                 className="rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
               >
-                Start chatting
+                Start your story
               </Link>
               <Link
-                href="#characters"
+                href="#moments"
                 className="rounded-lg border border-border px-5 py-3 text-sm font-semibold transition hover:border-primary"
               >
-                Preview characters
+                Preview moments
               </Link>
             </div>
-            <p className="text-sm text-muted-foreground">
-              SFW by default. Toggle adult content after sign-in if you choose.
-            </p>
           </section>
 
-          <section id="characters" className="space-y-6">
+          {/* Featured Moments */}
+          <section id="moments" className="space-y-6">
             <SectionHeader
-              title="Featured characters"
-              description="A taste of who you can meet. See the full roster after sign-in."
+              title="Featured moments"
+              description="A taste of scenes waiting for you. Sign in to explore more."
             />
             <div className="grid gap-4 md:grid-cols-3">
-              {CHARACTERS.map((char) => (
-                <CharacterPreviewCard
-                  key={char.name}
-                  name={char.name}
-                  archetype={char.archetype}
-                  description={char.description}
-                />
+              {FEATURED_MOMENTS.map((moment) => (
+                <div
+                  key={moment.title}
+                  className="group relative overflow-hidden rounded-xl border bg-card shadow-sm transition hover:shadow-lg hover:-translate-y-0.5"
+                >
+                  {/* Placeholder gradient background */}
+                  <div className="aspect-[16/10] bg-gradient-to-br from-primary/20 via-accent/10 to-muted relative">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+
+                    {/* Content */}
+                    <div className="absolute bottom-0 left-0 right-0 p-4 space-y-2">
+                      <p className="text-white/90 text-xs italic line-clamp-2">
+                        &ldquo;{moment.situation}&rdquo;
+                      </p>
+                      <h4 className="font-semibold text-white text-sm">
+                        {moment.title}
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <div className="h-5 w-5 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-semibold text-white">
+                          {moment.character[0]}
+                        </div>
+                        <span className="text-xs text-white/70">
+                          {moment.character} · {moment.archetype}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
             <div>
@@ -112,26 +134,29 @@ export default async function Home() {
                 href="/login?next=/discover"
                 className="text-sm font-semibold text-primary hover:underline"
               >
-                See all characters →
+                Explore all moments →
               </Link>
             </div>
           </section>
 
+          {/* How it works */}
           <section className="space-y-4">
             <SectionHeader title="How it works" />
             <div className="grid gap-3 sm:grid-cols-3">
-              {HOW_IT_WORKS.map((item) => (
+              {HOW_IT_WORKS.map((item, i) => (
                 <div key={item} className="rounded-lg border bg-card p-4 text-sm text-foreground shadow-sm">
+                  <span className="text-primary font-semibold mr-2">{i + 1}.</span>
                   {item}
                 </div>
               ))}
             </div>
           </section>
 
+          {/* Privacy */}
           <section className="space-y-3 rounded-xl border bg-card p-6 shadow-sm">
             <SectionHeader title="Privacy & Safety" />
             <p className="text-sm text-muted-foreground">
-              Sign-in is required to chat. Characters are SFW by default; you control adult mode. Your conversations stay private.
+              Sign-in required to chat. Your conversations stay private. Characters and stories are fiction — enjoy responsibly.
             </p>
           </section>
         </main>
@@ -139,9 +164,9 @@ export default async function Home() {
 
       <footer className="border-t bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-8 text-sm text-muted-foreground">
-          <span>Fantazy — cozy companions that remember your story.</span>
+          <span>Fantazy — moments that matter.</span>
           <Link href="/login?next=/discover" className="font-semibold text-primary hover:underline">
-            Start chatting
+            Start your story
           </Link>
         </div>
       </footer>

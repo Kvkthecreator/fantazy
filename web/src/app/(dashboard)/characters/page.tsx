@@ -3,16 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
-import { EpisodeGrid } from "@/components/episodes";
+import { CharacterGrid } from "@/components/characters";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { EpisodeDiscoveryItem } from "@/types";
+import type { CharacterSummary } from "@/types";
 import { SectionHeader } from "@/components/ui/section-header";
-import { Users } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
-export default function DiscoverPage() {
-  const [episodes, setEpisodes] = useState<EpisodeDiscoveryItem[]>([]);
+/**
+ * Characters browse page - secondary path.
+ * Users can browse characters and see all their available episodes.
+ */
+export default function CharactersPage() {
+  const [characters, setCharacters] = useState<CharacterSummary[]>([]);
   const [archetypes, setArchetypes] = useState<string[]>([]);
   const [selectedArchetype, setSelectedArchetype] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,14 +24,14 @@ export default function DiscoverPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [episodesData, archetypesData] = await Promise.all([
-          api.episodeTemplates.list(),
+        const [charactersData, archetypesData] = await Promise.all([
+          api.characters.list(),
           api.characters.archetypes(),
         ]);
-        setEpisodes(episodesData);
+        setCharacters(charactersData);
         setArchetypes(archetypesData);
       } catch (err) {
-        console.error("Failed to load episodes:", err);
+        console.error("Failed to load characters:", err);
       } finally {
         setIsLoading(false);
       }
@@ -35,10 +39,9 @@ export default function DiscoverPage() {
     loadData();
   }, []);
 
-  // Filter by archetype (character's archetype)
-  const filteredEpisodes = selectedArchetype
-    ? episodes.filter((e) => e.character_archetype === selectedArchetype)
-    : episodes;
+  const filteredCharacters = selectedArchetype
+    ? characters.filter((c) => c.archetype === selectedArchetype)
+    : characters;
 
   if (isLoading) {
     return (
@@ -53,8 +56,8 @@ export default function DiscoverPage() {
           ))}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <Skeleton key={i} className="aspect-[16/10] rounded-xl" />
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-52 rounded-xl" />
           ))}
         </div>
       </div>
@@ -65,13 +68,13 @@ export default function DiscoverPage() {
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <SectionHeader
-          title="Step into a moment"
-          description="Choose a scene. The story begins now."
+          title="Characters"
+          description="Meet the cast. Click a character to see all their available moments."
         />
-        <Link href="/characters">
+        <Link href="/discover">
           <Button variant="outline" size="sm" className="gap-2">
-            <Users className="h-4 w-4" />
-            Browse characters
+            <Sparkles className="h-4 w-4" />
+            Browse moments
           </Button>
         </Link>
       </div>
@@ -102,12 +105,12 @@ export default function DiscoverPage() {
         ))}
       </div>
 
-      {/* Episode grid */}
-      {filteredEpisodes.length > 0 ? (
-        <EpisodeGrid episodes={filteredEpisodes} />
+      {/* Character grid */}
+      {filteredCharacters.length > 0 ? (
+        <CharacterGrid characters={filteredCharacters} />
       ) : (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <p className="text-muted-foreground">No episodes found</p>
+          <p className="text-muted-foreground">No characters found</p>
           {selectedArchetype && (
             <Button
               variant="ghost"

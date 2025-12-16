@@ -182,6 +182,17 @@ export const api = {
 
   // Episode Template endpoints (pre-defined scenarios)
   episodeTemplates: {
+    // List all episodes across all characters (episode-first discovery)
+    list: (params?: { archetype?: string; featured?: boolean; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.archetype) searchParams.set("archetype", params.archetype);
+      if (params?.featured) searchParams.set("featured", "true");
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      const query = searchParams.toString();
+      return request<import("@/types").EpisodeDiscoveryItem[]>(
+        `/episode-templates${query ? `?${query}` : ""}`
+      );
+    },
     listForCharacter: (characterId: string) =>
       request<import("@/types").EpisodeTemplateSummary[]>(
         `/episode-templates/character/${characterId}`

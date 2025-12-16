@@ -84,9 +84,83 @@ class EpisodeTemplateSummary(BaseModel):
     is_default: bool
 
 
+class EpisodeDiscoveryItem(BaseModel):
+    """Episode with character context for discovery UI."""
+    id: UUID
+    episode_number: int
+    title: str
+    slug: str
+    situation: str
+    background_image_url: Optional[str] = None
+    is_default: bool
+    # Character context
+    character_id: UUID
+    character_name: str
+    character_slug: str
+    character_archetype: str
+    character_avatar_url: Optional[str] = None
+
+
 # =============================================================================
 # API Endpoints
 # =============================================================================
+
+@router.get("", response_model=List[EpisodeDiscoveryItem])
+async def list_all_episodes(
+    archetype: Optional[str] = Query(None, description="Filter by character archetype"),
+    featured: bool = Query(False, description="Only return featured episodes"),
+    limit: int = Query(50, ge=1, le=100, description="Max episodes to return"),
+    db=Depends(get_db),
+):
+    """List all active episodes across all characters.
+
+    Primary discovery endpoint for episode-first UX.
+    Returns episodes with character context for display.
+    """
+    query = """
+        SELECT
+            et.id,
+            et.episode_number,
+            et.title,
+            et.slug,
+            et.situation,
+            et.background_image_url,
+            et.is_default,
+            c.id as character_id,
+            c.name as character_name,
+            c.slug as character_slug,
+            c.archetype as character_archetype,
+            c.avatar_url as character_avatar_url
+        FROM episode_templates et
+        JOIN characters c ON et.character_id = c.id
+        WHERE et.status = 'active'
+        AND c.status = 'active'
+    """
+    params = {}
+
+    if archetype:
+        query += " AND c.archetype = :archetype"
+        params["archetype"] = archetype
+
+    if featured:
+        # Featured = default episodes (Episode 0s) for now
+        query += " AND et.is_default = TRUE"
+
+    query += " ORDER BY et.is_default DESC, c.sort_order, et.sort_order LIMIT :limit"
+    params["limit"] = limit
+
+    rows = await db.fetch_all(query, params)
+
+    # Generate signed URLs
+    results = []
+    for row in rows:
+        data = dict(row)
+        data["background_image_url"] = await _get_signed_url(data.get("background_image_url"))
+        # Character avatar URL is already a full URL from characters table
+        results.append(EpisodeDiscoveryItem(**data))
+
+    return results
+
 
 @router.get("/character/{character_id}", response_model=List[EpisodeTemplateSummary])
 async def list_character_episodes(

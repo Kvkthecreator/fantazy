@@ -167,6 +167,19 @@ export interface EpisodeTemplateSummary {
 }
 
 /**
+ * Episode Discovery Item - for episode-first discovery UI
+ * Includes character context for display
+ */
+export interface EpisodeDiscoveryItem extends EpisodeTemplateSummary {
+  situation: string;
+  character_id: string;
+  character_name: string;
+  character_slug: string;
+  character_archetype: string;
+  character_avatar_url: string | null;
+}
+
+/**
  * Episode Template - full details for starting a conversation
  */
 export interface EpisodeTemplate extends EpisodeTemplateSummary {
