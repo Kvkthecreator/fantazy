@@ -205,36 +205,36 @@ FLIRTING_LEVEL_MODIFIERS = {
     "minimal": {
         "gaze": "warm professional eye contact, friendly",
         "body_language": "respectful open posture",
-        "intensity": "purely platonic warmth, supportive",
+        "intensity": "friendly warmth, supportive",
     },
     "subtle": {
         "gaze": "warm friendly eye contact, approachable",
         "body_language": "open but reserved posture",
-        "intensity": "gentle understated attraction",
+        "intensity": "gentle warmth",
     },
     "moderate": {
-        "gaze": "engaging eye contact with hint of interest",
-        "body_language": "relaxed confident posture, subtle allure",
-        "intensity": "balanced attraction, interested but controlled",
+        "gaze": "engaging eye contact, interested expression",
+        "body_language": "relaxed confident posture",
+        "intensity": "genuine interest",
     },
     "playful": {
-        "gaze": "flirty eye contact, playful knowing look",
-        "body_language": "confident inviting posture, slight lean forward",
-        "intensity": "fun romantic tension, obvious interest",
+        "gaze": "bright playful eye contact, fun expression",
+        "body_language": "confident open posture, engaged",
+        "intensity": "fun energy, genuine warmth",
     },
     "slow_burn": {
-        "gaze": "lingering meaningful eye contact, building tension",
-        "body_language": "restrained desire, controlled attraction",
-        "intensity": "magnetic pull, unspoken chemistry",
+        "gaze": "thoughtful meaningful eye contact",
+        "body_language": "composed thoughtful posture",
+        "intensity": "quiet depth, genuine connection",
     },
     "forward": {
-        "gaze": "direct confident eye contact, clear desire",
-        "body_language": "openly inviting posture, confident allure",
-        "intensity": "strong attraction, bold romantic energy",
+        "gaze": "direct confident eye contact",
+        "body_language": "confident open posture",
+        "intensity": "confident warmth, genuine presence",
     },
 }
 
-DEFAULT_FLIRTING_MODIFIER = FLIRTING_LEVEL_MODIFIERS["playful"]
+DEFAULT_FLIRTING_MODIFIER = FLIRTING_LEVEL_MODIFIERS["moderate"]
 
 
 # =============================================================================
