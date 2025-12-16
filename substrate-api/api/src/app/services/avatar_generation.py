@@ -304,7 +304,7 @@ def assemble_avatar_prompt(
     # 4. Build appearance prompt
     # custom_appearance adds physical traits (hair, eyes, etc.) to role wardrobe
     appearance_parts = [
-        f"1girl, {name}",  # Single character, named
+        f"portrait of {name}",  # Single character portrait, named
     ]
 
     # Add custom physical traits if provided
