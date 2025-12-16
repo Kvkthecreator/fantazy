@@ -28,44 +28,55 @@ router = APIRouter(prefix="/scenes", tags=["Scenes"])
 
 
 # Scene prompt template - Genre 01 Visual Doctrine aligned
-SCENE_PROMPT_TEMPLATE = """Create an image generation prompt for this romantic tension moment.
+SCENE_PROMPT_TEMPLATE = """Create an image generation prompt for this SPECIFIC romantic moment.
+
+═══════════════════════════════════════════════════════════════
+CRITICAL RULES (MUST FOLLOW)
+═══════════════════════════════════════════════════════════════
+- SOLO IMAGE: Only ONE person in the image (the character). Never two people.
+- SCENARIO-SPECIFIC: The scene must capture THIS exact moment from conversation below
+- Include a UNIQUE action/pose based on what's happening in the conversation
 
 CHARACTER:
 - Name: {character_name}
 - Appearance: {appearance_prompt}
 
-EMOTIONAL CONTEXT:
-- Setting: {scene}
+SETTING & MOOD:
+- Location: {scene}
 - Relationship stage: {relationship_stage}
-- Current mood: {emotional_tone}
+- Emotional tone: {emotional_tone}
 - Tension level: {tension_level}/100
 
-RECENT CONVERSATION (use to capture the current moment):
+═══════════════════════════════════════════════════════════════
+CURRENT CONVERSATION (capture THIS specific moment)
+═══════════════════════════════════════════════════════════════
 {conversation_summary}
 
 ═══════════════════════════════════════════════════════════════
 GENRE 01 VISUAL DOCTRINE
 ═══════════════════════════════════════════════════════════════
+"A still frame taken one second before something happens."
 
-The image must communicate DESIRE, PROXIMITY, and ANTICIPATION.
-It should feel like "a still frame taken one second before something happens."
+TENSION LEVEL VISUAL GUIDE:
+- Low (0-30): Curious sideways glance, hands occupied with task, slight smile
+- Medium (30-60): Looking up from activity, open posture, soft lighting
+- High (60-80): Direct eye contact, leaning in, dramatic shadows
+- Peak (80-100): Intense gaze, intimate proximity, breath-close moment
 
-TENSION LEVEL GUIDE:
-- Low tension (0-30): Curious glances, subtle interest, uncertain distance
-- Medium tension (30-60): Lingering looks, open body language, charged air
-- High tension (60-80): Intense gaze, physical closeness, palpable desire
-- Peak tension (80-100): Eye contact, breath-close proximity, breaking point
+WHAT TO CAPTURE:
+Based on the conversation above, identify:
+1. What is {character_name} physically DOING right now? (making coffee, leaning on counter, etc.)
+2. What specific OBJECT or SETTING DETAIL from the conversation should be visible?
+3. What emotional micro-expression matches this exact moment?
 
-CAPTURE IN THE IMAGE:
-1. GAZE: Where are they looking? At viewer, away with awareness, over shoulder?
-2. POSTURE: Body language that matches the emotional tone
-3. PROXIMITY: Implied closeness to the viewer
-4. LIGHTING: Mood-appropriate (warm, dramatic, soft, intense)
-5. THE MOMENT: What just happened or is about to happen?
+═══════════════════════════════════════════════════════════════
 
-Write a concise prompt (50-80 words) that captures this specific emotional moment.
+Write a prompt (50-80 words) for THIS SPECIFIC scenario.
 
-Format: "[character with gaze], [pose reflecting mood], [setting detail], [dramatic lighting], [tension mood], anime style, cinematic composition"
+MANDATORY FORMAT:
+"solo, 1girl, [character appearance], [SPECIFIC action from conversation], [setting-specific detail from conversation], [lighting matching {scene}], [emotional expression], anime style, cinematic"
+
+Example for café scene: "solo, 1girl, young woman with messy black hair, wiping down espresso machine while glancing over shoulder at viewer, steaming coffee cup on counter, dim café after-hours lighting, soft knowing smile, anime style, cinematic"
 
 Your prompt:"""
 
@@ -184,7 +195,14 @@ async def generate_scene(
 
         try:
             response = await llm.generate([
-                {"role": "system", "content": "You are a creative scene description writer for anime-style illustrations."},
+                {"role": "system", "content": """You are an expert at writing image generation prompts for anime-style illustrations.
+
+CRITICAL RULES:
+1. ALWAYS start with "solo, 1girl" (or "solo, 1boy" for male characters)
+2. NEVER include multiple people - only the character
+3. Capture the SPECIFIC scenario from the conversation - not generic poses
+4. Include setting-specific props and details mentioned in the conversation
+5. Match lighting to the location (dim for after-hours café, warm for living room, etc.)"""},
                 {"role": "user", "content": prompt_request},
             ])
             prompt = response.content.strip()
@@ -234,10 +252,17 @@ async def generate_scene(
             )
         else:
             # Fall back to standard T2I (no reference available)
+            # Build comprehensive negative prompt
+            base_negative = "multiple people, two people, twins, couple, pair, duo, 2girls, 2boys, group, crowd"
+            if negative_prompt:
+                full_negative = f"{base_negative}, {negative_prompt}"
+            else:
+                full_negative = base_negative
+
             image_service = ImageService.get_instance()
             image_response = await image_service.generate(
                 prompt=prompt,
-                negative_prompt=negative_prompt or None,
+                negative_prompt=full_negative,
                 width=1024,
                 height=1024,
                 num_images=1,

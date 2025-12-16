@@ -21,28 +21,38 @@ log = logging.getLogger(__name__)
 
 
 # Scene generation prompts - Genre 01 Visual Doctrine aligned
-SCENE_PROMPT_TEMPLATE = """Create an image generation prompt for this romantic tension moment.
+SCENE_PROMPT_TEMPLATE = """Create an image generation prompt for this SPECIFIC romantic moment.
 
-Context:
-- Character: {character_name}
+═══════════════════════════════════════════════════════════════
+CRITICAL RULES (MUST FOLLOW)
+═══════════════════════════════════════════════════════════════
+- SOLO IMAGE: Only ONE person in the image. Never two people.
+- SCENARIO-SPECIFIC: Capture THIS exact moment, not a generic pose
+
+CHARACTER:
+- Name: {character_name}
 - Appearance: {appearance_prompt}
-- Setting: {scene}
-- Moment: {moment}
 
-GENRE 01 VISUAL DOCTRINE:
-The image must communicate desire, proximity, and anticipation.
-It should feel like "a still frame taken one second before something happens."
+SETTING & MOMENT:
+- Location: {scene}
+- What's happening: {moment}
 
-Write a concise image prompt (50-80 words) that captures:
-- GAZE DIRECTION: Looking at viewer, glancing away, or meaningful eye contact
-- POSTURE: Body language suggesting tension, openness, or invitation
-- PROXIMITY: Intimacy implied through closeness or personal space
-- LIGHTING AS MOOD: Dramatic, warm, or charged atmosphere
-- EMOTIONAL STAKES: Something feels at risk or about to happen
+═══════════════════════════════════════════════════════════════
+GENRE 01 VISUAL DOCTRINE
+═══════════════════════════════════════════════════════════════
+"A still frame taken one second before something happens."
 
-Format: "[character description with gaze], [charged pose/body language], [intimate setting detail], [dramatic lighting], [tension/desire mood], anime style, cinematic composition"
+WHAT TO CAPTURE:
+1. What is {character_name} physically DOING right now?
+2. What specific OBJECT or DETAIL from the moment should be visible?
+3. What emotional expression matches this exact moment?
 
-Example output: "young woman with dark hair looking over shoulder at viewer, leaning against doorframe with arms crossed, dimly lit apartment hallway, warm lamplight casting soft shadows, charged anticipation, anime style, cinematic composition, intimate atmosphere"
+Write a prompt (50-80 words) for THIS SPECIFIC scenario.
+
+MANDATORY FORMAT:
+"solo, 1girl, [character appearance], [SPECIFIC action from moment], [setting detail], [mood-appropriate lighting], [emotional expression], anime style, cinematic"
+
+Example: "solo, 1girl, young woman with messy black hair, wiping down espresso machine while glancing over shoulder at viewer, steaming coffee cup on counter, dim café after-hours lighting, soft knowing smile, anime style, cinematic"
 
 Your prompt:"""
 
@@ -136,7 +146,14 @@ class SceneService:
             )
 
             prompt_response = await self.llm_service.generate([
-                {"role": "system", "content": "You are a creative scene description writer for anime-style illustrations."},
+                {"role": "system", "content": """You are an expert at writing image generation prompts for anime-style illustrations.
+
+CRITICAL RULES:
+1. ALWAYS start with "solo, 1girl" (or "solo, 1boy" for male characters)
+2. NEVER include multiple people - only the character
+3. Capture the SPECIFIC scenario from the moment - not generic poses
+4. Include setting-specific props and details
+5. Match lighting to the location (dim for after-hours café, warm for living room, etc.)"""},
                 {"role": "user", "content": prompt_request},
             ], max_tokens=300)
             scene_prompt = prompt_response.content.strip()
@@ -145,8 +162,9 @@ class SceneService:
             if style_prompt:
                 scene_prompt = f"{scene_prompt}, {style_prompt}"
 
-            # Build negative prompt
-            final_negative = "photorealistic, 3D render, harsh shadows, multiple characters, text, watermark"
+            # Build negative prompt - strong rejection of multiple people
+            base_negative = "multiple people, two people, twins, couple, pair, duo, 2girls, 2boys, group, crowd"
+            final_negative = f"{base_negative}, photorealistic, 3D render, harsh shadows, text, watermark"
             if negative_prompt:
                 final_negative = f"{final_negative}, {negative_prompt}"
 
