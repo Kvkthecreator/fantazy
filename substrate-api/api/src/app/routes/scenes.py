@@ -147,12 +147,12 @@ async def generate_scene(
             ak.style_prompt,
             ak.negative_prompt,
             ak.primary_anchor_id,
-            r.stage as relationship_stage,
-            r.dynamic as relationship_dynamic
-        FROM episodes e
+            'acquaintance' as relationship_stage,
+            eng.dynamic as relationship_dynamic
+        FROM sessions e
         JOIN characters c ON c.id = e.character_id
         LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id AND ak.status = 'active'
-        LEFT JOIN relationships r ON r.character_id = c.id AND r.user_id = e.user_id
+        LEFT JOIN engagements eng ON eng.character_id = c.id AND eng.user_id = e.user_id
         WHERE e.id = :episode_id AND e.user_id = :user_id
     """
     episode = await db.fetch_one(
@@ -467,17 +467,17 @@ async def list_episode_images(
     user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
-    """List all scene images for an episode."""
-    # Verify episode ownership
-    episode_check = await db.fetch_one(
-        "SELECT id FROM episodes WHERE id = :episode_id AND user_id = :user_id",
+    """List all scene images for a session."""
+    # Verify session ownership
+    session_check = await db.fetch_one(
+        "SELECT id FROM sessions WHERE id = :episode_id AND user_id = :user_id",
         {"episode_id": str(episode_id), "user_id": str(user_id)},
     )
 
-    if not episode_check:
+    if not session_check:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Episode not found",
+            detail="Session not found",
         )
 
     # Query uses renamed table: scene_images
@@ -513,12 +513,12 @@ async def toggle_memory(
     db=Depends(get_db),
 ):
     """Save or unsave a scene image as a memory."""
-    # Update with ownership check via episode (using renamed table)
+    # Update with ownership check via session
     query = """
         UPDATE scene_images si
         SET is_memory = :is_memory,
             saved_at = CASE WHEN :is_memory THEN NOW() ELSE NULL END
-        FROM episodes e
+        FROM sessions e
         WHERE si.id = :scene_image_id
           AND si.episode_id = e.id
           AND e.user_id = :user_id

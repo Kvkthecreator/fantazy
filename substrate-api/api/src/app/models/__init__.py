@@ -15,17 +15,29 @@ from app.models.character import (
     CharacterBoundaries,
 )
 from app.models.world import World, WorldSummary
-from app.models.relationship import (
+from app.models.engagement import (
+    Engagement,
+    EngagementCreate,
+    EngagementUpdate,
+    EngagementWithCharacter,
+    # Backwards compatibility aliases
     Relationship,
     RelationshipCreate,
     RelationshipUpdate,
-    RelationshipStage,
+    RelationshipWithCharacter,
 )
-from app.models.episode import (
+from app.models.session import (
+    Session,
+    SessionCreate,
+    SessionSummary,
+    SessionUpdate,
+    SessionWithMessages,
+    # Backwards compatibility aliases
     Episode,
     EpisodeCreate,
     EpisodeSummary,
     EpisodeUpdate,
+    EpisodeWithMessages,
 )
 from app.models.message import (
     Message,
@@ -70,16 +82,28 @@ __all__ = [
     # World
     "World",
     "WorldSummary",
-    # Relationship
+    # Engagement (new)
+    "Engagement",
+    "EngagementCreate",
+    "EngagementUpdate",
+    "EngagementWithCharacter",
+    # Relationship (deprecated aliases)
     "Relationship",
     "RelationshipCreate",
     "RelationshipUpdate",
-    "RelationshipStage",
-    # Episode
+    "RelationshipWithCharacter",
+    # Session (new)
+    "Session",
+    "SessionCreate",
+    "SessionSummary",
+    "SessionUpdate",
+    "SessionWithMessages",
+    # Episode (deprecated aliases)
     "Episode",
     "EpisodeCreate",
     "EpisodeSummary",
     "EpisodeUpdate",
+    "EpisodeWithMessages",
     # Message
     "Message",
     "MessageCreate",

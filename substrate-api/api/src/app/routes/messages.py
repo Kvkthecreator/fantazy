@@ -19,18 +19,18 @@ async def list_messages(
     before_id: Optional[UUID] = Query(None, description="Get messages before this ID"),
     db=Depends(get_db),
 ):
-    """List messages in an episode."""
-    # Verify episode ownership
-    episode_check = """
-        SELECT id FROM episodes
+    """List messages in a session (episode_id is legacy param name for session_id)."""
+    # Verify session ownership
+    session_check = """
+        SELECT id FROM sessions
         WHERE id = :episode_id AND user_id = :user_id
     """
-    episode_row = await db.fetch_one(episode_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
+    session_row = await db.fetch_one(session_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
 
-    if not episode_row:
+    if not session_row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Episode not found",
+            detail="Session not found",
         )
 
     # Build query
@@ -62,18 +62,18 @@ async def get_recent_messages(
     limit: int = Query(10, ge=1, le=50),
     db=Depends(get_db),
 ):
-    """Get the most recent messages in an episode."""
-    # Verify episode ownership
-    episode_check = """
-        SELECT id FROM episodes
+    """Get the most recent messages in a session."""
+    # Verify session ownership
+    session_check = """
+        SELECT id FROM sessions
         WHERE id = :episode_id AND user_id = :user_id
     """
-    episode_row = await db.fetch_one(episode_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
+    session_row = await db.fetch_one(session_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
 
-    if not episode_row:
+    if not session_row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Episode not found",
+            detail="Session not found",
         )
 
     query = """

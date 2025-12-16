@@ -7,9 +7,13 @@ from typing import AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
 from app.models.character import Character
-from app.models.episode import Episode
+from app.models.session import Session
 from app.models.message import Message, MessageRole, ConversationContext, MemorySummary, HookSummary
-from app.models.relationship import Relationship
+from app.models.engagement import Engagement
+
+# Backwards compatibility aliases
+Episode = Session
+Relationship = Engagement
 from app.services.llm import LLMService
 from app.services.memory import MemoryService
 from app.services.usage import UsageService
@@ -232,13 +236,14 @@ class ConversationService:
             raise ValueError(f"Character {character_id} not found")
         character = Character(**dict(char_row))
 
-        # Get relationship
-        rel_query = """
-            SELECT * FROM relationships
+        # Get engagement (was relationship)
+        eng_query = """
+            SELECT * FROM engagements
             WHERE user_id = :user_id AND character_id = :character_id
         """
-        rel_row = await self.db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(character_id)})
-        relationship = Relationship(**dict(rel_row)) if rel_row else None
+        eng_row = await self.db.fetch_one(eng_query, {"user_id": str(user_id), "character_id": str(character_id)})
+        engagement = Engagement(**dict(eng_row)) if eng_row else None
+        relationship = engagement  # Backwards compatibility alias
 
         # Get recent messages from episode
         messages = []
@@ -327,9 +332,10 @@ class ConversationService:
             messages=messages,
             memories=memory_summaries,
             hooks=hook_summaries,
-            relationship_stage=relationship.stage.value if relationship else "acquaintance",
-            relationship_progress=relationship.stage_progress if relationship else 0,
-            total_episodes=relationship.total_episodes if relationship else 0,
+            # Stage is sunset - always return "acquaintance" (EP-01 pivot)
+            relationship_stage="acquaintance",
+            relationship_progress=0,
+            total_episodes=engagement.total_sessions if engagement else 0,
             time_since_first_met=time_since_first_met,
             relationship_dynamic=relationship_dynamic,
             relationship_milestones=relationship_milestones,
@@ -341,8 +347,8 @@ class ConversationService:
         character_id: UUID,
         scene: Optional[str] = None,
         episode_template_id: Optional[UUID] = None,
-    ) -> Episode:
-        """Get active episode or create a new one.
+    ) -> Session:
+        """Get active session or create a new one.
 
         Args:
             user_id: User UUID
@@ -350,9 +356,9 @@ class ConversationService:
             scene: Optional custom scene description
             episode_template_id: Optional episode template ID (overrides scene)
         """
-        # Check for existing active episode
+        # Check for existing active session
         query = """
-            SELECT * FROM episodes
+            SELECT * FROM sessions
             WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
             ORDER BY started_at DESC
             LIMIT 1
@@ -360,26 +366,26 @@ class ConversationService:
         row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
         if row:
-            return Episode(**dict(row))
+            return Session(**dict(row))
 
         # Ensure user exists in public.users (auto-create if missing)
         # This handles cases where the auth trigger didn't fire
         await self._ensure_user_exists(user_id)
 
-        # Ensure relationship exists
-        rel_query = """
-            INSERT INTO relationships (user_id, character_id)
+        # Ensure engagement exists
+        eng_query = """
+            INSERT INTO engagements (user_id, character_id)
             VALUES (:user_id, :character_id)
             ON CONFLICT (user_id, character_id) DO UPDATE SET updated_at = NOW()
             RETURNING id
         """
-        rel_row = await self.db.fetch_one(rel_query, {"user_id": str(user_id), "character_id": str(character_id)})
-        relationship_id = rel_row["id"]
+        eng_row = await self.db.fetch_one(eng_query, {"user_id": str(user_id), "character_id": str(character_id)})
+        engagement_id = eng_row["id"]
 
         # Get next episode number
         count_query = """
             SELECT COALESCE(MAX(episode_number), 0) + 1 as next_num
-            FROM episodes
+            FROM sessions
             WHERE user_id = :user_id AND character_id = :character_id
         """
         count_row = await self.db.fetch_one(count_query, {"user_id": str(user_id), "character_id": str(character_id)})
@@ -397,10 +403,10 @@ class ConversationService:
                 effective_scene = template_row["situation"]
                 opening_line = template_row["opening_line"]
 
-        # Create episode
+        # Create session
         create_query = """
-            INSERT INTO episodes (user_id, character_id, relationship_id, episode_number, scene, episode_template_id)
-            VALUES (:user_id, :character_id, :relationship_id, :episode_number, :scene, :episode_template_id)
+            INSERT INTO sessions (user_id, character_id, engagement_id, episode_number, scene, episode_template_id)
+            VALUES (:user_id, :character_id, :engagement_id, :episode_number, :scene, :episode_template_id)
             RETURNING *
         """
         new_row = await self.db.fetch_one(
@@ -408,36 +414,37 @@ class ConversationService:
             {
                 "user_id": str(user_id),
                 "character_id": str(character_id),
-                "relationship_id": str(relationship_id),
+                "engagement_id": str(engagement_id),
                 "episode_number": episode_number,
                 "scene": effective_scene,
                 "episode_template_id": str(episode_template_id) if episode_template_id else None,
             },
         )
 
-        episode = Episode(**dict(new_row))
+        session = Session(**dict(new_row))
+        episode = session  # Backwards compatibility alias
 
         # If template has an opening_line, save it as the first assistant message
         # This ensures the LLM has context of what the character "already said"
         if opening_line:
             await self._save_message(
-                episode_id=episode.id,
+                episode_id=session.id,
                 role=MessageRole.ASSISTANT,
                 content=opening_line,
             )
-            log.info(f"Injected opening_line for episode {episode.id}")
+            log.info(f"Injected opening_line for session {session.id}")
 
-        return episode
+        return session
 
     async def end_episode(
         self,
         user_id: UUID,
         character_id: UUID,
-    ) -> Optional[Episode]:
-        """End the active episode and generate summary."""
-        # Get active episode
+    ) -> Optional[Session]:
+        """End the active session and generate summary."""
+        # Get active session
         query = """
-            SELECT * FROM episodes
+            SELECT * FROM sessions
             WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
         """
         row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
@@ -445,15 +452,15 @@ class ConversationService:
         if not row:
             return None
 
-        episode = Episode(**dict(row))
+        session = Session(**dict(row))
 
         # Get messages for summary
         msg_query = """
             SELECT role, content FROM messages
-            WHERE episode_id = :episode_id
+            WHERE episode_id = :session_id
             ORDER BY created_at
         """
-        msg_rows = await self.db.fetch_all(msg_query, {"episode_id": str(episode.id)})
+        msg_rows = await self.db.fetch_all(msg_query, {"session_id": str(session.id)})
         messages = [{"role": r["role"], "content": r["content"]} for r in msg_rows]
 
         # Get character name for summary
@@ -467,16 +474,16 @@ class ConversationService:
             messages=messages,
         )
 
-        # Update episode
+        # Update session
         update_query = """
-            UPDATE episodes
+            UPDATE sessions
             SET
                 is_active = FALSE,
                 ended_at = NOW(),
                 summary = :summary,
                 emotional_tags = :emotional_tags,
                 key_events = :key_events
-            WHERE id = :episode_id
+            WHERE id = :session_id
             RETURNING *
         """
         updated_row = await self.db.fetch_one(
@@ -485,11 +492,11 @@ class ConversationService:
                 "summary": summary_data.get("summary"),
                 "emotional_tags": summary_data.get("emotional_tags", []),
                 "key_events": summary_data.get("key_events", []),
-                "episode_id": str(episode.id),
+                "session_id": str(session.id),
             },
         )
 
-        return Episode(**dict(updated_row))
+        return Session(**dict(updated_row))
 
     async def _ensure_user_exists(self, user_id: UUID) -> None:
         """Ensure user exists in public.users table.

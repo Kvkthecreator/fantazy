@@ -510,9 +510,188 @@ Key decisions (finalized):
 
 ---
 
+---
+
+## 16. Taxonomy Refinement (FINALIZED)
+
+The episode-first pivot revealed legacy terminology ambiguity. This section establishes the canonical taxonomy.
+
+### 16.1 Core Concepts
+
+| Term | Definition | Implementation |
+|------|------------|----------------|
+| **Character** | Persona with identity, personality, visual identity | `characters` table |
+| **Episode Template** | Pre-defined scenario (situation, opening_line, episode_frame) | `episode_templates` table |
+| **Session** | Runtime conversation instance (formerly "episode") | `sessions` table (rename from `episodes`) |
+| **Engagement** | Lightweight user↔character link for stats (formerly "relationship") | `engagements` table (rename from `relationships`) |
+| **Memory** | Facts, preferences, events that persist across sessions | `memory_events` table |
+
+### 16.2 Taxonomy Hierarchy
+
+```
+CHARACTER (Persona)
+├── Identity: name, archetype, personality
+├── Visual: avatar_kit, gallery
+├── Episodes: episode_templates owned by character
+│
+├── EPISODE TEMPLATE (Scenario)
+│   ├── situation: The setup ("Late night at the café...")
+│   ├── opening_line: Character's first message
+│   ├── episode_frame: Platform stage direction (scene card text)
+│   ├── background_image_url: Visual for discovery card
+│   ├── episode_type: entry | core | expansion | special
+│   └── is_default: TRUE for Episode 0
+
+USER
+├── ENGAGEMENT (per character)
+│   ├── user_id, character_id
+│   ├── total_sessions: Count of sessions
+│   ├── total_messages: Sum across sessions
+│   ├── first_met_at: First session timestamp
+│   ├── last_interaction_at: Most recent message
+│   ├── is_favorite, is_archived
+│   └── NO STAGE (sunset)
+│
+├── SESSION (runtime - per episode template)
+│   ├── user_id, character_id, episode_template_id
+│   ├── engagement_id (links to engagement)
+│   ├── title: Episode template title
+│   ├── Messages, scene_images
+│   └── is_active: TRUE = current session
+│
+└── MEMORY (per character, persists across all sessions)
+    ├── user_id, character_id
+    ├── Accumulated facts, preferences, events
+    └── Referenced during all sessions with this character
+```
+
+### 16.3 Key Decisions
+
+#### Session Concurrency
+**Decision: One active session per character (Option A)**
+
+- When user starts a new episode template, previous session for that character becomes inactive
+- User can resume previous sessions from "My Chats" history
+- Prevents confusion of multiple concurrent conversations with same character
+
+#### Stage Progression
+**Decision: SUNSET - No stage progression**
+
+The `stage` concept (acquaintance → friendly → close → intimate) is legacy "AI companion" thinking. In the episode-first model:
+
+- Episodes are scenarios, not relationship milestones
+- All episodes are accessible (no required_stage gating)
+- Episode 0 is recommended starting point, not forced
+- User chooses when to switch episodes
+- Depth emerges from memory accumulation, not stage meters
+
+**Migration:** Drop `stage`, `stage_progress`, `relationship_stage_thresholds` columns.
+
+#### Engagement vs Relationship
+**Decision: Rename and simplify**
+
+"Relationship" implies emotional bond tracking which is not our job. "Engagement" is a neutral, stats-focused term.
+
+| Old Field | New Field | Notes |
+|-----------|-----------|-------|
+| `relationships.stage` | REMOVED | No stage tracking |
+| `relationships.stage_progress` | REMOVED | No progression meters |
+| `total_episodes` | `total_sessions` | Renamed for clarity |
+| `relationship_notes` | REMOVED or keep as `engagement_notes` | TBD |
+
+#### Episode vs Session Naming
+**Decision: Rename runtime table**
+
+- `episode_templates` = Pre-defined scenarios (keep name - "episode" is the brand)
+- `episodes` → `sessions` = Runtime conversation instances (rename)
+
+This clarifies:
+- "Episode" = the scenario template (what you browse)
+- "Session" = the runtime instance (what you play)
+
+### 16.4 Episode Progression Model
+
+#### No Gating
+All episode templates for a character are accessible. No `required_stage` field.
+
+#### Soft Guidance
+- Episode 0 is `is_default = TRUE`, positioned first in UI
+- UI can suggest "Start here" but doesn't block other choices
+- Episode types (`entry`, `core`, `expansion`, `special`) inform UI ordering, not access
+
+#### User-Directed Flow
+```
+User browses episodes for Character X
+  → Sees all episodes (E0, E1, E2...)
+  → E0 has "Start Here" badge
+  → User can choose any episode to begin
+  → Starting new episode → new session (previous session inactive)
+  → Memory persists across all sessions
+```
+
+### 16.5 Memory Persistence Model
+
+**Scope: User ↔ Character (cross-session)**
+
+Memory accumulates across ALL sessions with a character:
+
+```
+Session 1 (E0: Coffee Shop Crush)
+  → Memory: "User mentioned they like jazz"
+
+Session 2 (E1: Late Night Confession)
+  → Memory recalled: Character references jazz preference
+  → New memory: "User shared about their job stress"
+
+Session 3 (E0: Coffee Shop Crush - replay)
+  → All previous memories available
+  → Character can reference both jazz + job stress
+```
+
+This creates the feeling of continuity without relationship stages.
+
+---
+
+## 17. Schema Migration Summary
+
+### Tables to Rename
+
+| Current | New | Notes |
+|---------|-----|-------|
+| `relationships` | `engagements` | Clean break, new semantics |
+| `episodes` | `sessions` | Runtime instances |
+
+### Columns to Drop
+
+| Table | Column | Reason |
+|-------|--------|--------|
+| `relationships/engagements` | `stage` | No stage progression |
+| `relationships/engagements` | `stage_progress` | No stage progression |
+| `characters` | `relationship_stage_thresholds` | No stage progression |
+| `episode_templates` | `required_stage` (if exists) | No gating |
+
+### Columns to Rename
+
+| Table | Old | New |
+|-------|-----|-----|
+| `engagements` | `total_episodes` | `total_sessions` |
+
+### Foreign Keys to Update
+
+All references to `episodes` → `sessions`:
+- `messages.episode_id` → `messages.session_id`
+- `scene_images.episode_id` → `scene_images.session_id`
+- `memory_events.episode_id` → `memory_events.session_id`
+
+All references to `relationships` → `engagements`:
+- `episodes/sessions.relationship_id` → `sessions.engagement_id`
+
+---
+
 ## Related Documents
 
 - `docs/FANTAZY_CANON.md` — Platform definition
 - `docs/EPISODES_CANON_PHILOSOPHY.md` — Episode structure and progression
 - `docs/character-philosophy/PHILOSOPHY.md` — Character design principles
 - `docs/architecture/SYSTEM_ARCHITECTURE.md` — Technical architecture
+- `docs/implementation/SESSION_ENGAGEMENT_REFACTOR.md` — Implementation plan for this refactor

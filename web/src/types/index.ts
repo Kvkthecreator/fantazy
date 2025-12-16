@@ -93,26 +93,20 @@ export interface Character extends CharacterSummary {
   updated_at: string;
 }
 
-// Relationship types
-export type RelationshipStage =
-  | "acquaintance"
-  | "friendly"
-  | "close"
-  | "intimate";
-
-export interface Relationship {
+// Engagement types (formerly Relationship - EP-01 pivot)
+// Stage progression is sunset - no longer tracked
+export interface Engagement {
   id: string;
   user_id: string;
   character_id: string;
-  stage: RelationshipStage;
-  stage_progress: number;
-  total_episodes: number;
+  // Stage removed (EP-01 pivot)
+  total_sessions: number;  // was total_episodes
   total_messages: number;
   first_met_at: string;
   last_interaction_at: string | null;
   nickname: string | null;
   inside_jokes: string[];
-  relationship_notes: string | null;
+  engagement_notes: string | null;  // was relationship_notes
   metadata: Record<string, unknown>;
   is_favorite: boolean;
   is_archived: boolean;
@@ -120,6 +114,45 @@ export interface Relationship {
   updated_at: string;
 }
 
+export interface EngagementWithCharacter extends Engagement {
+  character_name: string;
+  character_slug: string;
+  character_archetype: string;
+  character_avatar_url: string | null;
+}
+
+// Legacy aliases for backwards compatibility
+/** @deprecated Use Engagement instead */
+export type RelationshipStage =
+  | "acquaintance"
+  | "friendly"
+  | "close"
+  | "intimate";
+
+/** @deprecated Use Engagement instead */
+export interface Relationship {
+  id: string;
+  user_id: string;
+  character_id: string;
+  stage?: RelationshipStage;
+  stage_progress?: number;
+  total_episodes?: number;
+  total_sessions?: number;  // New name
+  total_messages: number;
+  first_met_at: string;
+  last_interaction_at: string | null;
+  nickname: string | null;
+  inside_jokes: string[];
+  relationship_notes?: string | null;
+  engagement_notes?: string | null;  // New name
+  metadata: Record<string, unknown>;
+  is_favorite: boolean;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** @deprecated Use EngagementWithCharacter instead */
 export interface RelationshipWithCharacter extends Relationship {
   character_name: string;
   character_slug: string;
@@ -127,7 +160,33 @@ export interface RelationshipWithCharacter extends Relationship {
   character_avatar_url: string | null;
 }
 
-// Episode types
+// Session types (formerly Episode runtime - EP-01 pivot)
+export interface SessionSummary {
+  id: string;
+  character_id: string;
+  episode_number: number;
+  title: string | null;
+  started_at: string;
+  ended_at: string | null;
+  message_count: number;
+  is_active: boolean;
+}
+
+export interface Session extends SessionSummary {
+  user_id: string;
+  engagement_id: string | null;  // was relationship_id
+  episode_template_id: string | null;
+  scene: string | null;
+  summary: string | null;
+  emotional_tags: string[];
+  key_events: string[];
+  user_message_count: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+// Legacy aliases for backwards compatibility
+/** @deprecated Use SessionSummary instead */
 export interface EpisodeSummary {
   id: string;
   character_id: string;
@@ -139,9 +198,11 @@ export interface EpisodeSummary {
   is_active: boolean;
 }
 
+/** @deprecated Use Session instead */
 export interface Episode extends EpisodeSummary {
   user_id: string;
-  relationship_id: string | null;
+  relationship_id?: string | null;
+  engagement_id?: string | null;  // New name
   episode_template_id: string | null;
   scene: string | null;
   summary: string | null;

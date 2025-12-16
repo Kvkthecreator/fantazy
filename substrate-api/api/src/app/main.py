@@ -20,17 +20,20 @@ from app.routes import (
     characters,
     conversation,
     credits,
-    episodes,
+    engagements,
+    sessions,
     episode_templates,
     health,
     hooks,
     memory,
     messages,
-    relationships,
     scenes,
     studio,
     subscription,
     users,
+    # Legacy routes (backwards compatibility)
+    episodes,
+    relationships,
 )
 
 log = logging.getLogger("uvicorn.error")
@@ -109,8 +112,12 @@ app.add_middleware(
 app.include_router(health.router, tags=["Health"])
 app.include_router(users.router, tags=["Users"])
 app.include_router(characters.router, tags=["Characters"])
-app.include_router(relationships.router, tags=["Relationships"])
-app.include_router(episodes.router, tags=["Episodes"])
+# New endpoints
+app.include_router(engagements.router, tags=["Engagements"])
+app.include_router(sessions.router, tags=["Sessions"])
+# Legacy endpoints (backwards compatibility)
+app.include_router(relationships.router, tags=["Relationships (deprecated)"])
+app.include_router(episodes.router, tags=["Episodes (deprecated)"])
 app.include_router(episode_templates.router, tags=["Episode Templates"])
 app.include_router(messages.router, tags=["Messages"])
 app.include_router(memory.router, tags=["Memory"])

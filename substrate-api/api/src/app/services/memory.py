@@ -435,18 +435,18 @@ class MemoryService:
 
         Also adds milestone if provided and not already recorded.
         """
-        # Get current relationship dynamic
+        # Get current engagement dynamic
         row = await self.db.fetch_one(
-            """SELECT id, dynamic, milestones FROM relationships
+            """SELECT id, dynamic, milestones FROM engagements
                WHERE user_id = :user_id AND character_id = :character_id""",
             {"user_id": str(user_id), "character_id": str(character_id)},
         )
 
         if not row:
-            log.warning(f"No relationship found for user={user_id}, character={character_id}")
+            log.warning(f"No engagement found for user={user_id}, character={character_id}")
             return
 
-        relationship_id = row["id"]
+        engagement_id = row["id"]
         # Genre 01: Higher baseline tension (45 instead of 30), "intrigued" instead of "warm"
         dynamic = row["dynamic"] or {"tone": "intrigued", "tension_level": 45, "recent_beats": []}
         milestones = row["milestones"] or []
@@ -484,17 +484,17 @@ class MemoryService:
 
         # Save
         await self.db.execute(
-            """UPDATE relationships
+            """UPDATE engagements
                SET dynamic = :dynamic, milestones = :milestones, updated_at = NOW()
                WHERE id = :id""",
             {
-                "id": str(relationship_id),
+                "id": str(engagement_id),
                 "dynamic": json.dumps(new_dynamic),
                 "milestones": milestones,
             },
         )
 
-        log.debug(f"Updated relationship dynamic: tone={tone}, tension={tension}, beats={len(recent_beats)}")
+        log.debug(f"Updated engagement dynamic: tone={tone}, tension={tension}, beats={len(recent_beats)}")
 
     def _derive_tone(self, recent_beats: List[str], tension: int) -> str:
         """Derive current tone from recent beats and tension level.
@@ -552,9 +552,9 @@ class MemoryService:
         user_id: UUID,
         character_id: UUID,
     ) -> Optional[Dict]:
-        """Get current relationship dynamic for context building."""
+        """Get current engagement dynamic for context building."""
         row = await self.db.fetch_one(
-            """SELECT dynamic, milestones FROM relationships
+            """SELECT dynamic, milestones FROM engagements
                WHERE user_id = :user_id AND character_id = :character_id""",
             {"user_id": str(user_id), "character_id": str(character_id)},
         )
