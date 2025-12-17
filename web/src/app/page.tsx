@@ -161,11 +161,31 @@ export default async function Home() {
       </main>
 
       <footer className="border-t bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 text-sm text-muted-foreground">
-          <span>ep-0 — moments that matter.</span>
-          <Link href="/login?next=/discover" className="font-semibold text-primary hover:underline">
-            Start your story
-          </Link>
+        <div className="mx-auto max-w-6xl px-6 py-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <img
+                src="/branding/ep0-mark.svg"
+                alt="ep-0"
+                className="h-6 w-6 opacity-60"
+              />
+              <span className="text-sm text-muted-foreground">episode-0</span>
+            </div>
+            <nav className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
+              <Link href="/login?next=/discover" className="hover:text-foreground">
+                Sign in
+              </Link>
+              <Link href="/privacy" className="hover:text-foreground">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="hover:text-foreground">
+                Terms of Service
+              </Link>
+            </nav>
+          </div>
+          <div className="mt-6 border-t pt-6 text-center text-xs text-muted-foreground">
+            <p>&copy; {new Date().getFullYear()} episode-0. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>
