@@ -93,3 +93,51 @@ body {
     radial-gradient(700px circle at 80% 10%, hsla(var(--primary), 0.08), transparent 50%),
     hsla(var(--background));
 }
+
+/* ============================================
+   Glass / Immersive UI Utilities
+   ============================================ */
+
+/* Glass panel - light mode friendly */
+.glass-panel {
+  @apply backdrop-blur-xl backdrop-saturate-150;
+  @apply bg-card/80 border border-border/50;
+  @apply shadow-lg;
+}
+
+/* Glass panel - for use over images/dark backgrounds */
+.glass-panel-dark {
+  @apply backdrop-blur-xl backdrop-saturate-150;
+  @apply bg-black/40 border border-white/10;
+  @apply shadow-lg;
+}
+
+/* Glass panel - light variant for user messages over backgrounds */
+.glass-panel-light {
+  @apply backdrop-blur-sm;
+  @apply bg-white/90 text-gray-900;
+  @apply shadow-lg;
+}
+
+/* Cinematic vignette overlay */
+.vignette {
+  background: radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.4) 100%);
+}
+
+/* Cinematic gradient for text readability over images */
+.gradient-overlay-bottom {
+  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.5) 100%);
+}
+
+/* Smooth image load transition */
+.image-fade-in {
+  @apply transition-all duration-500;
+}
+
+.image-fade-in[data-loaded="false"] {
+  @apply opacity-0 scale-105;
+}
+
+.image-fade-in[data-loaded="true"] {
+  @apply opacity-100 scale-100;
+}

@@ -14,7 +14,7 @@ export default async function ChatPage({ params, searchParams }: ChatPageProps) 
   const { episode: episodeTemplateId } = await searchParams;
 
   return (
-    <div className="h-[calc(100vh-4rem)] -mx-6 -my-8 lg:-mx-10 bg-transparent">
+    <div className="h-screen w-full">
       <ChatContainer
         characterId={characterId}
         episodeTemplateId={episodeTemplateId}

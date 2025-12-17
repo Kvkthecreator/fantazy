@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useMemo, useState } from "react";
+import React, { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { useChat } from "@/hooks/useChat";
 import { useCharacter } from "@/hooks/useCharacters";
 import { useScenes } from "@/hooks/useScenes";
@@ -16,6 +16,7 @@ import { api } from "@/lib/api/client";
 import type { Relationship, Message, EpisodeImage, EpisodeTemplate, InsufficientSparksError, RateLimitError } from "@/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { X } from "lucide-react";
 
 interface ChatContainerProps {
   characterId: string;
@@ -162,34 +163,44 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   // Only show visualize button after some messages
   const showVisualizeButton = messages.length >= 2;
 
+  // Get the most recent scene for hero background (if any)
+  const latestScene = scenes.length > 0 ? scenes[scenes.length - 1] : null;
+
+  // Use scene image as background if available, otherwise episode template background
+  const activeBackgroundUrl = latestScene?.image_url || backgroundImageUrl;
+  const hasBackground = !!activeBackgroundUrl;
+
   return (
-    <div className="relative flex flex-col h-full overflow-hidden bg-transparent isolate">
-      {/* Seamless background layer */}
-      {backgroundImageUrl && (
-        <div className="absolute inset-0 z-0">
-          <img
-            src={backgroundImageUrl}
-            alt=""
-            className="w-full h-full object-cover"
-          />
-          {/* Gradient overlay for readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/20 to-black/60" />
-        </div>
-      )}
+    <div className="relative flex flex-col h-full w-full overflow-hidden isolate">
+      {/* Full-bleed background layer with parallax-ready structure */}
+      <div className="absolute inset-0 z-0">
+        {activeBackgroundUrl ? (
+          <>
+            <img
+              src={activeBackgroundUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+            />
+            {/* Cinematic gradient overlay for depth and readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/50" />
+            {/* Subtle vignette effect */}
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+          </>
+        ) : (
+          /* Rich dark gradient when no image */
+          <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a0c] via-[#0d0e12] to-[#08080a]" />
+        )}
+      </div>
 
-      {/* Fallback gradient background when no image */}
-      {!backgroundImageUrl && (
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#0b0b0e] via-[#0f1014] to-[#0c0c10]" />
-      )}
-
-      {/* Content layer with glassmorphism */}
+      {/* Content layer */}
       <div className="relative z-10 flex flex-col h-full">
-        {/* Header with glass effect */}
+        {/* Floating glass header */}
         <div className={cn(
-          "backdrop-blur-md border-b",
-          backgroundImageUrl
-            ? "bg-background/60 border-white/10"
-            : "bg-background/95 border-border"
+          "mx-3 mt-3 rounded-2xl border shadow-lg transition-colors",
+          "backdrop-blur-xl backdrop-saturate-150",
+          hasBackground
+            ? "bg-black/40 border-white/10"
+            : "bg-card/80 border-border/50"
         )}>
           <ChatHeader
             character={character}
@@ -197,141 +208,156 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
             episode={episode}
             onEndEpisode={endEpisode}
           />
-        </div>
-
-        {/* Context bar with glass effect */}
-        <div className={cn(
-          "flex flex-wrap gap-2 border-b px-4 py-2 text-xs backdrop-blur-sm",
-          backgroundImageUrl
-            ? "bg-background/40 border-white/10 text-white/90"
-            : "bg-background/80 border-border text-muted-foreground"
-        )}>
-        {relationship && (
-          <ContextChip label="Stage" value={formatStage(relationship.stage)} hasBackground={!!backgroundImageUrl} />
-        )}
-        {episode && (
-          <ContextChip
-            label="Episode"
-            value={`#${episode.episode_number}${episode.started_at ? " • " + formatRelative(episode.started_at) : ""}`}
-            hasBackground={!!backgroundImageUrl}
-          />
-        )}
-        {episodeTemplate && !episode && (
-          <ContextChip
-            label="Scene"
-            value={episodeTemplate.title}
-            hasBackground={!!backgroundImageUrl}
-          />
-        )}
-        {relationship?.last_interaction_at && (
-          <ContextChip label="Last chat" value={formatRelative(relationship.last_interaction_at)} hasBackground={!!backgroundImageUrl} />
-        )}
-        {character.content_rating && (
-          <ContextChip
-            label="Content"
-            value={character.content_rating.toUpperCase()}
-            accent={character.content_rating === "adult" ? "destructive" : "primary"}
-            hasBackground={!!backgroundImageUrl}
-          />
-        )}
-        {character.categories?.slice(0, 3).map((cat) => (
-          <ContextChip key={cat} label="Category" value={cat} hasBackground={!!backgroundImageUrl} />
-        ))}
-        </div>
-
-        {/* Messages area with subtle glass effect */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 bg-transparent">
-          {isLoadingChat ? (
-            <MessagesSkeleton />
-          ) : chatItems.length === 0 ? (
-            <EmptyState
-              characterName={character.name}
-              characterAvatar={character.avatar_url}
-              starterPrompts={character.starter_prompts}
-              episodeTemplate={episodeTemplate}
-              hasBackground={!!backgroundImageUrl}
-              onSelect={sendMessage}
-            />
-          ) : (
-          <>
-            {/* Stage direction at the start of conversation */}
-            {episodeTemplate?.episode_frame && (
-              <StageDirection
-                frame={episodeTemplate.episode_frame}
-                hasBackground={!!backgroundImageUrl}
+          {/* Integrated context bar */}
+          <div className={cn(
+            "flex flex-wrap gap-2 px-4 py-2 text-xs border-t",
+            hasBackground
+              ? "border-white/10 text-white/90"
+              : "border-border/50 text-muted-foreground"
+          )}>
+            {relationship && (
+              <ContextChip label="Stage" value={formatStage(relationship.stage)} hasBackground={hasBackground} />
+            )}
+            {episode && (
+              <ContextChip
+                label="Episode"
+                value={`#${episode.episode_number}${episode.started_at ? " • " + formatRelative(episode.started_at) : ""}`}
+                hasBackground={hasBackground}
               />
             )}
-            {chatItems.map((item) =>
-              item.type === "message" ? (
-                <MessageBubble
-                  key={`msg-${item.data.id}`}
-                  message={item.data}
-                  characterName={character.name}
-                  characterAvatar={character.avatar_url}
-                />
-              ) : (
-                <SceneCard key={`scene-${item.data.id}`} scene={item.data} />
-              )
+            {episodeTemplate && !episode && (
+              <ContextChip
+                label="Scene"
+                value={episodeTemplate.title}
+                hasBackground={hasBackground}
+              />
             )}
-            {streamingContent && (
-              <StreamingBubble
-                content={streamingContent}
+            {character.content_rating && (
+              <ContextChip
+                label="Content"
+                value={character.content_rating.toUpperCase()}
+                accent={character.content_rating === "adult" ? "destructive" : "primary"}
+                hasBackground={hasBackground}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Messages area - centered with max-width for readability */}
+        <div className="flex-1 overflow-y-auto py-6">
+          <div className="mx-auto max-w-2xl px-4">
+            {isLoadingChat ? (
+              <MessagesSkeleton />
+            ) : chatItems.length === 0 ? (
+              <EmptyState
                 characterName={character.name}
                 characterAvatar={character.avatar_url}
+                starterPrompts={character.starter_prompts}
+                episodeTemplate={episodeTemplate}
+                hasBackground={hasBackground}
+                onSelect={sendMessage}
               />
+            ) : (
+              <>
+                {/* Stage direction at the start of conversation */}
+                {episodeTemplate?.episode_frame && (
+                  <StageDirection
+                    frame={episodeTemplate.episode_frame}
+                    hasBackground={hasBackground}
+                  />
+                )}
+                {chatItems.map((item) =>
+                  item.type === "message" ? (
+                    <MessageBubble
+                      key={`msg-${item.data.id}`}
+                      message={item.data}
+                      characterName={character.name}
+                      characterAvatar={character.avatar_url}
+                      hasBackground={hasBackground}
+                    />
+                  ) : (
+                    <SceneCard
+                      key={`scene-${item.data.id}`}
+                      scene={item.data}
+                      isLatest={item.data.id === latestScene?.id}
+                    />
+                  )
+                )}
+                {streamingContent && (
+                  <StreamingBubble
+                    content={streamingContent}
+                    characterName={character.name}
+                    characterAvatar={character.avatar_url}
+                    hasBackground={hasBackground}
+                  />
+                )}
+                {isGeneratingScene && (
+                  <SceneCardSkeleton caption="Creating a scene from your conversation..." />
+                )}
+              </>
             )}
-            {isGeneratingScene && (
-              <SceneCardSkeleton caption="Creating a scene from your conversation..." />
-            )}
-          </>
-        )}
-          <div ref={messagesEndRef} />
+            <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* Scene suggestion inline banner */}
         {suggestScene && !isGeneratingScene && (
-          <div className={cn(
-            "mx-4 mb-2 rounded-xl border px-4 py-3 text-sm shadow-sm backdrop-blur-sm",
-            backgroundImageUrl
-              ? "border-white/20 bg-white/10 text-white"
-              : "border-primary/30 bg-primary/5 text-foreground"
-          )}>
-            <div className="flex items-center justify-between gap-3">
-              <span className={cn(
-                "text-xs font-medium",
-                backgroundImageUrl ? "text-white" : "text-primary"
-              )}>
-                This moment would make a great scene.
-              </span>
-              <button
-                className={cn(
-                  "text-xs font-semibold hover:underline",
-                  backgroundImageUrl ? "text-white" : "text-primary"
-                )}
-                onClick={handleVisualize}
-              >
-                Visualize it
-              </button>
+          <div className="mx-auto max-w-2xl px-4 mb-2">
+            <div className={cn(
+              "rounded-xl border px-4 py-3 text-sm shadow-lg",
+              "backdrop-blur-xl backdrop-saturate-150",
+              hasBackground
+                ? "border-white/20 bg-white/10 text-white"
+                : "border-primary/30 bg-primary/5 text-foreground"
+            )}>
+              <div className="flex items-center justify-between gap-3">
+                <span className={cn(
+                  "text-xs font-medium",
+                  hasBackground ? "text-white/90" : "text-primary"
+                )}>
+                  This moment would make a great scene.
+                </span>
+                <button
+                  className={cn(
+                    "text-xs font-semibold hover:underline",
+                    hasBackground ? "text-white" : "text-primary"
+                  )}
+                  onClick={handleVisualize}
+                >
+                  Visualize it
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Input with glass effect */}
-        <div className={cn(
-          "backdrop-blur-md border-t",
-          backgroundImageUrl
-            ? "bg-background/60 border-white/10"
-            : "bg-background/95 border-border"
-        )}>
-          <MessageInput
-            onSend={sendMessage}
-            onVisualize={handleVisualize}
-            disabled={isSending || isLoadingChat}
-            isGeneratingScene={isGeneratingScene}
-            showVisualizeButton={showVisualizeButton}
-            suggestScene={suggestScene}
-            placeholder={`Message ${character.name}...`}
-          />
+        {/* Floating glass input bar */}
+        <div className="mx-3 mb-3">
+          <div className={cn(
+            "rounded-2xl border shadow-lg transition-colors",
+            "backdrop-blur-xl backdrop-saturate-150",
+            hasBackground
+              ? "bg-black/40 border-white/10"
+              : "bg-card/80 border-border/50"
+          )}>
+            <MessageInput
+              onSend={sendMessage}
+              onVisualize={handleVisualize}
+              disabled={isSending || isLoadingChat}
+              isGeneratingScene={isGeneratingScene}
+              showVisualizeButton={showVisualizeButton}
+              suggestScene={suggestScene}
+              placeholder={`Message ${character.name}...`}
+              hasBackground={hasBackground}
+            />
+          </div>
+          {/* AI disclaimer */}
+          <p className={cn(
+            "text-center text-[10px] mt-2 transition-colors",
+            hasBackground ? "text-white/50" : "text-muted-foreground/60"
+          )}>
+            This is A.I. and not a real person. Treat everything it says as fiction.
+          </p>
         </div>
       </div>
 
