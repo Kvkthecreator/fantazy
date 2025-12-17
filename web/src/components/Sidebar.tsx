@@ -64,8 +64,12 @@ export function Sidebar({ user }: { user: User }) {
         isCollapsed ? "justify-center px-3" : "justify-between px-6"
       )}>
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-pink-400 to-purple-500 text-white text-lg shrink-0">
-            F
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden">
+            <img
+              src="/branding/ep0-mark.svg"
+              alt="ep-0"
+              className="h-full w-full object-cover"
+            />
           </div>
           {!isCollapsed && (
             <div>

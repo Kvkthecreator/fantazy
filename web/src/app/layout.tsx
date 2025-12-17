@@ -10,6 +10,11 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "ep-0 — Interactive Episodes",
   description: "Step into Episode 0 and continue your story with AI characters who remember every chapter.",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/branding/ep0-mark.svg",
+  },
 };
 
 export const dynamic = 'force-dynamic';

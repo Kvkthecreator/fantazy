@@ -51,10 +51,13 @@ export default async function Home() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">✨</span>
-            <span className="text-lg font-semibold">ep-0</span>
-          </div>
+          <Link href="/" className="flex items-center gap-2">
+            <img
+              src="/branding/ep0-wordmark.svg"
+              alt="ep-0"
+              className="h-10 w-auto"
+            />
+          </Link>
           <Link
             href="/login?next=/discover"
             className="text-sm font-medium text-primary hover:underline"
