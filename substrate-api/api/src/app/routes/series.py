@@ -19,6 +19,7 @@ from app.models.series import (
     SeriesUpdate,
     SeriesType,
 )
+from app.services.storage import StorageService
 
 
 router = APIRouter(prefix="/series", tags=["Series"])
@@ -54,7 +55,7 @@ async def list_series(
     """List all series with optional filters."""
     query = """
         SELECT id, title, slug, tagline, series_type, total_episodes,
-               cover_image_url, is_featured
+               cover_image_url, is_featured, genre
         FROM series
         WHERE 1=1
     """
@@ -79,7 +80,20 @@ async def list_series(
     params["limit"] = limit
 
     rows = await db.fetch_all(query, params)
-    return [SeriesSummary(**dict(row)) for row in rows]
+
+    # Convert storage paths to signed URLs for cover images
+    storage = StorageService.get_instance()
+    results = []
+    for row in rows:
+        data = dict(row)
+        # If cover_image_url is a storage path (not a full URL), generate signed URL
+        if data.get("cover_image_url") and not data["cover_image_url"].startswith("http"):
+            data["cover_image_url"] = await storage.create_signed_url(
+                "scenes", data["cover_image_url"], expires_in=3600
+            )
+        results.append(SeriesSummary(**data))
+
+    return results
 
 
 @router.get("/{series_id}", response_model=Series)
@@ -97,7 +111,15 @@ async def get_series(
             detail="Series not found"
         )
 
-    return Series(**dict(row))
+    data = dict(row)
+    # Convert storage path to signed URL for cover image
+    if data.get("cover_image_url") and not data["cover_image_url"].startswith("http"):
+        storage = StorageService.get_instance()
+        data["cover_image_url"] = await storage.create_signed_url(
+            "scenes", data["cover_image_url"], expires_in=3600
+        )
+
+    return Series(**data)
 
 
 @router.get("/{series_id}/with-episodes", response_model=SeriesWithEpisodesResponse)
@@ -128,7 +150,25 @@ async def get_series_with_episodes(
     episode_rows = await db.fetch_all(episodes_query, {"series_id": str(series_id)})
 
     series_data = dict(series_row)
-    series_data["episodes"] = [dict(row) for row in episode_rows]
+    storage = StorageService.get_instance()
+
+    # Convert series cover storage path to signed URL
+    if series_data.get("cover_image_url") and not series_data["cover_image_url"].startswith("http"):
+        series_data["cover_image_url"] = await storage.create_signed_url(
+            "scenes", series_data["cover_image_url"], expires_in=3600
+        )
+
+    # Convert episode background storage paths to signed URLs
+    episodes = []
+    for row in episode_rows:
+        ep_data = dict(row)
+        if ep_data.get("background_image_url") and not ep_data["background_image_url"].startswith("http"):
+            ep_data["background_image_url"] = await storage.create_signed_url(
+                "scenes", ep_data["background_image_url"], expires_in=3600
+            )
+        episodes.append(ep_data)
+
+    series_data["episodes"] = episodes
 
     return SeriesWithEpisodesResponse(**series_data)
 
@@ -150,6 +190,13 @@ async def get_series_with_characters(
         )
 
     series_data = dict(series_row)
+
+    # Convert series cover storage path to signed URL
+    if series_data.get("cover_image_url") and not series_data["cover_image_url"].startswith("http"):
+        storage = StorageService.get_instance()
+        series_data["cover_image_url"] = await storage.create_signed_url(
+            "scenes", series_data["cover_image_url"], expires_in=3600
+        )
 
     # Get featured characters
     featured_chars = series_data.get("featured_characters", [])

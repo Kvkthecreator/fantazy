@@ -38,7 +38,7 @@ export function Sidebar({ user }: { user: User }) {
   return (
     <aside
       className={cn(
-        "relative flex shrink-0 flex-col border-r border-border bg-card transition-all duration-300",
+        "relative flex shrink-0 flex-col border-r border-border transition-all duration-300",
         isCollapsed ? "w-[72px]" : "w-72"
       )}
     >
