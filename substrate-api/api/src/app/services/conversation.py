@@ -241,6 +241,14 @@ class ConversationService:
         engagement = Engagement(**dict(eng_row)) if eng_row else None
         relationship = engagement  # Backwards compatibility alias
 
+        # Get series_id from session for series-scoped memory retrieval
+        series_id = None
+        if episode_id:
+            session_query = "SELECT series_id FROM sessions WHERE id = :episode_id"
+            session_row = await self.db.fetch_one(session_query, {"episode_id": str(episode_id)})
+            if session_row and session_row.get("series_id"):
+                series_id = session_row["series_id"]
+
         # Get recent messages from episode
         messages = []
         if episode_id:
@@ -256,9 +264,9 @@ class ConversationService:
                 for row in reversed(msg_rows)
             ]
 
-        # Get relevant memories
+        # Get relevant memories (series-scoped if available)
         memories = await self.memory_service.get_relevant_memories(
-            user_id, character_id, limit=10
+            user_id, character_id, limit=10, series_id=series_id
         )
         memory_summaries = [
             MemorySummary(
@@ -390,20 +398,87 @@ class ConversationService:
     ) -> Session:
         """Get active session or create a new one.
 
+        Sessions are scoped by (user_id, series_id, episode_template_id) for:
+        - Series-level isolation: Each series has independent conversation history
+        - Episode-level isolation: Each episode template has its own session
+        - Free chat mode: episode_template_id = NULL represents unstructured chat
+
         Args:
             user_id: User UUID
             character_id: Character UUID
             scene: Optional custom scene description
             episode_template_id: Optional episode template ID (overrides scene)
         """
-        # Check for existing active session
-        query = """
-            SELECT * FROM sessions
-            WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
-            ORDER BY started_at DESC
-            LIMIT 1
-        """
-        row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
+        # Determine series_id from episode_template (if provided)
+        series_id = None
+        effective_scene = scene
+        opening_line = None
+
+        if episode_template_id:
+            template_query = """
+                SELECT situation, title, opening_line, series_id
+                FROM episode_templates WHERE id = :template_id
+            """
+            template_row = await self.db.fetch_one(template_query, {"template_id": str(episode_template_id)})
+            if template_row:
+                effective_scene = template_row["situation"]
+                opening_line = template_row["opening_line"]
+                series_id = template_row.get("series_id")
+
+        # If no series from template, try to get series from character
+        if not series_id:
+            char_series_query = """
+                SELECT s.id FROM series s
+                JOIN characters c ON c.id = ANY(s.featured_characters)
+                WHERE c.id = :character_id
+                LIMIT 1
+            """
+            series_row = await self.db.fetch_one(char_series_query, {"character_id": str(character_id)})
+            if series_row:
+                series_id = series_row["id"]
+
+        # Check for existing active session scoped by (user, series, episode_template)
+        # This ensures separate conversation histories per episode within a series
+        if series_id and episode_template_id:
+            # Episode mode: find session for this specific episode template
+            query = """
+                SELECT * FROM sessions
+                WHERE user_id = :user_id
+                AND series_id = :series_id
+                AND episode_template_id = :episode_template_id
+                AND is_active = TRUE
+                ORDER BY started_at DESC
+                LIMIT 1
+            """
+            row = await self.db.fetch_one(query, {
+                "user_id": str(user_id),
+                "series_id": str(series_id),
+                "episode_template_id": str(episode_template_id),
+            })
+        elif series_id:
+            # Free chat mode within series: find session without episode_template
+            query = """
+                SELECT * FROM sessions
+                WHERE user_id = :user_id
+                AND series_id = :series_id
+                AND episode_template_id IS NULL
+                AND is_active = TRUE
+                ORDER BY started_at DESC
+                LIMIT 1
+            """
+            row = await self.db.fetch_one(query, {
+                "user_id": str(user_id),
+                "series_id": str(series_id),
+            })
+        else:
+            # Legacy fallback: character-only scoping (no series)
+            query = """
+                SELECT * FROM sessions
+                WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
+                ORDER BY started_at DESC
+                LIMIT 1
+            """
+            row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
         if row:
             return Session(**dict(row))
@@ -422,31 +497,27 @@ class ConversationService:
         eng_row = await self.db.fetch_one(eng_query, {"user_id": str(user_id), "character_id": str(character_id)})
         engagement_id = eng_row["id"]
 
-        # Get next episode number
-        count_query = """
-            SELECT COALESCE(MAX(episode_number), 0) + 1 as next_num
-            FROM sessions
-            WHERE user_id = :user_id AND character_id = :character_id
-        """
-        count_row = await self.db.fetch_one(count_query, {"user_id": str(user_id), "character_id": str(character_id)})
+        # Get next episode number (scoped by series if available)
+        if series_id:
+            count_query = """
+                SELECT COALESCE(MAX(episode_number), 0) + 1 as next_num
+                FROM sessions
+                WHERE user_id = :user_id AND series_id = :series_id
+            """
+            count_row = await self.db.fetch_one(count_query, {"user_id": str(user_id), "series_id": str(series_id)})
+        else:
+            count_query = """
+                SELECT COALESCE(MAX(episode_number), 0) + 1 as next_num
+                FROM sessions
+                WHERE user_id = :user_id AND character_id = :character_id
+            """
+            count_row = await self.db.fetch_one(count_query, {"user_id": str(user_id), "character_id": str(character_id)})
         episode_number = count_row["next_num"]
 
-        # If episode_template_id is provided, fetch the template and use its situation
-        effective_scene = scene
-        opening_line = None
-        if episode_template_id:
-            template_query = """
-                SELECT situation, title, opening_line FROM episode_templates WHERE id = :template_id
-            """
-            template_row = await self.db.fetch_one(template_query, {"template_id": str(episode_template_id)})
-            if template_row:
-                effective_scene = template_row["situation"]
-                opening_line = template_row["opening_line"]
-
-        # Create session
+        # Create session with series_id for proper scoping
         create_query = """
-            INSERT INTO sessions (user_id, character_id, engagement_id, episode_number, scene, episode_template_id)
-            VALUES (:user_id, :character_id, :engagement_id, :episode_number, :scene, :episode_template_id)
+            INSERT INTO sessions (user_id, character_id, engagement_id, episode_number, scene, episode_template_id, series_id)
+            VALUES (:user_id, :character_id, :engagement_id, :episode_number, :scene, :episode_template_id, :series_id)
             RETURNING *
         """
         new_row = await self.db.fetch_one(
@@ -458,6 +529,7 @@ class ConversationService:
                 "episode_number": episode_number,
                 "scene": effective_scene,
                 "episode_template_id": str(episode_template_id) if episode_template_id else None,
+                "series_id": str(series_id) if series_id else None,
             },
         )
 

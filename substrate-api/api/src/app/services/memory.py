@@ -284,17 +284,36 @@ class MemoryService:
         character_id: UUID,
         episode_id: UUID,
         memories: List[ExtractedMemory],
+        series_id: Optional[UUID] = None,
     ) -> List[MemoryEvent]:
-        """Save extracted memories to database."""
+        """Save extracted memories to database.
+
+        Memories are scoped by series_id (preferred) for series-level memory isolation.
+        character_id is retained for backwards compatibility and character-centric queries.
+
+        Args:
+            user_id: User UUID
+            character_id: Character UUID (retained for legacy queries)
+            episode_id: Episode/session UUID
+            memories: List of extracted memories to save
+            series_id: Series UUID for series-scoped memory (preferred scope)
+        """
         saved = []
+
+        # If series_id not provided, try to get it from the session
+        if not series_id:
+            session_query = "SELECT series_id FROM sessions WHERE id = :episode_id"
+            session_row = await self.db.fetch_one(session_query, {"episode_id": str(episode_id)})
+            if session_row and session_row.get("series_id"):
+                series_id = session_row["series_id"]
 
         for memory in memories:
             query = """
                 INSERT INTO memory_events (
-                    user_id, character_id, episode_id, type, category,
+                    user_id, character_id, episode_id, series_id, type, category,
                     content, summary, emotional_valence, importance_score
                 )
-                VALUES (:user_id, :character_id, :episode_id, :type, :category,
+                VALUES (:user_id, :character_id, :episode_id, :series_id, :type, :category,
                         :content, :summary, :emotional_valence, :importance_score)
                 RETURNING *
             """
@@ -304,6 +323,7 @@ class MemoryService:
                     "user_id": str(user_id),
                     "character_id": str(character_id),
                     "episode_id": str(episode_id),
+                    "series_id": str(series_id) if series_id else None,
                     "type": memory.type.value,
                     "category": memory.category,
                     "content": json.dumps(memory.content),
@@ -358,29 +378,67 @@ class MemoryService:
         user_id: UUID,
         character_id: UUID,
         limit: int = 10,
+        series_id: Optional[UUID] = None,
     ) -> List[MemoryEvent]:
-        """Get memories relevant for a conversation."""
-        query = """
-            WITH ranked_memories AS (
-                SELECT *,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY type
-                        ORDER BY
-                            CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END DESC,
-                            importance_score DESC,
-                            created_at DESC
-                    ) as rn
-                FROM memory_events
-                WHERE user_id = :user_id
-                    AND (character_id = :character_id OR character_id IS NULL)
-                    AND is_active = TRUE
-            )
-            SELECT * FROM ranked_memories
-            WHERE rn <= 3
-            ORDER BY importance_score DESC, created_at DESC
-            LIMIT :limit
+        """Get memories relevant for a conversation.
+
+        Memory retrieval priority:
+        1. If series_id provided: Get memories scoped to that series
+        2. Fallback: Get memories by character_id (legacy behavior)
+
+        This supports the series-scoped memory model where memories belong
+        to "your story with this series" not "the character."
         """
-        rows = await self.db.fetch_all(query, {"user_id": str(user_id), "character_id": str(character_id), "limit": limit})
+        if series_id:
+            # Series-scoped memory retrieval (preferred)
+            query = """
+                WITH ranked_memories AS (
+                    SELECT *,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY type
+                            ORDER BY
+                                CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END DESC,
+                                importance_score DESC,
+                                created_at DESC
+                        ) as rn
+                    FROM memory_events
+                    WHERE user_id = :user_id
+                        AND series_id = :series_id
+                        AND is_active = TRUE
+                )
+                SELECT * FROM ranked_memories
+                WHERE rn <= 3
+                ORDER BY importance_score DESC, created_at DESC
+                LIMIT :limit
+            """
+            rows = await self.db.fetch_all(query, {
+                "user_id": str(user_id),
+                "series_id": str(series_id),
+                "limit": limit,
+            })
+        else:
+            # Legacy character-scoped retrieval (fallback)
+            query = """
+                WITH ranked_memories AS (
+                    SELECT *,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY type
+                            ORDER BY
+                                CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END DESC,
+                                importance_score DESC,
+                                created_at DESC
+                        ) as rn
+                    FROM memory_events
+                    WHERE user_id = :user_id
+                        AND (character_id = :character_id OR character_id IS NULL)
+                        AND is_active = TRUE
+                )
+                SELECT * FROM ranked_memories
+                WHERE rn <= 3
+                ORDER BY importance_score DESC, created_at DESC
+                LIMIT :limit
+            """
+            rows = await self.db.fetch_all(query, {"user_id": str(user_id), "character_id": str(character_id), "limit": limit})
         return [MemoryEvent(**dict(row)) for row in rows]
 
     async def get_active_hooks(

@@ -297,21 +297,44 @@ Episode 2 (Core)
 
 Memory is the **implicit progression system** — no meters, no levels, just felt continuity.
 
+**Key Architectural Decision:** Memory is scoped at the **Series level**, not the Character level.
+
+This means:
+- Memory belongs to "your story with this series" — not "the character"
+- Different series with the same character have independent memory
+- Future "remix" features can customize characters while preserving series-specific memory
+
 ```
+SERIES: "Stolen Moments" (Soo-ah)
+═══════════════════════════════════════════════════════════════
+
 SESSION 1 (Episode 0)
     Memory extracted: "User's name is Alex"
     Memory extracted: "User mentioned liking jazz"
+    Stored with: series_id = stolen-moments
 
 SESSION 2 (Episode 1)
-    Memory available: All from Session 1
+    Memory available: All from Session 1 (same series)
     Character references: "Alex, right? The jazz fan."
     New memory: "User shared about job stress"
 
 SESSION 3 (Episode 0 replay)
-    Memory available: All accumulated
+    Memory available: All accumulated (series-scoped)
     Character knows: Name, jazz, job stress
     Different experience: Replay with history
+
+DIFFERENT SERIES: "Summer Café" (also Soo-ah)
+═══════════════════════════════════════════════════════════════
+
+SESSION 1 (Episode 0)
+    Memory available: NONE (fresh series, same character)
+    This is a fresh story — different context, different memories
 ```
+
+**Database Implementation:**
+- `memory_events.series_id` — Primary scope for memory
+- `sessions.series_id` — Associates session with series for memory inheritance
+- Legacy `character_id` retained for backwards compatibility queries
 
 ### 6.4 Context Management Checkpoint
 
@@ -319,12 +342,17 @@ At series/episode boundaries, context management becomes critical:
 
 | Boundary | Context Action | Purpose |
 |----------|----------------|---------|
-| **New Session (same episode)** | Load full episode context + memories | Continuity |
-| **New Episode (same series)** | Summarize previous episode + memories | Progression feel |
-| **New Episode (different series)** | Memories only (no episode context) | Character continuity |
+| **New Session (same episode)** | Load full episode context + series memories | Continuity |
+| **New Episode (same series)** | Summarize previous episode + series memories | Progression feel |
+| **New Series (same character)** | Fresh start — NO memory inheritance | Clean slate for new story |
 | **New Character** | Fresh start, no context | New relationship |
 
-**Implication:** We need **episode summaries** stored for serial progression.
+**Key Change (Series-Scoped Memory):** Memory no longer crosses series boundaries. This enables:
+- Multiple storylines with the same character (different memories each)
+- Future "remix" customization without memory contamination
+- Clean narrative isolation between series
+
+**Implication:** We need **episode summaries** stored for serial progression within a series.
 
 ### 6.5 Context Management Architecture
 
@@ -383,18 +411,29 @@ SESSION CONTEXT BUILD
    ├── Resolution space (valid endings)
    └── Episode frame (opening context)
 
-3. MEMORY CONTEXT (User ↔ Character)
-   ├── All memories with this character
+3. MEMORY CONTEXT (User ↔ Series) ← SERIES-SCOPED
+   ├── All memories within THIS SERIES (series_id)
    ├── Relevance-weighted (recent + important first)
+   ├── Does NOT include memories from other series
    └── Summarized if exceeds token budget
 
 4. SERIES CONTEXT (Serial Series Only)
-   ├── Previous episode summaries
+   ├── Previous episode summaries (within series)
    ├── Series-level arc awareness
    └── Summary bridge content (if user skipped)
 
 5. SESSION HISTORY
    └── Current conversation messages
+```
+
+**Implementation Note:** Memory queries use `series_id` as the primary scope:
+```sql
+-- Series-scoped memory retrieval
+SELECT * FROM memory_events
+WHERE user_id = :user_id
+  AND series_id = :series_id  -- Primary scope
+  AND is_active = TRUE
+ORDER BY importance_score DESC, created_at DESC
 ```
 
 #### Context Budget Management
@@ -670,7 +709,7 @@ ALTER TABLE episode_templates ADD COLUMN hooks JSONB DEFAULT '[]';
 ### 11.2 Session State Tracking
 
 ```sql
--- Potential additions to sessions
+-- Session state and resolution tracking
 ALTER TABLE sessions ADD COLUMN session_state VARCHAR(20) DEFAULT 'active';
 -- Values: 'active', 'paused', 'faded', 'complete'
 
@@ -679,9 +718,33 @@ ALTER TABLE sessions ADD COLUMN resolution_type VARCHAR(20);
 
 ALTER TABLE sessions ADD COLUMN episode_summary TEXT;
 -- Generated at session fade/complete for serial progression
+
+-- Series-scoped session architecture (IMPLEMENTED)
+ALTER TABLE sessions ADD COLUMN series_id UUID REFERENCES series(id);
+-- Sessions are scoped by (user_id, series_id, episode_template_id)
+-- This enables episode-level conversation isolation within a series
 ```
 
-### 11.3 Context Management
+### 11.3 Series-Scoped Memory Architecture
+
+```sql
+-- Memory events scoped to series (IMPLEMENTED)
+ALTER TABLE memory_events ADD COLUMN series_id UUID REFERENCES series(id);
+
+-- Index for efficient series-scoped memory retrieval
+CREATE INDEX idx_memory_events_user_series ON memory_events(user_id, series_id);
+
+-- Sessions track series for memory inheritance
+CREATE INDEX idx_sessions_user_series_episode ON sessions(user_id, series_id, episode_template_id);
+```
+
+**Session Scoping Logic:**
+- Sessions are scoped by `(user_id, series_id, episode_template_id)`
+- Each episode template within a series has its own independent session
+- `episode_template_id = NULL` represents "free chat" mode within a series
+- Memory queries use `series_id` as primary scope (not character_id)
+
+### 11.4 Context Management
 
 For serial series, we need to manage context across episodes:
 
@@ -842,19 +905,21 @@ The Episode Dynamics model establishes:
 2. **Journey as Experience:** The value is in the moment, not the destination
 3. **Session Lifecycle:** Clear phases from opening through fade/completion
 4. **Progression via Memory:** No meters, just felt continuity
-5. **Context Management:** Episode boundaries as checkpoints for memory and summarization
-6. **User Control:** Users control WHEN/WHICH; platform controls HOW
-7. **Character-Driven Stakes:** Authenticity creates meaningful tension
-8. **Series-Aware Design:** Different series types have different dynamics
-9. **Monetization Alignment:** Genre-specific strategies, scarcity enhances value
-10. **Recoverable Failure:** Stakes feel real, but hope always remains
+5. **Series-Scoped Memory:** Memory belongs to "your story with this series", not "the character"
+6. **Context Management:** Episode boundaries as checkpoints for memory and summarization
+7. **User Control:** Users control WHEN/WHICH; platform controls HOW
+8. **Character-Driven Stakes:** Authenticity creates meaningful tension
+9. **Series-Aware Design:** Different series types have different dynamics
+10. **Monetization Alignment:** Genre-specific strategies, scarcity enhances value
+11. **Recoverable Failure:** Stakes feel real, but hope always remains
 
 **Key Design Decisions:**
 - Resolution detection: Hybrid (LLM suggests, platform responds, user controls)
 - Episode length: Variable by type with soft guidance
 - Failure states: Remembered but recoverable
 - Serial gating: Soft gate with summary bridge option
-- Replay: Memory always persists
+- Replay: Memory persists within series (series-scoped)
+- Memory scope: Series-level, not character-level (enables future remix features)
 
 > **The episode's job is to create a moment worth inhabiting —**
 > **where the user feels agency, the character feels alive, and the stakes feel real.**

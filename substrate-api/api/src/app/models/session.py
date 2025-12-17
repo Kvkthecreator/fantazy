@@ -71,6 +71,11 @@ class Session(BaseModel):
     A Session is the runtime instance when a user starts an Episode Template.
     Terminology: Episode Template = scenario, Session = runtime.
 
+    Sessions are scoped by (user_id, series_id, episode_template_id):
+    - Series-level isolation: Each series has independent conversation history
+    - Episode-level isolation: Each episode template has its own session
+    - Memory belongs to the series, not just the character
+
     Session States (per GLOSSARY.md):
     - active: Currently in conversation
     - paused: User left mid-conversation
@@ -83,6 +88,7 @@ class Session(BaseModel):
     character_id: UUID
     engagement_id: Optional[UUID] = None
     episode_template_id: Optional[UUID] = None
+    series_id: Optional[UUID] = None  # Series scoping for memory isolation
 
     # Session info
     episode_number: int
