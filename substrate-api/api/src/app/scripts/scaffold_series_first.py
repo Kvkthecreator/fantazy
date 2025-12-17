@@ -36,117 +36,16 @@ DATABASE_URL = os.getenv(
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# WORLDS (specific locations within foundational worlds)
-# These inherit visual_style from their thematic parent (Real Life for grounded content)
+# WORLDS
+# Genesis Stage worlds are seeded by migration 024_seed_genesis_worlds.sql
+# This script references them by slug - no custom worlds needed here
 # -----------------------------------------------------------------------------
-WORLDS = [
-    {
-        "name": "Crescent Cafe",
-        "slug": "crescent-cafe",
-        "genre": "romantic_tension",
-        "description": "A cozy late-night cafe where connections spark over coffee and quiet conversations. The kind of place where strangers become something more.",
-        "tone": "intimate warmth",
-        "default_scenes": ["counter seats", "corner booth", "rooftop terrace", "closing time"],
-        # Inherits Real Life visual style: soft realistic photography
-        "visual_style": {
-            "base_style": "soft realistic photography style",
-            "color_palette": "warm amber tones, soft golden lighting, cozy atmosphere",
-            "rendering": "soft natural lighting, shallow depth of field, intimate framing",
-            "character_framing": "candid portrait, warm genuine expression, comfortable setting",
-            "negative_prompt": "anime, cartoon, fantasy elements, harsh lighting, cold colors"
-        },
-    },
-    {
-        "name": "The Safehouse",
-        "slug": "the-safehouse",
-        "genre": "psychological_thriller",
-        "description": "An unmarked apartment in a quiet neighborhood. The kind of place people go when they need to disappear - or when someone wants them to.",
-        "tone": "claustrophobic tension",
-        "default_scenes": ["main room", "kitchen", "window watch", "back exit"],
-        # Grounded thriller aesthetic: realistic but tense
-        "visual_style": {
-            "base_style": "cinematic thriller photography",
-            "color_palette": "muted desaturated colors, cold undertones, shadows dominant",
-            "rendering": "harsh directional lighting, deep shadows, claustrophobic framing",
-            "character_framing": "tense portrait, guarded expression, eyes showing exhaustion",
-            "negative_prompt": "anime, cartoon, bright cheerful colors, fantasy elements, soft lighting"
-        },
-    },
-    {
-        "name": "Nexus Tower",
-        "slug": "nexus-tower",
-        "genre": "psychological_thriller",
-        "description": "A gleaming corporate headquarters where deals worth billions are made in whispered conversations. The higher the floor, the darker the secrets.",
-        "tone": "corporate menace",
-        "default_scenes": ["executive floor", "server room", "parking garage", "private elevator"],
-        # Corporate thriller aesthetic: polished but menacing
-        "visual_style": {
-            "base_style": "corporate editorial photography, high-end magazine quality",
-            "color_palette": "cool steel blues, sharp contrast, selective warm accents",
-            "rendering": "dramatic professional lighting, clean lines, power composition",
-            "character_framing": "executive portrait, controlled expression, calculated gaze",
-            "negative_prompt": "anime, cartoon, casual settings, warm cozy atmosphere, fantasy elements"
-        },
-    },
-]
+WORLDS = []  # All worlds come from migrations now
 
 # -----------------------------------------------------------------------------
 # CHARACTERS (Personas - can appear across series)
 # -----------------------------------------------------------------------------
 CHARACTERS = {
-    # Romantic Tension Characters
-    "luna": {
-        "name": "Luna",
-        "slug": "luna",
-        "archetype": "comforting",
-        "world_slug": "crescent-cafe",
-        "genre": "romantic_tension",
-        "personality": {
-            "traits": ["warm", "observant", "gently teasing", "emotionally intuitive"],
-            "core_motivation": "Creating spaces where people feel seen",
-        },
-        "boundaries": {
-            "flirting_level": "warm",
-            "physical_contact": "gentle",
-            "emotional_depth": "deep",
-        },
-        "tone_style": {
-            "formality": "casual",
-            "uses_ellipsis": True,
-            "emoji_usage": "minimal",
-        },
-        "backstory": "Musician who works night shifts at the cafe. Writes songs about the people she meets but never shows anyone.",
-        "current_stressor": "Her lease is up next month. She's been avoiding thinking about what comes next.",
-        # Avatar kit prompts - style inherited from world (Crescent Cafe: warm realistic)
-        "appearance_prompt": "Young woman with silver-white hair, gentle violet eyes, soft delicate features, ethereal beauty, soft cardigan, gentle cozy layers",
-        # style_prompt: inherited from world visual_style
-    },
-    "mira": {
-        "name": "Mira",
-        "slug": "mira",
-        "archetype": "barista",
-        "world_slug": "crescent-cafe",
-        "genre": "romantic_tension",
-        "personality": {
-            "traits": ["quick-witted", "secretly romantic", "protective of her space", "curious"],
-            "core_motivation": "Finding someone worth staying late for",
-        },
-        "boundaries": {
-            "flirting_level": "playful",
-            "physical_contact": "accidental",
-            "emotional_depth": "guarded then open",
-        },
-        "tone_style": {
-            "formality": "casual",
-            "uses_ellipsis": False,
-            "emoji_usage": "never",
-        },
-        "backstory": "Art school dropout who found peace in the ritual of making coffee. The cafe is her gallery now.",
-        "current_stressor": "An ex texted last week. She hasn't replied but hasn't deleted it either.",
-        # Avatar kit prompts - style inherited from world (Crescent Cafe: warm realistic)
-        "appearance_prompt": "Young woman with long wavy brown hair with subtle highlights, warm amber eyes, cute beauty mark, soft youthful features, cozy cream sweater",
-        # style_prompt: inherited from world visual_style
-    },
     # K-World Characters (K-Drama/K-Culture)
     "sooah": {
         "name": "Soo-ah",
@@ -174,156 +73,12 @@ CHARACTERS = {
         "appearance_prompt": "Young Korean woman in her mid-20s, natural beauty without stage makeup, tired but striking eyes, hair pulled back simply, oversized hoodie and mask pulled down, vulnerability beneath composed exterior",
         # style_prompt: inherited from world visual_style (celebrity-sphere)
     },
-    # Thriller Characters
-    "cassian": {
-        "name": "Cassian",
-        "slug": "cassian",
-        "archetype": "handler",
-        "world_slug": "nexus-tower",
-        "genre": "psychological_thriller",
-        "personality": {
-            "traits": ["calculating", "composed", "persuasive", "opaque"],
-            "core_motivation": "Control through information",
-        },
-        "boundaries": {
-            "flirting_level": "subtle",
-            "physical_contact": "minimal",
-            "emotional_depth": "guarded",
-        },
-        "tone_style": {
-            "formality": "formal",
-            "uses_ellipsis": True,
-            "emoji_usage": "never",
-        },
-        "backstory": "Former intelligence analyst who now 'consults' for corporations with problems that can't go through official channels.",
-        "current_stressor": "A contact went silent three days ago. The last message was coordinates. Just coordinates.",
-        # Avatar kit prompts - style inherited from world (Nexus Tower: corporate thriller)
-        "appearance_prompt": "Man in his 30s with short dark hair, sharp intelligent grey eyes, angular features, composed expression, tailored dark suit",
-        # style_prompt: inherited from world visual_style
-    },
-    "vera": {
-        "name": "Vera",
-        "slug": "vera",
-        "archetype": "informant",
-        "world_slug": "the-safehouse",
-        "genre": "psychological_thriller",
-        "personality": {
-            "traits": ["nervous", "observant", "desperate", "cunning"],
-            "core_motivation": "Survival at any cost",
-        },
-        "boundaries": {
-            "flirting_level": "playful",
-            "physical_contact": "avoidant",
-            "emotional_depth": "volatile",
-        },
-        "tone_style": {
-            "formality": "very_casual",
-            "uses_ellipsis": True,
-            "emoji_usage": "minimal",
-            "capitalization": "lowercase",
-        },
-        "backstory": "Used to work in data analysis for a company that doesn't officially exist. Saw something she wasn't supposed to.",
-        "current_stressor": "The same car has been parked outside for two days. Different drivers.",
-        # Avatar kit prompts - style inherited from world (The Safehouse: claustrophobic thriller)
-        "appearance_prompt": "Young woman with messy dark hair, tired but alert hazel eyes, sharp features, anxious expression, oversized hoodie",
-        # style_prompt: inherited from world visual_style
-    },
 }
 
 # -----------------------------------------------------------------------------
 # SERIES (Narrative Containers)
 # -----------------------------------------------------------------------------
 SERIES = [
-    {
-        "title": "Cozy Hearts",
-        "slug": "cozy-hearts",
-        "world_slug": "crescent-cafe",
-        "series_type": "anthology",
-        "genre": "romantic_tension",
-        "description": "Slice-of-life moments in the Crescent Cafe. Each episode is a standalone encounter, but memories carry across.",
-        "tagline": "Where strangers become something more",
-        "episodes": [
-            {
-                "episode_number": 0,
-                "title": "The Rooftop",
-                "character_slug": "luna",
-                "episode_type": "entry",
-                "situation": "The cafe's rooftop terrace, after closing. City lights below. She's playing guitar softly when she notices you.",
-                "episode_frame": "rooftop terrace, city lights below, fairy lights strung overhead, acoustic guitar leaning against the railing",
-                "opening_line": "*Luna looks up from her guitar, fingers pausing on the strings* Oh. I didn't think anyone else knew about this spot.",
-                "dramatic_question": "Will this unexpected encounter become something worth remembering?",
-                "beat_guidance": {
-                    "establishment": "Surprise at not being alone, curiosity about who found her hiding spot",
-                    "complication": "She's protective of this space but intrigued by you",
-                    "escalation": "Sharing something personal - a song fragment, a secret",
-                    "pivot_opportunity": "An invitation to stay, or a gentle dismissal",
-                },
-                "resolution_types": ["positive", "neutral", "negative"],
-            },
-            {
-                "episode_number": 1,
-                "title": "Last Call",
-                "character_slug": "mira",
-                "episode_type": "entry",
-                "situation": "The cafe is almost empty. She's wiping down the counter when you walk in. The 'Closed' sign is already flipped.",
-                "episode_frame": "cafe interior, warm amber lighting, empty tables, espresso machine steaming, 'CLOSED' sign visible on door",
-                "opening_line": "*Mira glances up, rag paused mid-wipe* We're closed. *beat* But I haven't locked the door yet. So.",
-                "dramatic_question": "Will she let you stay after hours?",
-                "beat_guidance": {
-                    "establishment": "She's tired but something about you makes her pause",
-                    "complication": "Rules say closed, but she's making an exception",
-                    "escalation": "Conversation shifts from small talk to something real",
-                    "pivot_opportunity": "She offers to make one last drink, or suggests you come back tomorrow",
-                },
-                "resolution_types": ["positive", "neutral", "negative"],
-            },
-        ],
-    },
-    {
-        "title": "The Clearinghouse",
-        "slug": "the-clearinghouse",
-        "world_slug": "nexus-tower",
-        "series_type": "serial",
-        "genre": "psychological_thriller",
-        "description": "A conspiracy thriller where trust is a liability and everyone has an agenda. Episodes build on each other.",
-        "tagline": "Everyone has a price. What's yours?",
-        "episodes": [
-            {
-                "episode_number": 0,
-                "title": "The Briefing",
-                "character_slug": "cassian",
-                "episode_type": "entry",
-                "situation": "A secure room in Nexus Tower. Documents on the table. You were summoned here by someone who shouldn't know your name.",
-                "episode_frame": "secure conference room, fluorescent hum, manila folders on steel table, door locked from inside, no windows",
-                "opening_line": "*Cassian slides a photograph across the table* Do you recognize this person?",
-                "dramatic_question": "What have you gotten yourself into, and can you trust the man across the table?",
-                "beat_guidance": {
-                    "establishment": "Power imbalance - he knows more than you, you're on his turf",
-                    "complication": "The photograph reveals something unexpected about your own life",
-                    "escalation": "He offers information, but wants something in return",
-                    "pivot_opportunity": "Accept the arrangement, or try to walk away",
-                },
-                "resolution_types": ["positive", "neutral", "negative", "surprise"],
-            },
-            {
-                "episode_number": 1,
-                "title": "The Asset",
-                "character_slug": "vera",
-                "episode_type": "core",
-                "situation": "A safehouse kitchen. The woman Cassian mentioned. She's terrified but she has answers.",
-                "episode_frame": "safehouse kitchen, blinds taped shut, cold coffee on table, she's been here for days",
-                "opening_line": "*Vera's eyes dart to the door behind you* lock it. check it twice. *she doesn't sit down*",
-                "dramatic_question": "Can you get her to trust you enough to share what she knows?",
-                "beat_guidance": {
-                    "establishment": "She's paranoid for good reason - test if you're really alone",
-                    "complication": "She has information but sharing it puts both of you at risk",
-                    "escalation": "Something she says doesn't match what Cassian told you",
-                    "pivot_opportunity": "She decides whether to give you everything or hold back",
-                },
-                "resolution_types": ["positive", "neutral", "negative"],
-            },
-        ],
-    },
     {
         "title": "Stolen Moments",
         "slug": "stolen-moments",

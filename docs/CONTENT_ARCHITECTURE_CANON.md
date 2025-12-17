@@ -93,28 +93,35 @@ FANTAZY CONTENT UNIVERSE
 
 #### WORLD (Universe/Setting)
 
-The ambient reality where stories take place.
+The ambient reality where stories take place. Worlds define **setting**, not narrative type.
 
 | Attribute | Description |
 |-----------|-------------|
-| `name` | Display name ("Nexus Tower") |
+| `name` | Display name ("K-World", "Real Life") |
 | `slug` | URL-safe identifier |
-| `genre` | Primary genre (romantic_tension, psychological_thriller) |
 | `description` | Setting overview |
-| `tone` | Emotional register (intimate, tense, playful) |
-| `ambient_details` | World-specific context (JSON) |
-| `rules` | Genre rules that apply (JSON) |
+| `tone` | Default emotional register (intimate, heightened-romantic, tense) |
+| `ambient_details` | World-specific context (JSON) — tropes, social dynamics |
+| `visual_style` | Visual doctrine for avatar/scene generation (JSON) |
+| `default_scenes` | Typical locations in this world (array) |
 
 **Guidelines:**
-- A world establishes "what kind of stories happen here"
-- Characters inherit world's genre and tone as defaults
-- World rules are guidelines, not hard constraints
-- One world can contain multiple genres (genre blending)
+- A world establishes **where** stories happen and the **rules of that setting**
+- World provides visual style, ambient context, default scenes
+- Multiple genres can exist within one world (K-World can have romance AND thriller)
+- Characters and series reference a world for setting context
 
 **Examples:**
-- "Crescent Cafe" — intimate romantic tension, late-night encounters
-- "Nexus Tower" — corporate thriller, power dynamics, secrets
-- "Meridian Institute" — psychological thriller, research ethics, isolation
+- "K-World" — K-drama storytelling grammar, idol culture, heightened emotion
+- "Real Life" — Contemporary grounded reality, no special rules needed
+- "Fantasy Realms" — Magic, mythology, alternate physics
+
+**World vs Genre (Important Distinction):**
+- **World** = Setting (WHERE) — K-World, Campus Life, Historical
+- **Genre** = Narrative type (WHAT) — Romantic Tension, Psychological Thriller
+- A K-World series can be Romance OR Thriller — genre is on Series, not World
+
+See `docs/WORLD_TAXONOMY_CANON.md` for full world taxonomy.
 
 ---
 
@@ -127,12 +134,18 @@ A narrative container that groups episodes into a coherent experience.
 | `title` | Series title ("The Midnight Protocol") |
 | `slug` | URL-safe identifier |
 | `world_id` | Primary world (optional — can be cross-world) |
+| `genre` | Primary genre (romantic_tension, psychological_thriller) — for discovery/organization |
 | `series_type` | standalone, serial, anthology, crossover |
 | `description` | What this series is about |
 | `featured_characters` | Characters cast in this series (JSON array of IDs) |
 | `episode_order` | Ordered list of episode template IDs |
 | `total_episodes` | Planned episode count |
 | `status` | draft, active, completed |
+
+**Genre on Series:**
+- Genre is **studio metadata** for organization and discovery
+- Genre determines which **doctrine** was used when authoring content
+- At runtime, genre is invisible — doctrine is baked into character system_prompt
 
 **Series Types:**
 
@@ -257,11 +270,57 @@ The atomic unit of experience — a specific situation to enter.
 
 ---
 
-## 4. Genesis Stage: Production Model
+## 4. Studio vs Runtime: Two-Layer Architecture
+
+Understanding this distinction is critical for content creation and system design.
+
+### 4.1 Studio Layer (Content Creation)
+
+When creating content in Studio, these concepts matter:
+
+| Concept | Purpose | Where It Lives |
+|---------|---------|----------------|
+| **World** | Setting taxonomy, visual style | `worlds` table |
+| **Genre** | Narrative doctrine to apply | `series.genre` field (metadata) |
+| **Tone** | Emotional register | World default + Series override |
+| **Doctrine** | Rules for writing (Genre 01, etc.) | Applied during system_prompt authoring |
+
+**Studio Workflow:**
+1. Select **World** (setting context)
+2. Select **Genre** (which doctrine applies)
+3. Author **Character** with genre doctrine baked into system_prompt
+4. Author **Episode Templates** with beat_guidance from genre
+5. Genre tag saved on Series for discovery/organization
+
+### 4.2 Runtime Layer (User Engagement)
+
+When user is chatting, genre is **invisible**. Everything is pre-baked:
+
+| What LLM Receives | Source | Genre Involvement |
+|-------------------|--------|-------------------|
+| `system_prompt` | Character | Doctrine already embedded |
+| `episode_frame` | Episode Template | Scene context |
+| `beat_guidance` | Episode Template | Narrative waypoints |
+| `dramatic_question` | Episode Template | Tension to explore |
+| `visual_style` | World | For scene generation |
+| `memories` | Runtime | User-specific |
+
+**Runtime has no genre lookup.** The LLM just executes what was authored.
+
+### 4.3 Why This Matters
+
+- **Studio** needs genre as organizational concept — helps content team think clearly
+- **Runtime** needs everything pre-baked — no genre inference, just execution
+- **World Taxonomy** (WORLD_TAXONOMY_CANON.md) is a **studio reference**, not runtime data
+- **Genre Doctrine** (Genre 01, Genre 02 docs) guides **authoring**, not runtime behavior
+
+---
+
+## 5. Genesis Stage: Production Model
 
 During the Genesis Stage, all content is platform-produced. This section defines the production workflow and quality standards.
 
-### 4.1 Production Ownership
+### 5.1 Production Ownership
 
 | Entity | Created By | Tooling |
 |--------|------------|---------|
@@ -292,7 +351,7 @@ These will only be considered post-stabilization with real user feedback.
 
 ---
 
-## 5. User Identity Model
+## 6. User Identity Model
 
 This section defines **how users connect into episodes** — a fundamental architectural decision that affects content framing, memory scope, and future extensibility.
 
@@ -436,7 +495,7 @@ Some worlds may eventually require users to play AS a defined character. This is
 
 ---
 
-## 6. Editorial Guidelines (Marvel-Style)
+## 7. Editorial Guidelines (Marvel-Style)
 
 ### 6.1 World Guidelines
 
@@ -484,7 +543,7 @@ Some worlds may eventually require users to play AS a defined character. This is
 
 ---
 
-## 7. Discovery Architecture
+## 8. Discovery Architecture
 
 ### 7.1 Browse Hierarchy
 
@@ -516,7 +575,7 @@ HOME
 
 ---
 
-## 8. World Bible Template
+## 9. World Bible Template
 
 For Genesis Stage content production, each World requires a **World Bible** — a comprehensive document defining all content within that universe.
 
@@ -598,7 +657,7 @@ WORLD BIBLE: [World Name]
 
 ---
 
-## 9. Schema Evolution
+## 10. Schema Evolution
 
 ### 9.1 New Tables Required
 
@@ -610,6 +669,7 @@ CREATE TABLE series (
     slug TEXT UNIQUE NOT NULL,
     description TEXT,
     world_id UUID REFERENCES worlds(id),
+    genre VARCHAR(50),                              -- Studio metadata: romantic_tension, psychological_thriller, etc.
     series_type VARCHAR(20) DEFAULT 'standalone',  -- standalone, serial, anthology, crossover
     featured_characters JSONB DEFAULT '[]',         -- Array of character IDs
     episode_order JSONB DEFAULT '[]',               -- Ordered array of episode template IDs
@@ -647,7 +707,7 @@ ALTER TABLE characters ADD COLUMN can_crossover BOOLEAN DEFAULT FALSE;
 
 ---
 
-## 10. Relationship to Existing Canon
+## 11. Relationship to Existing Canon
 
 ### 10.1 Alignment with EP-01 Pivot
 
@@ -668,7 +728,7 @@ ALTER TABLE characters ADD COLUMN can_crossover BOOLEAN DEFAULT FALSE;
 
 ---
 
-## 11. Future Considerations
+## 12. Future Considerations
 
 ### 11.1 Not In Scope (Genesis Stage)
 
@@ -687,7 +747,7 @@ ALTER TABLE characters ADD COLUMN can_crossover BOOLEAN DEFAULT FALSE;
 
 ---
 
-## 12. Glossary
+## 13. Glossary
 
 | Term | Definition | DB Entity |
 |------|------------|-----------|
@@ -704,16 +764,22 @@ See also: `docs/GLOSSARY.md` for complete terminology reference.
 
 ---
 
-## 13. Summary
+## 14. Summary
 
 The Fantazy Content Architecture establishes:
 
-1. **Flexible taxonomy**: World → Series → Episode Template → Character with optional relationships
-2. **User Identity Model**: Users connect as themselves (Genesis Stage), protagonist mode deferred
-3. **Marvel-style guidelines**: Rules that guide, not constrain
-4. **Genesis Stage focus**: All content platform-produced, future extensibility designed but not built
-5. **World Bible model**: Structured production planning for each universe
-6. **Netflix + TikTok hybrid**: Series depth with moment-based discovery
+1. **Two-Layer Architecture**: Studio (creation) vs Runtime (engagement) with clear separation
+2. **World = Setting**: Worlds define WHERE (K-World, Real Life), not WHAT (genre)
+3. **Genre = Studio Metadata**: Genre lives on Series for organization; doctrine baked into system_prompt
+4. **Flexible taxonomy**: World → Series → Episode Template → Character with optional relationships
+5. **User Identity Model**: Users connect as themselves (Genesis Stage), protagonist mode deferred
+6. **Marvel-style guidelines**: Rules that guide, not constrain
+7. **Genesis Stage focus**: All content platform-produced, future extensibility designed but not built
+8. **Netflix + TikTok hybrid**: Series depth with moment-based discovery
+
+**Key Distinction:**
+- **Studio** uses genre as organizational concept (World Taxonomy, doctrine selection)
+- **Runtime** has no genre lookup — everything pre-baked into character system_prompt
 
 **For runtime episode mechanics** (session lifecycle, progression, stakes, monetization), see `docs/EPISODE_DYNAMICS_CANON.md`.
 
@@ -725,6 +791,7 @@ The Fantazy Content Architecture establishes:
 ## Related Documents
 
 - `docs/GLOSSARY.md` — Canonical terminology reference
+- `docs/WORLD_TAXONOMY_CANON.md` — World taxonomy for Studio (settings, not genres)
 - `docs/EPISODE_DYNAMICS_CANON.md` — Episode mechanics, progression, session lifecycle, monetization
 - `docs/EP-01_pivot_CANON.md` — Episode-first philosophy
 - `docs/FANTAZY_CANON.md` — Platform definition
