@@ -187,8 +187,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
           </>
         ) : (
-          /* Clean dark background when no image */
-          <div className="absolute inset-0 bg-background" />
+          /* Clean background when no image - uses theme colors */
+          <div className="absolute inset-0 bg-muted/30" />
         )}
       </div>
 
