@@ -18,6 +18,7 @@
 | **Scene cards** | Use `episode_frame` field for opening stage direction |
 | **User POV** | First-person ("I", "me") - already works, no change needed |
 | **Character POV** | Counterpart ("you") - already works, no change needed |
+| **User Identity** | "As Yourself" (Genesis Stage) - see CONTENT_ARCHITECTURE_CANON.md Section 5 |
 
 ---
 
@@ -125,6 +126,19 @@ Character: "Lock the door behind you."
 - Best for: cinematic openings without forcing character to narrate everything
 - Platform provides stage direction; character stays in voice
 - Leverages existing scene card infrastructure
+
+### 4.4 User Identity Model (Cross-Reference)
+
+> **See: CONTENT_ARCHITECTURE_CANON.md Section 5 - User Identity Model**
+
+The POV modes above assume the **"As Yourself"** user identity model:
+
+- User connects to episodes **as themselves**, not as a predefined protagonist
+- Character speaks TO "you" (the user)
+- User's name is learned through natural conversation → stored in Memory
+- No user avatar — user is the "camera"/POV experiencing the scene
+
+This is **locked for Genesis Stage**. Protagonist mode (user plays AS a character) is a future consideration for fictional IP worlds where "as yourself" doesn't make sense.
 
 ---
 
@@ -690,6 +704,8 @@ All references to `relationships` → `engagements`:
 
 ## Related Documents
 
+- `docs/CONTENT_ARCHITECTURE_CANON.md` — Content taxonomy, User Identity Model (Section 5)
+- `docs/GLOSSARY.md` — Canonical terminology reference
 - `docs/FANTAZY_CANON.md` — Platform definition
 - `docs/EPISODES_CANON_PHILOSOPHY.md` — Episode structure and progression
 - `docs/character-philosophy/PHILOSOPHY.md` — Character design principles
