@@ -133,7 +133,8 @@ export const api = {
       }),
   },
 
-  // Episode endpoints
+  // Session endpoints (runtime chat sessions - formerly "episodes")
+  // Note: Backend uses /sessions, frontend types use Episode naming for compatibility
   episodes: {
     list: (params?: {
       character_id?: string;
@@ -150,20 +151,20 @@ export const api = {
       if (params?.offset) searchParams.set("offset", String(params.offset));
       const query = searchParams.toString();
       return request<import("@/types").EpisodeSummary[]>(
-        `/episodes${query ? `?${query}` : ""}`
+        `/sessions${query ? `?${query}` : ""}`
       );
     },
-    get: (id: string) => request<import("@/types").Episode>(`/episodes/${id}`),
+    get: (id: string) => request<import("@/types").Episode>(`/sessions/${id}`),
     getActive: (character_id: string) =>
       request<import("@/types").Episode | null>(
-        `/episodes/active/${character_id}`
+        `/sessions/active/${character_id}`
       ),
     create: (data: {
       character_id: string;
       scene?: string;
       title?: string;
     }) =>
-      request<import("@/types").Episode>("/episodes", {
+      request<import("@/types").Episode>("/sessions", {
         method: "POST",
         body: JSON.stringify(data),
       }),
@@ -171,12 +172,12 @@ export const api = {
       id: string,
       data: { title?: string; scene?: string; is_active?: boolean }
     ) =>
-      request<import("@/types").Episode>(`/episodes/${id}`, {
+      request<import("@/types").Episode>(`/sessions/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
     end: (id: string) =>
-      request<import("@/types").Episode>(`/episodes/${id}/end`, {
+      request<import("@/types").Episode>(`/sessions/${id}/end`, {
         method: "POST",
       }),
   },
