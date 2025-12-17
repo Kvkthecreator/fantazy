@@ -64,8 +64,12 @@ export default function LoginPage() {
             <CardContent className="p-8">
               <div className="mb-8 text-center space-y-2">
                 <Link href="/" className="inline-flex items-center gap-2">
-                  <span className="text-2xl">✨</span>
-                  <span className="text-xl font-semibold">ep-0</span>
+                  <img
+                    src="/branding/ep0-mark.svg"
+                    alt="ep-0"
+                    className="h-8 w-8"
+                  />
+                  <span className="text-xl font-semibold">episode-0</span>
                 </Link>
                 <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
                   cozy • romcom • memory

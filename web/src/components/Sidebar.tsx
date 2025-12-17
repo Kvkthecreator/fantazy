@@ -74,7 +74,7 @@ export function Sidebar({ user }: { user: User }) {
           {!isCollapsed && (
             <div>
               <h1 className="text-xl font-bold leading-tight text-foreground">
-                ep-0
+                episode-0
               </h1>
               <p className="text-xs text-muted-foreground">Interactive episodes</p>
             </div>
