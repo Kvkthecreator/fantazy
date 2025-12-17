@@ -171,34 +171,35 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const hasBackground = !!activeBackgroundUrl;
 
   return (
-    <div className="relative flex flex-col h-full w-full overflow-hidden isolate">
-      {/* Full-bleed background layer with parallax-ready structure */}
-      <div className="absolute inset-0 z-0">
-        {activeBackgroundUrl ? (
-          <>
-            <img
-              src={activeBackgroundUrl}
-              alt=""
-              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-            />
-            {/* Cinematic gradient overlay for depth and readability */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/50" />
-            {/* Subtle vignette effect */}
-            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
-          </>
-        ) : (
-          /* Clean background when no image - uses theme colors */
-          <div className="absolute inset-0 bg-muted/30" />
-        )}
-      </div>
+    <div className={cn(
+      "relative flex flex-col h-full w-full overflow-hidden",
+      !hasBackground && "bg-background"
+    )}>
+      {/* Full-bleed background layer - only when we have an image */}
+      {hasBackground && (
+        <div className="absolute inset-0 z-0">
+          <img
+            src={activeBackgroundUrl}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+          />
+          {/* Cinematic gradient overlay for depth and readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-black/50" />
+          {/* Subtle vignette effect */}
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,rgba(0,0,0,0.4)_100%)]" />
+        </div>
+      )}
 
       {/* Content layer */}
-      <div className="relative z-10 flex flex-col h-full">
-        {/* Floating glass header */}
+      <div className={cn(
+        "relative z-10 flex flex-col h-full",
+        hasBackground ? "" : ""
+      )}>
+        {/* Header - glass when immersive, standard when not */}
         <div className={cn(
-          "mx-3 mt-3 rounded-2xl border shadow-lg transition-colors",
+          "border-b transition-colors",
           hasBackground
-            ? "backdrop-blur-xl backdrop-saturate-150 bg-black/40 border-white/10"
+            ? "mx-3 mt-3 rounded-2xl border shadow-lg backdrop-blur-xl backdrop-saturate-150 bg-black/40 border-white/10"
             : "bg-card border-border"
         )}>
           <ChatHeader
@@ -330,13 +331,15 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           </div>
         )}
 
-        {/* Floating glass input bar */}
-        <div className="mx-3 mb-3">
+        {/* Input bar - glass when immersive, standard when not */}
+        <div className={cn(
+          hasBackground ? "mx-3 mb-3" : "border-t border-border bg-card"
+        )}>
           <div className={cn(
-            "rounded-2xl border shadow-lg transition-colors",
+            "transition-colors",
             hasBackground
-              ? "backdrop-blur-xl backdrop-saturate-150 bg-black/40 border-white/10"
-              : "bg-card border-border"
+              ? "rounded-2xl border shadow-lg backdrop-blur-xl backdrop-saturate-150 bg-black/40 border-white/10"
+              : ""
           )}>
             <MessageInput
               onSend={sendMessage}

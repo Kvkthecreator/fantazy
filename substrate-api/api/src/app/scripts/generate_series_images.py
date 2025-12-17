@@ -213,8 +213,53 @@ lowres, bad anatomy, text, watermark, signature, blurry"""
     return prompt.strip(), negative.strip()
 
 
+async def download_image(url: str) -> bytes:
+    """Download image from URL and return bytes."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        return response.content
+
+
+async def upload_to_supabase(image_bytes: bytes, storage_path: str) -> str:
+    """Upload image bytes to Supabase Storage.
+
+    Args:
+        image_bytes: Image data
+        storage_path: Path within the 'scenes' bucket (e.g., "series/slug/cover.png")
+
+    Returns:
+        Storage path (for use with signed URLs)
+    """
+    from app.services.storage import StorageService
+
+    storage = StorageService.get_instance()
+
+    # Upload to scenes bucket
+    url = f"{storage.supabase_url}/storage/v1/object/scenes/{storage_path}"
+    headers = {
+        "Authorization": f"Bearer {storage.service_role_key}",
+        "Content-Type": "image/png",
+        "x-upsert": "true",
+    }
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(url, headers=headers, content=image_bytes)
+        if response.status_code not in (200, 201):
+            log.error(f"Storage upload failed: {response.status_code} {response.text}")
+            response.raise_for_status()
+
+    log.info(f"Uploaded to scenes/{storage_path}")
+    return storage_path
+
+
 async def generate_image(prompt: str, negative_prompt: str, width: int, height: int, dry_run: bool = False, max_retries: int = 3):
-    """Generate an image using the ImageService (Replicate/FLUX)."""
+    """Generate an image using the ImageService (Replicate/FLUX).
+
+    Returns the Replicate URL (temporary) - caller should download and upload to Supabase.
+    """
     if dry_run:
         return {
             "image_url": "[DRY RUN - no image generated]",
@@ -262,19 +307,52 @@ async def generate_image(prompt: str, negative_prompt: str, width: int, height: 
                 raise
 
 
-async def update_series_cover(db: Database, series_id: str, image_url: str):
-    """Update series cover_image_url."""
+async def generate_and_upload(
+    prompt: str,
+    negative_prompt: str,
+    width: int,
+    height: int,
+    storage_path: str,
+    dry_run: bool = False,
+) -> dict:
+    """Generate image, download from Replicate, and upload to Supabase.
+
+    Returns dict with storage_path (Supabase) instead of temporary Replicate URL.
+    """
+    result = await generate_image(prompt, negative_prompt, width, height, dry_run)
+
+    if dry_run or not result.get("image_url"):
+        return result
+
+    # Download from Replicate
+    log.info("Downloading from Replicate...")
+    image_bytes = await download_image(result["image_url"])
+
+    # Upload to Supabase
+    log.info(f"Uploading to Supabase: {storage_path}")
+    final_path = await upload_to_supabase(image_bytes, storage_path)
+
+    return {
+        "storage_path": final_path,
+        "prompt": result["prompt"],
+        "model_used": result["model_used"],
+        "latency_ms": result.get("latency_ms"),
+    }
+
+
+async def update_series_cover(db: Database, series_id: str, storage_path: str):
+    """Update series cover_image_url with Supabase storage path."""
     await db.execute(
-        "UPDATE series SET cover_image_url = :url, updated_at = NOW() WHERE id = :id",
-        {"url": image_url, "id": series_id}
+        "UPDATE series SET cover_image_url = :path, updated_at = NOW() WHERE id = :id",
+        {"path": storage_path, "id": series_id}
     )
 
 
-async def update_episode_background(db: Database, episode_id: str, image_url: str):
-    """Update episode background_image_url."""
+async def update_episode_background(db: Database, episode_id: str, storage_path: str):
+    """Update episode background_image_url with Supabase storage path."""
     await db.execute(
-        "UPDATE episode_templates SET background_image_url = :url WHERE id = :id",
-        {"url": image_url, "id": episode_id}
+        "UPDATE episode_templates SET background_image_url = :path WHERE id = :id",
+        {"path": storage_path, "id": episode_id}
     )
 
 
