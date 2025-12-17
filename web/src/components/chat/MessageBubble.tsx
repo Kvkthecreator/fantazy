@@ -43,18 +43,18 @@ export function MessageBubble({
       {/* Message content */}
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm transition-colors",
+          "max-w-[85%] rounded-2xl px-4 py-3 transition-colors",
           isUser
             ? cn(
                 "rounded-tr-md",
                 hasBackground
-                  ? "bg-white/90 text-gray-900 backdrop-blur-sm shadow-lg"
+                  ? "bg-white/90 text-gray-900 backdrop-blur-sm"
                   : "bg-primary text-primary-foreground"
               )
             : cn(
                 "rounded-tl-md",
                 hasBackground
-                  ? "backdrop-blur-xl backdrop-saturate-150 bg-black/50 text-white border border-white/10 shadow-lg"
+                  ? "backdrop-blur-xl backdrop-saturate-150 bg-black/40 text-white"
                   : "bg-card text-foreground border border-border"
               )
         )}
@@ -110,8 +110,8 @@ export function StreamingBubble({
       <div className={cn(
         "max-w-[85%] rounded-2xl rounded-tl-md px-4 py-3",
         hasBackground
-          ? "backdrop-blur-xl backdrop-saturate-150 bg-black/50 text-white border border-white/10 shadow-lg"
-          : "bg-card text-foreground border border-border shadow-sm"
+          ? "backdrop-blur-xl backdrop-saturate-150 bg-black/40 text-white"
+          : "bg-card text-foreground border border-border"
       )}>
         <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
           {content}

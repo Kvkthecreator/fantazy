@@ -197,10 +197,10 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       )}>
         {/* Header - glass when immersive, standard when not */}
         <div className={cn(
-          "border-b transition-colors",
+          "transition-colors",
           hasBackground
-            ? "mx-3 mt-3 rounded-2xl border shadow-lg backdrop-blur-xl backdrop-saturate-150 bg-black/40 border-white/10"
-            : "bg-card border-border"
+            ? "mx-3 mt-3 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/30"
+            : "bg-card border-b border-border"
         )}>
           <ChatHeader
             character={character}
@@ -210,10 +210,10 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           />
           {/* Integrated context bar */}
           <div className={cn(
-            "flex flex-wrap gap-2 px-4 py-2 text-xs border-t",
+            "flex flex-wrap gap-2 px-4 py-2 text-xs",
             hasBackground
-              ? "border-white/10 text-white/90"
-              : "border-border text-muted-foreground"
+              ? "text-white/90"
+              : "border-t border-border text-muted-foreground"
           )}>
             {relationship && (
               <ContextChip label="Stage" value={formatStage(relationship.stage)} hasBackground={hasBackground} />
@@ -338,7 +338,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           <div className={cn(
             "transition-colors",
             hasBackground
-              ? "rounded-2xl border shadow-lg backdrop-blur-xl backdrop-saturate-150 bg-black/40 border-white/10"
+              ? "rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/30"
               : ""
           )}>
             <MessageInput
@@ -495,7 +495,7 @@ function EmptyState({
         <div className={cn(
           "mb-6 px-4 py-3 rounded-2xl max-w-sm text-left text-sm backdrop-blur-sm",
           hasBackground
-            ? "bg-white/10 border border-white/20"
+            ? "bg-black/30 text-white"
             : "bg-muted/50 border border-border/50"
         )}>
           <p className="italic">"{episodeTemplate.opening_line}"</p>
@@ -522,10 +522,10 @@ function EmptyState({
               key={i}
               onClick={() => onSelect(prompt)}
               className={cn(
-                "w-full text-left px-4 py-2.5 rounded-xl border text-sm transition-all backdrop-blur-sm",
+                "w-full text-left px-4 py-2.5 rounded-xl text-sm transition-all backdrop-blur-sm",
                 hasBackground
-                  ? "border-white/20 bg-white/10 hover:bg-white/20 text-white"
-                  : "border-border/70 bg-card hover:border-primary/40 hover:shadow-sm"
+                  ? "bg-white/10 hover:bg-white/15 text-white"
+                  : "border border-border/70 bg-card hover:border-primary/40 hover:shadow-sm"
               )}
             >
               "{prompt}"
@@ -578,13 +578,13 @@ function ContextChip({
     <Badge
       variant="secondary"
       className={cn(
-        "h-7 rounded-full px-3 text-[11px] font-medium",
+        "h-7 rounded-full px-3 text-[11px] font-medium border-0",
         hasBackground
-          ? "bg-white/10 text-white/90 border border-white/20"
+          ? "bg-white/10 text-white/90"
           : accent === "primary"
-            ? "bg-primary/15 text-primary border border-primary/30"
+            ? "bg-primary/15 text-primary"
             : accent === "destructive"
-              ? "bg-destructive/10 text-destructive border border-destructive/30"
+              ? "bg-destructive/10 text-destructive"
               : ""
       )}
     >
