@@ -233,6 +233,7 @@ async def upload_to_supabase(image_bytes: bytes, storage_path: str) -> str:
     Returns:
         Storage path (for use with signed URLs)
     """
+    import httpx
     from app.services.storage import StorageService
 
     storage = StorageService.get_instance()
@@ -396,19 +397,24 @@ async def main():
                 log.info(f"Prompt:\n{prompt}\n")
                 log.info(f"Negative:\n{negative}\n")
 
-                result = await generate_image(
+                # Storage path: series/{slug}/cover.png
+                storage_path = f"series/{args.series_slug}/cover.png"
+
+                result = await generate_and_upload(
                     prompt=prompt,
                     negative_prompt=negative,
                     width=1024,
                     height=576,  # 16:9 landscape
+                    storage_path=storage_path,
                     dry_run=args.dry_run
                 )
 
-                log.info(f"Generated: {result['image_url'][:100]}...")
-
-                if not args.dry_run:
-                    await update_series_cover(db, str(series_data["id"]), result["image_url"])
-                    log.info("Updated series cover_image_url")
+                if result.get("storage_path"):
+                    log.info(f"Uploaded to: {result['storage_path']}")
+                    await update_series_cover(db, str(series_data["id"]), result["storage_path"])
+                    log.info("Updated series cover_image_url with Supabase path")
+                elif args.dry_run:
+                    log.info("[DRY RUN] Would upload to: " + storage_path)
 
                 results["cover"] = result
 
@@ -434,19 +440,25 @@ async def main():
 
                 log.info(f"Prompt:\n{prompt}\n")
 
-                result = await generate_image(
+                # Storage path: series/{slug}/episodes/ep{num}_{safe_title}.png
+                safe_title = ep_title.lower().replace(" ", "_").replace("'", "")
+                storage_path = f"series/{args.series_slug}/episodes/ep{ep['episode_number']:02d}_{safe_title}.png"
+
+                result = await generate_and_upload(
                     prompt=prompt,
                     negative_prompt=negative,
                     width=576,
                     height=1024,  # 9:16 portrait for mobile
+                    storage_path=storage_path,
                     dry_run=args.dry_run
                 )
 
-                log.info(f"Generated: {result['image_url'][:100] if result['image_url'] else 'N/A'}...")
-
-                if not args.dry_run and result.get("image_url"):
-                    await update_episode_background(db, str(ep["id"]), result["image_url"])
-                    log.info("Updated episode background_image_url")
+                if result.get("storage_path"):
+                    log.info(f"Uploaded to: {result['storage_path']}")
+                    await update_episode_background(db, str(ep["id"]), result["storage_path"])
+                    log.info("Updated episode background_image_url with Supabase path")
+                elif args.dry_run:
+                    log.info("[DRY RUN] Would upload to: " + storage_path)
 
                 results["backgrounds"].append({
                     "episode": ep_title,
