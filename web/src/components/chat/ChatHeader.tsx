@@ -29,10 +29,7 @@ export function ChatHeader({
   };
 
   return (
-    <header className={cn(
-      "flex items-center justify-between px-4 py-3",
-      !hasBackground && "border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
-    )}>
+    <header className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-3">
         {/* Back button */}
         <Link href="/dashboard">
