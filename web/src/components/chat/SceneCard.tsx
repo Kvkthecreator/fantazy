@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Star, Loader2, Maximize2 } from "lucide-react";
+import { Star, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api/client";
 import type { EpisodeImage, SceneGenerateResponse } from "@/types";
@@ -9,10 +9,9 @@ import type { EpisodeImage, SceneGenerateResponse } from "@/types";
 interface SceneCardProps {
   scene: EpisodeImage | SceneGenerateResponse;
   onMemoryToggle?: (isMemory: boolean) => void;
-  isLatest?: boolean;
 }
 
-export function SceneCard({ scene, onMemoryToggle, isLatest = false }: SceneCardProps) {
+export function SceneCard({ scene, onMemoryToggle }: SceneCardProps) {
   const [isMemory, setIsMemory] = useState(
     "is_memory" in scene ? scene.is_memory : false
   );
@@ -37,44 +36,7 @@ export function SceneCard({ scene, onMemoryToggle, isLatest = false }: SceneCard
     }
   };
 
-  // When this scene is the latest (shown as background), display a minimal inline indicator
-  if (isLatest) {
-    return (
-      <div className="my-4 flex justify-center">
-        <div className={cn(
-          "inline-flex items-center gap-3 rounded-full px-4 py-2",
-          "backdrop-blur-xl backdrop-saturate-150",
-          "bg-black/40 border border-white/20 shadow-lg"
-        )}>
-          <Maximize2 className="h-4 w-4 text-white/70" />
-          <p className="text-sm text-white/90 italic">
-            {scene.caption || "Scene visualized"}
-          </p>
-          {episodeImageId && (
-            <button
-              onClick={handleToggleMemory}
-              disabled={isSaving}
-              className={cn(
-                "rounded-full p-1.5 transition-colors",
-                isMemory
-                  ? "text-yellow-300"
-                  : "text-white/60 hover:text-white"
-              )}
-              title={isMemory ? "Remove from memories" : "Save as memory"}
-            >
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Star className={cn("h-4 w-4", isMemory && "fill-current")} />
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Regular scene card for non-latest scenes
+  // All scene cards render as full inline cards (no longer replacing background)
   return (
     <div className="my-4 w-full">
       <div className={cn(

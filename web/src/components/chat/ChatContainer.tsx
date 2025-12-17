@@ -141,11 +141,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       .catch(() => setRelationship(null));
   }, [characterId]);
 
-  // Get the most recent scene for hero background (if any)
-  const latestScene = scenes.length > 0 ? scenes[scenes.length - 1] : null;
-
-  // Use scene image as background if available, otherwise episode template background
-  const activeBackgroundUrl = latestScene?.image_url || backgroundImageUrl;
+  // Background is ALWAYS the episode template background - scene cards stay inline only
+  const activeBackgroundUrl = backgroundImageUrl;
   const hasBackground = !!activeBackgroundUrl;
 
   // Broadcast background to document root so shell (sidebar/header) can inherit the immersive layer.
@@ -296,7 +293,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                     <SceneCard
                       key={`scene-${item.data.id}`}
                       scene={item.data}
-                      isLatest={item.data.id === latestScene?.id}
                     />
                   )
                 )}
