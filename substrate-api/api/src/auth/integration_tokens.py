@@ -20,13 +20,19 @@ def verify_integration_token(token: str) -> dict:
 
     sb = supabase_admin()
     token_hash = _hash_token(token)
-    resp = (
-        sb.table("integration_tokens")
-        .select("id, user_id, workspace_id, revoked_at")
-        .eq("token_hash", token_hash)
-        .maybe_single()
-        .execute()
-    )
+
+    try:
+        resp = (
+            sb.table("integration_tokens")
+            .select("id, user_id, workspace_id, revoked_at")
+            .eq("token_hash", token_hash)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as exc:
+        # Table might not exist or other DB errors - treat as invalid token
+        log.debug("Integration token verification failed with exception: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid integration token")
 
     # Handle None response (can happen if Supabase client errors)
     if resp is None or not hasattr(resp, 'data'):
