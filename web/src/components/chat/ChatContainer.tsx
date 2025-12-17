@@ -141,28 +141,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       .catch(() => setRelationship(null));
   }, [characterId]);
 
-  // Handle visualize button click
-  const handleVisualize = async () => {
-    if (!episode || isGeneratingScene) return;
-    clearSceneSuggestion(); // Clear the suggestion
-    await generateScene();
-  };
-
-  if (isLoadingCharacter) {
-    return <ChatSkeleton />;
-  }
-
-  if (!character) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center">
-        <p className="text-muted-foreground">Character not found</p>
-      </div>
-    );
-  }
-
-  // Only show visualize button after some messages
-  const showVisualizeButton = messages.length >= 2;
-
   // Get the most recent scene for hero background (if any)
   const latestScene = scenes.length > 0 ? scenes[scenes.length - 1] : null;
 
@@ -171,6 +149,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const hasBackground = !!activeBackgroundUrl;
 
   // Broadcast background to document root so shell (sidebar/header) can inherit the immersive layer.
+  // This hook MUST be called before any early returns to satisfy React's rules of hooks.
   useEffect(() => {
     if (!hasBackground || !activeBackgroundUrl) {
       document.documentElement.classList.remove("chat-has-bg");
@@ -184,6 +163,28 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       document.documentElement.style.removeProperty("--chat-bg-image");
     };
   }, [hasBackground, activeBackgroundUrl]);
+
+  // Handle visualize button click
+  const handleVisualize = useCallback(async () => {
+    if (!episode || isGeneratingScene) return;
+    clearSceneSuggestion(); // Clear the suggestion
+    await generateScene();
+  }, [episode, isGeneratingScene, clearSceneSuggestion, generateScene]);
+
+  // Only show visualize button after some messages
+  const showVisualizeButton = messages.length >= 2;
+
+  if (isLoadingCharacter) {
+    return <ChatSkeleton />;
+  }
+
+  if (!character) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center">
+        <p className="text-muted-foreground">Character not found</p>
+      </div>
+    );
+  }
 
   return (
     <div className={cn(
