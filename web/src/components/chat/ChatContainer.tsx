@@ -207,6 +207,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
             relationship={relationship}
             episode={episode}
             onEndEpisode={endEpisode}
+            hasBackground={hasBackground}
           />
           {/* Integrated context bar */}
           <div className={cn(

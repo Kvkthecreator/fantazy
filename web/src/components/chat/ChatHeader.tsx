@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { Character, Relationship, Episode } from "@/types";
 
 interface ChatHeaderProps {
@@ -10,6 +11,7 @@ interface ChatHeaderProps {
   relationship?: Relationship | null;
   episode?: Episode | null;
   onEndEpisode?: () => void;
+  hasBackground?: boolean;
 }
 
 export function ChatHeader({
@@ -17,6 +19,7 @@ export function ChatHeader({
   relationship,
   episode,
   onEndEpisode,
+  hasBackground = false,
 }: ChatHeaderProps) {
   const stageLabels: Record<string, string> = {
     acquaintance: "Just Met",
@@ -26,11 +29,21 @@ export function ChatHeader({
   };
 
   return (
-    <header className="flex items-center justify-between px-4 py-3 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className={cn(
+      "flex items-center justify-between px-4 py-3",
+      !hasBackground && "border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+    )}>
       <div className="flex items-center gap-3">
         {/* Back button */}
         <Link href="/dashboard">
-          <Button variant="ghost" size="icon" className="h-8 w-8">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-8 w-8",
+              hasBackground && "text-white hover:bg-white/10"
+            )}
+          >
             <ChevronLeftIcon className="h-4 w-4" />
             <span className="sr-only">Back</span>
           </Button>
@@ -50,20 +63,35 @@ export function ChatHeader({
             )}
           </div>
           {/* Online indicator */}
-          <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-background rounded-full" />
+          <span className={cn(
+            "absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 rounded-full",
+            hasBackground ? "border-black/30" : "border-background"
+          )} />
         </Link>
 
         {/* Character info */}
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
-            <h1 className="font-semibold text-sm">{character.name}</h1>
+            <h1 className={cn(
+              "font-semibold text-sm",
+              hasBackground && "text-white"
+            )}>{character.name}</h1>
             {relationship?.stage && (
-              <Badge variant="secondary" className="text-[10px] h-5">
+              <Badge
+                variant="secondary"
+                className={cn(
+                  "text-[10px] h-5 border-0",
+                  hasBackground && "bg-white/10 text-white/90"
+                )}
+              >
                 {stageLabels[relationship.stage] || relationship.stage}
               </Badge>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className={cn(
+            "text-xs",
+            hasBackground ? "text-white/70" : "text-muted-foreground"
+          )}>
             {character.archetype.charAt(0).toUpperCase() +
               character.archetype.slice(1)}
             {episode && ` • Episode ${episode.episode_number}`}
@@ -78,12 +106,22 @@ export function ChatHeader({
             variant="ghost"
             size="sm"
             onClick={onEndEpisode}
-            className="text-xs"
+            className={cn(
+              "text-xs",
+              hasBackground && "text-white hover:bg-white/10"
+            )}
           >
             End Episode
           </Button>
         )}
-        <Button variant="ghost" size="icon" className="h-8 w-8">
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(
+            "h-8 w-8",
+            hasBackground && "text-white hover:bg-white/10"
+          )}
+        >
           <MoreIcon className="h-4 w-4" />
           <span className="sr-only">More options</span>
         </Button>
