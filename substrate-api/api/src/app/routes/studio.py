@@ -125,22 +125,46 @@ async def list_my_characters(
     db=Depends(get_db),
 ):
     """List characters created by the current user."""
-    conditions = ["created_by = :user_id"]
+    from app.services.storage import StorageService
+
+    conditions = ["c.created_by = :user_id"]
     values = {"user_id": str(user_id)}
 
     if status_filter:
-        conditions.append("status = :status")
+        conditions.append("c.status = :status")
         values["status"] = status_filter
 
+    # Join with avatar_kits to get primary anchor path for fresh signed URLs
     query = f"""
-        SELECT id, name, slug, archetype, avatar_url, short_backstory, is_premium, genre
-        FROM characters
+        SELECT c.id, c.name, c.slug, c.archetype, c.avatar_url,
+               c.short_backstory, c.is_premium, c.genre,
+               aa.storage_path as anchor_path
+        FROM characters c
+        LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id AND ak.status = 'active'
+        LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id AND aa.is_active = TRUE
         WHERE {" AND ".join(conditions)}
-        ORDER BY created_at DESC
+        ORDER BY c.created_at DESC
     """
 
     rows = await db.fetch_all(query, values)
-    return [CharacterSummary(**dict(row)) for row in rows]
+
+    # Process rows - generate signed URLs for anchor images
+    results = []
+    storage = None
+
+    for row in rows:
+        data = dict(row)
+        anchor_path = data.pop("anchor_path", None)
+
+        # Always prefer fresh signed URL from anchor_path (avoids expired URLs)
+        if anchor_path:
+            if storage is None:
+                storage = StorageService.get_instance()
+            data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
+
+        results.append(CharacterSummary(**data))
+
+    return results
 
 
 @router.post("/characters", response_model=CharacterCreatedResponse, status_code=status.HTTP_201_CREATED)
