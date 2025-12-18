@@ -464,7 +464,7 @@ async def get_series_progress(
             episode_template_id,
             session_state,
             MAX(started_at) as last_played_at
-        FROM episodes
+        FROM sessions
         WHERE user_id = :user_id
         AND episode_template_id = ANY(:episode_ids)
         GROUP BY episode_template_id, session_state
@@ -602,13 +602,19 @@ async def get_continue_watching(
 
     rows = await db.fetch_all(query, {"user_id": user_id, "limit": limit})
 
+    storage = StorageService.get_instance()
     items = []
     for row in rows:
+        # Convert storage path to signed URL if needed
+        cover_url = row["series_cover_image_url"]
+        if cover_url and not cover_url.startswith("http"):
+            cover_url = await storage.create_signed_url("scenes", cover_url, expires_in=3600)
+
         items.append(ContinueWatchingItem(
             series_id=str(row["series_id"]),
             series_title=row["series_title"],
             series_slug=row["series_slug"],
-            series_cover_image_url=row["series_cover_image_url"],
+            series_cover_image_url=cover_url,
             series_genre=row["series_genre"],
             total_episodes=row["total_episodes"] or 0,
             current_episode_id=str(row["episode_template_id"]) if row["episode_template_id"] else "",
