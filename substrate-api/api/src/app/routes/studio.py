@@ -1127,14 +1127,14 @@ async def create_kit_from_storage(
 
     # Download image from source bucket
     try:
-        image_bytes = await storage.download_file(bucket, storage_path)
+        image_bytes = await storage.download(bucket, storage_path)
     except Exception as e:
         return {"error": f"Failed to download from {bucket}/{storage_path}: {str(e)}"}
 
     # Upload to avatars bucket
     new_path = f"{kit_id}/anchors/{asset_id}.png"
     try:
-        await storage.upload_file("avatars", new_path, image_bytes, "image/png")
+        await storage._upload("avatars", new_path, image_bytes, "image/png")
     except Exception as e:
         return {"error": f"Failed to upload to avatars/{new_path}: {str(e)}"}
 
