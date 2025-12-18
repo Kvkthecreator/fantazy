@@ -9,13 +9,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api, APIError } from '@/lib/api/client'
-import type { Character, GalleryStatusResponse, EpisodeTemplate, EpisodeTemplateSummary, AvatarGalleryItem } from '@/types'
+import type { Character, GalleryStatusResponse, AvatarGalleryItem } from '@/types'
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type EditTab = 'overview' | 'assets' | 'backstory' | 'opening' | 'episodes' | 'conversation' | 'advanced'
+type EditTab = 'overview' | 'avatars' | 'backstory' | 'opening' | 'conversation' | 'advanced'
 
 // Helper to extract error detail from APIError
 function getErrorDetail(err: unknown, fallback: string): string {
@@ -48,7 +48,7 @@ export default function CharacterDetailPage() {
   const [regenerateFeedback, setRegenerateFeedback] = useState('')
   const [showRegenerateOptions, setShowRegenerateOptions] = useState(false)
 
-  // Avatar Gallery state
+  // Avatar state
   const [galleryStatus, setGalleryStatus] = useState<GalleryStatusResponse | null>(null)
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false)
   const [appearanceDescription, setAppearanceDescription] = useState('')
@@ -56,12 +56,6 @@ export default function CharacterDetailPage() {
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [settingPrimary, setSettingPrimary] = useState<string | null>(null)
   const [deletingItem, setDeletingItem] = useState<string | null>(null)
-
-  // Episode Templates state
-  const [episodeTemplates, setEpisodeTemplates] = useState<EpisodeTemplate[]>([])
-  const [loadingEpisodes, setLoadingEpisodes] = useState(false)
-  const [editingEpisode, setEditingEpisode] = useState<EpisodeTemplate | null>(null)
-  const [generatingBackground, setGeneratingBackground] = useState<string | null>(null)
 
   // Editable fields
   const [editForm, setEditForm] = useState({
@@ -78,33 +72,14 @@ export default function CharacterDetailPage() {
   useEffect(() => {
     fetchCharacter()
     fetchGalleryStatus()
-    fetchEpisodeTemplates()
   }, [characterId])
-
-  const fetchEpisodeTemplates = async () => {
-    setLoadingEpisodes(true)
-    try {
-      // Fetch all templates (including drafts) for this character
-      const summaries = await api.studio.listEpisodeTemplates(characterId, true)
-      // Fetch full details for each template
-      const templates = await Promise.all(
-        summaries.map(s => api.studio.getEpisodeTemplate(s.id))
-      )
-      setEpisodeTemplates(templates)
-    } catch {
-      // No templates yet, that's okay
-      setEpisodeTemplates([])
-    } finally {
-      setLoadingEpisodes(false)
-    }
-  }
 
   const fetchGalleryStatus = async () => {
     try {
       const status = await api.studio.getGalleryStatus(characterId)
       setGalleryStatus(status)
     } catch {
-      // Gallery might not exist yet, that's okay
+      // Avatars might not exist yet, that's okay
       setGalleryStatus(null)
     }
   }
@@ -125,7 +100,7 @@ export default function CharacterDetailPage() {
         return
       }
 
-      // Refresh character and gallery status
+      // Refresh character and avatar status
       await fetchCharacter()
       await fetchGalleryStatus()
       setNewAvatarLabel('')
@@ -304,59 +279,12 @@ export default function CharacterDetailPage() {
 
   const tabs: { id: EditTab; label: string }[] = [
     { id: 'overview', label: 'Overview' },
-    { id: 'assets', label: 'Assets' },
+    { id: 'avatars', label: 'Avatars' },
     { id: 'backstory', label: 'Backstory' },
     { id: 'opening', label: 'Opening Beat' },
-    { id: 'episodes', label: 'Episodes' },
     { id: 'conversation', label: 'Conversation' },
     { id: 'advanced', label: 'Advanced' },
   ]
-
-  // Episode template handlers
-  const handleSaveEpisode = async (template: EpisodeTemplate) => {
-    setSaving(true)
-    try {
-      await api.studio.updateEpisodeTemplate(template.id, {
-        title: template.title,
-        situation: template.situation,
-        opening_line: template.opening_line,
-        episode_frame: template.episode_frame || undefined,
-      })
-      await fetchEpisodeTemplates()
-      setEditingEpisode(null)
-      setSaveMessage('Episode saved!')
-      setTimeout(() => setSaveMessage(null), 2000)
-    } catch (err) {
-      setError(getErrorDetail(err, 'Failed to save episode'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleActivateEpisode = async (templateId: string) => {
-    try {
-      await api.studio.activateEpisodeTemplate(templateId)
-      await fetchEpisodeTemplates()
-      setSaveMessage('Episode activated!')
-      setTimeout(() => setSaveMessage(null), 2000)
-    } catch (err) {
-      setError(getErrorDetail(err, 'Failed to activate episode'))
-    }
-  }
-
-  const handleGenerateBackground = async (template: EpisodeTemplate) => {
-    setGeneratingBackground(template.id)
-    try {
-      await api.studio.generateEpisodeBackground(character!.name, template.episode_number)
-      await fetchEpisodeTemplates()
-      setSaveMessage('Background generated!')
-      setTimeout(() => setSaveMessage(null), 2000)
-    } catch (err) {
-      setError(getErrorDetail(err, 'Failed to generate background'))
-    } finally {
-      setGeneratingBackground(null)
-    }
-  }
 
   return (
     <div className="space-y-8">
@@ -510,7 +438,7 @@ export default function CharacterDetailPage() {
         </div>
       )}
 
-      {activeTab === 'assets' && (
+      {activeTab === 'avatars' && (
         <div className="space-y-6">
           {/* Avatar Error Display */}
           {avatarError && (
@@ -519,12 +447,12 @@ export default function CharacterDetailPage() {
             </div>
           )}
 
-          {/* Avatar Gallery */}
+          {/* Avatars */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
-                  Avatar Gallery
+                  Avatars
                   {galleryStatus?.has_gallery && (
                     <span className="inline-flex h-2 w-2 rounded-full bg-green-500"></span>
                   )}
@@ -534,12 +462,12 @@ export default function CharacterDetailPage() {
                 </span>
               </CardTitle>
               <CardDescription>
-                Your character&apos;s visual identity. Click any image to set it as primary.
+                Your character&apos;s visual identity. Click any image to set as primary.
                 {!galleryStatus?.has_gallery && ' Generate at least one avatar to activate.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Gallery Grid */}
+              {/* Avatar Grid */}
               {galleryStatus?.gallery && galleryStatus.gallery.length > 0 ? (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {galleryStatus.gallery.map((item) => (
@@ -874,7 +802,6 @@ export default function CharacterDetailPage() {
                   })
                   setSaveMessage('Opening beat saved to Episode 0')
                   setTimeout(() => setSaveMessage(null), 2000)
-                  await fetchEpisodeTemplates() // Refresh episode templates
                 } catch (err) {
                   setError(getErrorDetail(err, 'Failed to save opening beat'))
                 } finally {
@@ -887,195 +814,6 @@ export default function CharacterDetailPage() {
             </Button>
           </CardContent>
         </Card>
-      )}
-
-      {activeTab === 'episodes' && (
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>Episode Templates</span>
-                <span className="text-sm font-normal text-muted-foreground">
-                  {episodeTemplates.length} episodes
-                </span>
-              </CardTitle>
-              <CardDescription>
-                Pre-defined scenarios that users can choose to start their conversation from.
-                Each episode has a unique situation, opening line, and atmospheric background.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {loadingEpisodes ? (
-                <p className="text-sm text-muted-foreground">Loading episodes...</p>
-              ) : episodeTemplates.length === 0 ? (
-                <div className="text-center py-8 space-y-3">
-                  <p className="text-muted-foreground">No episode templates yet.</p>
-                  <p className="text-xs text-muted-foreground">
-                    Episode templates are created via the admin system.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {episodeTemplates.map((template) => (
-                    <div
-                      key={template.id}
-                      className={cn(
-                        'rounded-lg border p-4 space-y-3',
-                        template.status === 'active' ? 'border-green-500/30 bg-green-500/5' : 'border-border'
-                      )}
-                    >
-                      {/* Episode Header */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-3">
-                          {/* Background thumbnail */}
-                          <div className="h-16 w-24 rounded-lg bg-muted overflow-hidden flex-shrink-0">
-                            {template.background_image_url ? (
-                              <img
-                                src={template.background_image_url}
-                                alt={template.title}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="h-full w-full flex items-center justify-center text-muted-foreground text-xs">
-                                No image
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                                Episode {template.episode_number}
-                              </span>
-                              {template.is_default && (
-                                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
-                                  Default
-                                </span>
-                              )}
-                              <span
-                                className={cn(
-                                  'text-xs px-2 py-0.5 rounded',
-                                  template.status === 'active'
-                                    ? 'bg-green-500/20 text-green-600'
-                                    : 'bg-yellow-500/20 text-yellow-600'
-                                )}
-                              >
-                                {template.status}
-                              </span>
-                            </div>
-                            <h4 className="font-medium mt-1">{template.title}</h4>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditingEpisode(editingEpisode?.id === template.id ? null : template)}
-                          >
-                            {editingEpisode?.id === template.id ? 'Close' : 'Edit'}
-                          </Button>
-                          {template.status === 'draft' && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleActivateEpisode(template.id)}
-                            >
-                              Activate
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Episode Preview (collapsed) */}
-                      {editingEpisode?.id !== template.id && (
-                        <div className="text-sm text-muted-foreground line-clamp-2">
-                          {template.situation}
-                        </div>
-                      )}
-
-                      {/* Episode Editor (expanded) */}
-                      {editingEpisode?.id === template.id && (
-                        <div className="space-y-4 pt-3 border-t">
-                          <div className="space-y-2">
-                            <Label>Title</Label>
-                            <Input
-                              value={editingEpisode.title}
-                              onChange={(e) =>
-                                setEditingEpisode({ ...editingEpisode, title: e.target.value })
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Situation</Label>
-                            <p className="text-xs text-muted-foreground">
-                              The scene-setting context shown to the user before the conversation starts.
-                            </p>
-                            <textarea
-                              className="min-h-[100px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                              value={editingEpisode.situation}
-                              onChange={(e) =>
-                                setEditingEpisode({ ...editingEpisode, situation: e.target.value })
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Opening Line</Label>
-                            <p className="text-xs text-muted-foreground">
-                              The character's first message in this scenario.
-                            </p>
-                            <textarea
-                              className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                              value={editingEpisode.opening_line}
-                              onChange={(e) =>
-                                setEditingEpisode({ ...editingEpisode, opening_line: e.target.value })
-                              }
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label>Episode Frame (Image Prompt)</Label>
-                            <p className="text-xs text-muted-foreground">
-                              Atmospheric description used to generate the background image.
-                            </p>
-                            <textarea
-                              className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
-                              value={editingEpisode.episode_frame || ''}
-                              onChange={(e) =>
-                                setEditingEpisode({ ...editingEpisode, episode_frame: e.target.value })
-                              }
-                              placeholder="e.g., Dimly lit coffee shop at night, rain on windows, warm amber lighting..."
-                            />
-                          </div>
-
-                          <div className="flex items-center gap-3">
-                            <Button
-                              onClick={() => handleSaveEpisode(editingEpisode)}
-                              disabled={saving}
-                            >
-                              {saving ? 'Saving...' : 'Save Episode'}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => handleGenerateBackground(editingEpisode)}
-                              disabled={generatingBackground === editingEpisode.id}
-                            >
-                              {generatingBackground === editingEpisode.id
-                                ? 'Generating...'
-                                : template.background_image_url
-                                  ? 'Regenerate Background'
-                                  : 'Generate Background'}
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       )}
 
       {activeTab === 'conversation' && (

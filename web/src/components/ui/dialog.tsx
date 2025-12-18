@@ -4,29 +4,80 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { X } from "lucide-react"
 
+interface DialogContextValue {
+  open: boolean
+  setOpen: (open: boolean) => void
+}
+
+const DialogContext = React.createContext<DialogContextValue | undefined>(undefined)
+
 interface DialogProps {
   open?: boolean
   onOpenChange?: (open: boolean) => void
   children: React.ReactNode
 }
 
-const Dialog = ({ open, onOpenChange, children }: DialogProps) => {
-  if (!open) return null
+const Dialog = ({ open: controlledOpen, onOpenChange, children }: DialogProps) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false)
+
+  const isControlled = controlledOpen !== undefined
+  const open = isControlled ? controlledOpen : uncontrolledOpen
+
+  const setOpen = React.useCallback((value: boolean) => {
+    if (!isControlled) {
+      setUncontrolledOpen(value)
+    }
+    onOpenChange?.(value)
+  }, [isControlled, onOpenChange])
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => onOpenChange?.(false)}
-      />
-      {/* Content wrapper */}
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        {children}
-      </div>
-    </div>
+    <DialogContext.Provider value={{ open, setOpen }}>
+      {children}
+      {open && (
+        <div className="fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setOpen(false)}
+          />
+          {/* Content wrapper - actual content is rendered via DialogContent */}
+        </div>
+      )}
+    </DialogContext.Provider>
   )
 }
+
+interface DialogTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  asChild?: boolean
+  children: React.ReactNode
+}
+
+const DialogTrigger = React.forwardRef<HTMLButtonElement, DialogTriggerProps>(
+  ({ asChild, children, onClick, ...props }, ref) => {
+    const context = React.useContext(DialogContext)
+
+    const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+      onClick?.(e)
+      context?.setOpen(true)
+    }
+
+    if (asChild && React.isValidElement(children)) {
+      return React.cloneElement(children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>, {
+        onClick: (e: React.MouseEvent) => {
+          (children as React.ReactElement<{ onClick?: (e: React.MouseEvent) => void }>).props.onClick?.(e)
+          context?.setOpen(true)
+        },
+      })
+    }
+
+    return (
+      <button ref={ref} onClick={handleClick} {...props}>
+        {children}
+      </button>
+    )
+  }
+)
+DialogTrigger.displayName = "DialogTrigger"
 
 interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
@@ -34,17 +85,22 @@ interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
   ({ className, children, ...props }, ref) => {
+    const context = React.useContext(DialogContext)
+    if (!context?.open) return null
+
     return (
-      <div
-        ref={ref}
-        className={cn(
-          "relative z-50 w-full max-w-md rounded-xl bg-card p-6 shadow-xl border border-border",
-          "animate-in fade-in-0 zoom-in-95",
-          className
-        )}
-        {...props}
-      >
-        {children}
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          ref={ref}
+          className={cn(
+            "relative z-50 w-full max-w-md rounded-xl bg-card p-6 shadow-xl border border-border",
+            "animate-in fade-in-0 zoom-in-95",
+            className
+          )}
+          {...props}
+        >
+          {children}
+        </div>
       </div>
     )
   }
@@ -107,6 +163,7 @@ DialogClose.displayName = "DialogClose"
 
 export {
   Dialog,
+  DialogTrigger,
   DialogContent,
   DialogHeader,
   DialogTitle,

@@ -11,10 +11,28 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api/client'
-import type { Series, EpisodeTemplateSummary, CharacterSummary, World } from '@/types'
+import type { Series, CharacterSummary, World } from '@/types'
 
 interface PageProps {
   params: Promise<{ id: string }>
+}
+
+// Episode from the with-episodes endpoint
+interface SeriesEpisode {
+  id: string
+  character_id: string
+  episode_number: number
+  episode_type: string
+  title: string
+  slug: string
+  situation: string
+  opening_line: string
+  episode_frame?: string
+  background_image_url?: string
+  dramatic_question?: string
+  is_default: boolean
+  sort_order: number
+  status: string
 }
 
 export default function SeriesDetailPage({ params }: PageProps) {
@@ -22,12 +40,18 @@ export default function SeriesDetailPage({ params }: PageProps) {
   const router = useRouter()
 
   const [series, setSeries] = useState<Series | null>(null)
-  const [episodes, setEpisodes] = useState<EpisodeTemplateSummary[]>([])
+  const [episodes, setEpisodes] = useState<SeriesEpisode[]>([])
   const [characters, setCharacters] = useState<CharacterSummary[]>([])
   const [worlds, setWorlds] = useState<World[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'episodes' | 'characters' | 'settings'>('overview')
+
+  // Episode editing state
+  const [editingEpisode, setEditingEpisode] = useState<SeriesEpisode | null>(null)
+  const [generatingBackground, setGeneratingBackground] = useState<string | null>(null)
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -48,7 +72,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
       // Fetch series with episodes
       const seriesData = await api.series.getWithEpisodes(id)
       setSeries(seriesData)
-      setEpisodes(seriesData.episodes || [])
+      setEpisodes((seriesData.episodes || []) as SeriesEpisode[])
 
       // Initialize edit form
       setEditForm({
@@ -61,8 +85,6 @@ export default function SeriesDetailPage({ params }: PageProps) {
 
       // Fetch characters if any are featured
       if (seriesData.featured_characters?.length > 0) {
-        // For now, we'll fetch all characters and filter
-        // TODO: Add batch character fetch endpoint
         const allChars = await api.studio.listCharacters()
         setCharacters(allChars.filter(c => seriesData.featured_characters.includes(c.id)))
       }
@@ -76,6 +98,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
       }
     } catch (err) {
       console.error('Failed to fetch series:', err)
+      setError('Failed to load series')
     } finally {
       setLoading(false)
     }
@@ -84,6 +107,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
   const handleSave = async () => {
     if (!series) return
     setSaving(true)
+    setError(null)
     try {
       const updated = await api.series.update(id, {
         title: editForm.title,
@@ -94,8 +118,11 @@ export default function SeriesDetailPage({ params }: PageProps) {
       })
       setSeries(updated)
       setHasChanges(false)
+      setSaveMessage('Saved!')
+      setTimeout(() => setSaveMessage(null), 2000)
     } catch (err) {
       console.error('Failed to save series:', err)
+      setError('Failed to save changes')
     } finally {
       setSaving(false)
     }
@@ -106,8 +133,11 @@ export default function SeriesDetailPage({ params }: PageProps) {
     try {
       const updated = await api.series.activate(id)
       setSeries(updated)
+      setSaveMessage('Series activated!')
+      setTimeout(() => setSaveMessage(null), 2000)
     } catch (err) {
       console.error('Failed to activate series:', err)
+      setError('Failed to activate series')
     }
   }
 
@@ -120,6 +150,66 @@ export default function SeriesDetailPage({ params }: PageProps) {
       router.push('/studio')
     } catch (err) {
       console.error('Failed to delete series:', err)
+      setError('Failed to delete series')
+    }
+  }
+
+  // Episode handlers
+  const handleSaveEpisode = async (episode: SeriesEpisode) => {
+    setSaving(true)
+    setError(null)
+    try {
+      await api.studio.updateEpisodeTemplate(episode.id, {
+        title: episode.title,
+        situation: episode.situation,
+        opening_line: episode.opening_line,
+        episode_frame: episode.episode_frame || undefined,
+      })
+      await fetchData()
+      setEditingEpisode(null)
+      setSaveMessage('Episode saved!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      console.error('Failed to save episode:', err)
+      setError('Failed to save episode')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleActivateEpisode = async (templateId: string) => {
+    setError(null)
+    try {
+      await api.studio.activateEpisodeTemplate(templateId)
+      await fetchData()
+      setSaveMessage('Episode activated!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      console.error('Failed to activate episode:', err)
+      setError('Failed to activate episode')
+    }
+  }
+
+  const handleGenerateBackground = async (episode: SeriesEpisode) => {
+    // Find the character for this episode
+    const char = characters.find(c => c.id === episode.character_id)
+    if (!char) {
+      setError('Character not found for this episode')
+      return
+    }
+
+    setGeneratingBackground(episode.id)
+    setError(null)
+    try {
+      await api.studio.generateEpisodeBackground(char.name, episode.episode_number)
+      await fetchData()
+      setSaveMessage('Background generated!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      console.error('Failed to generate background:', err)
+      setError('Failed to generate background')
+    } finally {
+      setGeneratingBackground(null)
     }
   }
 
@@ -139,7 +229,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
   if (!series) {
     return (
       <div className="flex flex-col items-center justify-center py-12 gap-4">
-        <p className="text-muted-foreground">Series not found</p>
+        <p className="text-muted-foreground">{error || 'Series not found'}</p>
         <Button asChild variant="outline">
           <Link href="/studio">Back to Studio</Link>
         </Button>
@@ -198,6 +288,18 @@ export default function SeriesDetailPage({ params }: PageProps) {
           </Button>
         </div>
       </div>
+
+      {/* Feedback messages */}
+      {saveMessage && (
+        <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-3 text-sm text-green-600">
+          {saveMessage}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
@@ -355,78 +457,195 @@ export default function SeriesDetailPage({ params }: PageProps) {
           </div>
         </TabsContent>
 
-        {/* Episodes Tab */}
+        {/* Episodes Tab - Full Edit Capability */}
         <TabsContent value="episodes" className="space-y-6 mt-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Episodes in this Series</h2>
-            <Button variant="outline" disabled>
-              Add Episode (coming soon)
-            </Button>
-          </div>
-
-          {episodes.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">
-                  No episodes in this series yet.
-                </p>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Episodes are created through characters and linked to series.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {episodes.map((ep, index) => (
-                <Card key={ep.id} className="transition hover:border-foreground/30">
-                  <CardContent className="py-4">
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-sm font-medium">
-                        {ep.episode_number}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <span>Episode Templates</span>
+                <span className="text-sm font-normal text-muted-foreground">
+                  {episodes.length} episodes
+                </span>
+              </CardTitle>
+              <CardDescription>
+                Pre-defined scenarios that users can choose to start their conversation from.
+                Each episode has a unique situation, opening line, and atmospheric background.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {episodes.length === 0 ? (
+                <div className="text-center py-8 space-y-3">
+                  <p className="text-muted-foreground">No episodes in this series yet.</p>
+                  <p className="text-sm text-muted-foreground">
+                    Episodes are linked to series via the series_id field.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {episodes.map((episode) => (
+                    <div
+                      key={episode.id}
+                      className={cn(
+                        'rounded-lg border p-4 space-y-3',
+                        episode.status === 'active' ? 'border-green-500/30 bg-green-500/5' : 'border-border'
+                      )}
+                    >
+                      {/* Episode Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          {/* Background thumbnail */}
+                          <div className="h-16 w-24 rounded-lg bg-muted overflow-hidden flex-shrink-0">
+                            {episode.background_image_url ? (
+                              <img
+                                src={episode.background_image_url}
+                                alt={episode.title}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center text-muted-foreground text-xs">
+                                No image
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                                Episode {episode.episode_number}
+                              </span>
+                              {episode.is_default && (
+                                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
+                                  Entry
+                                </span>
+                              )}
+                              <span
+                                className={cn(
+                                  'text-xs px-2 py-0.5 rounded',
+                                  episode.status === 'active'
+                                    ? 'bg-green-500/20 text-green-600'
+                                    : 'bg-yellow-500/20 text-yellow-600'
+                                )}
+                              >
+                                {episode.status}
+                              </span>
+                            </div>
+                            <h4 className="font-medium mt-1">{episode.title}</h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingEpisode(editingEpisode?.id === episode.id ? null : episode)}
+                          >
+                            {editingEpisode?.id === episode.id ? 'Close' : 'Edit'}
+                          </Button>
+                          {episode.status === 'draft' && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleActivateEpisode(episode.id)}
+                            >
+                              Activate
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      {ep.background_image_url ? (
-                        <img
-                          src={ep.background_image_url}
-                          alt={ep.title}
-                          className="h-12 w-20 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="h-12 w-20 rounded bg-muted flex items-center justify-center text-xs text-muted-foreground">
-                          No image
+
+                      {/* Episode Preview (collapsed) */}
+                      {editingEpisode?.id !== episode.id && (
+                        <div className="text-sm text-muted-foreground line-clamp-2">
+                          {episode.situation}
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{ep.title}</p>
-                          {ep.is_default && (
-                            <span className="text-xs bg-primary/20 text-primary px-1.5 py-0.5 rounded">
-                              Entry
-                            </span>
-                          )}
-                          <span className="text-xs text-muted-foreground capitalize">
-                            {ep.episode_type}
-                          </span>
+
+                      {/* Episode Editor (expanded) */}
+                      {editingEpisode?.id === episode.id && (
+                        <div className="space-y-4 pt-3 border-t">
+                          <div className="space-y-2">
+                            <Label>Title</Label>
+                            <Input
+                              value={editingEpisode.title}
+                              onChange={(e) =>
+                                setEditingEpisode({ ...editingEpisode, title: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Situation</Label>
+                            <p className="text-xs text-muted-foreground">
+                              The scene-setting context shown to the user before the conversation starts.
+                            </p>
+                            <textarea
+                              className="min-h-[100px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                              value={editingEpisode.situation}
+                              onChange={(e) =>
+                                setEditingEpisode({ ...editingEpisode, situation: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Opening Line</Label>
+                            <p className="text-xs text-muted-foreground">
+                              The character's first message in this scenario.
+                            </p>
+                            <textarea
+                              className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                              value={editingEpisode.opening_line}
+                              onChange={(e) =>
+                                setEditingEpisode({ ...editingEpisode, opening_line: e.target.value })
+                              }
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Episode Frame (Image Prompt)</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Atmospheric description used to generate the background image.
+                            </p>
+                            <textarea
+                              className="min-h-[80px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                              value={editingEpisode.episode_frame || ''}
+                              onChange={(e) =>
+                                setEditingEpisode({ ...editingEpisode, episode_frame: e.target.value })
+                              }
+                              placeholder="e.g., Dimly lit coffee shop at night, rain on windows, warm amber lighting..."
+                            />
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <Button
+                              onClick={() => handleSaveEpisode(editingEpisode)}
+                              disabled={saving}
+                            >
+                              {saving ? 'Saving...' : 'Save Episode'}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => handleGenerateBackground(editingEpisode)}
+                              disabled={generatingBackground === editingEpisode.id}
+                            >
+                              {generatingBackground === editingEpisode.id
+                                ? 'Generating...'
+                                : episode.background_image_url
+                                  ? 'Regenerate Background'
+                                  : 'Generate Background'}
+                            </Button>
+                          </div>
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {ep.slug}
-                        </p>
-                      </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Characters Tab */}
         <TabsContent value="characters" className="space-y-6 mt-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Featured Characters</h2>
-            <Button variant="outline" disabled>
-              Add Character (coming soon)
-            </Button>
-          </div>
+          <h2 className="text-xl font-semibold">Featured Characters</h2>
 
           {characters.length === 0 ? (
             <Card>
@@ -435,7 +654,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
                   No characters linked to this series yet.
                 </p>
                 <p className="text-sm text-muted-foreground mt-2">
-                  Characters anchor episodes. Link characters through the series settings.
+                  Link characters via the series.featured_characters array.
                 </p>
               </CardContent>
             </Card>
