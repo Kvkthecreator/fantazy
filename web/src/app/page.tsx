@@ -2,40 +2,30 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SectionHeader } from "@/components/ui/section-header";
-import { EpisodeCard } from "@/components/episodes";
+import { RotatingHero, SeriesCard } from "@/components/landing";
 
-const FEATURED_MOMENTS = [
-  {
-    title: "Episode 0 · Late Night at the Café",
-    situation: "The shop is closed. She's still here. So are you.",
-    character: "Mira",
-    archetype: "Barista",
-    href: "/login?next=/discover",
-    imageUrl: "/playground-assets/classroom-bg.jpg",
-  },
-  {
-    title: "Episode 0 · Rooftop After Hours",
-    situation: "He found you up here again. Neither of you is surprised anymore.",
-    character: "Kai",
-    archetype: "Neighbor",
-    href: "/login?next=/discover",
-    imageUrl: "/playground-assets/classroom-bg.jpg",
-  },
-  {
-    title: "Episode 0 · Last One in the Office",
-    situation: "Everyone else went home. The deadline is tomorrow. She hasn't moved.",
-    character: "Sora",
-    archetype: "Coworker",
-    href: "/login?next=/discover",
-    imageUrl: "/playground-assets/classroom-bg.jpg",
-  },
-];
+// Fantasy target words for rotation - expandable for future "packs"
+const FANTASY_TARGETS = ["crush", "K-pop bias", "hometown crush"];
 
 const HOW_IT_WORKS = [
   "Episodes are moments — step into a scene already in motion.",
   "Characters remember your story — callbacks, inside jokes, shared history.",
   "Every reply matters — silence feels like loss.",
 ];
+
+// Server-side fetch for featured series
+async function getFeaturedSeries() {
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL || "https://api.ep-0.com"}/series?featured=true&limit=6`,
+      { next: { revalidate: 60 } } // Cache for 60 seconds
+    );
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    return [];
+  }
+}
 
 export default async function Home() {
   const supabase = await createClient();
@@ -47,20 +37,33 @@ export default async function Home() {
     redirect("/discover");
   }
 
+  const series = await getFeaturedSeries();
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-background/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <img
-              src="/branding/ep0-wordmark.svg"
-              alt="ep-0"
-              className="h-10 w-auto"
-            />
+          {/* Logo - matching sidebar style */}
+          <Link href="/" className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden">
+              <img
+                src="/branding/ep0-mark.svg"
+                alt="ep-0"
+                className="h-full w-full object-contain p-1"
+              />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold leading-tight text-foreground">
+                episode-0
+              </h1>
+              <p className="text-xs text-muted-foreground">Interactive episodes</p>
+            </div>
           </Link>
+
+          {/* Sign in button - more prominent */}
           <Link
             href="/login?next=/discover"
-            className="text-sm font-medium text-primary hover:underline"
+            className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
           >
             Sign in
           </Link>
@@ -68,75 +71,39 @@ export default async function Home() {
       </header>
 
       <main className="relative mx-auto flex max-w-6xl flex-col gap-16 px-6 py-12">
-        {/* Hero */}
-        <section className="relative overflow-hidden rounded-3xl border bg-card shadow-lg">
-          <div className="absolute inset-0">
-            <img
-              src="/playground-assets/classroom-bg.jpg"
-              alt=""
-              className="h-full w-full object-cover"
+        {/* Hero with rotating fantasy target */}
+        <RotatingHero targets={FANTASY_TARGETS} />
+
+        {/* Series section */}
+        {series.length > 0 && (
+          <section id="series" className="space-y-4">
+            <SectionHeader
+              title="Play now"
+              description="Choose a series and dive in. Each episode picks up where the last left off."
             />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/35 to-black/10" />
-          </div>
-          <div className="relative z-10 flex flex-col gap-4 p-8 sm:p-10 text-white drop-shadow-md">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium">
-              Episode-first · In media res
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {series.map((s: { id: string; title: string; slug: string; tagline: string | null; total_episodes: number; cover_image_url: string | null; genre: string | null }) => (
+                <SeriesCard
+                  key={s.id}
+                  title={s.title}
+                  tagline={s.tagline}
+                  episodeCount={s.total_episodes}
+                  coverUrl={s.cover_image_url}
+                  href={`/series/${s.slug}`}
+                  genre={s.genre}
+                />
+              ))}
             </div>
-            <div className="space-y-3">
-              <h1 className="text-4xl font-bold leading-tight sm:text-5xl">
-                Play Episode 0. The story begins now.
-              </h1>
-              <p className="max-w-2xl text-lg text-white/90">
-                Instant hooks, sequential progression, and characters who remember every chapter you share.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
+            <div>
               <Link
                 href="/login?next=/discover"
-                className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition hover:opacity-90"
+                className="text-sm font-semibold text-primary hover:underline"
               >
-                Start Episode 0
-              </Link>
-              <Link
-                href="#episode0"
-                className="rounded-full border border-white/40 px-5 py-3 text-sm font-semibold text-white transition hover:border-white/70"
-              >
-                Preview scenes
+                Explore all series →
               </Link>
             </div>
-          </div>
-        </section>
-
-        {/* Episode 0 rail */}
-        <section id="episode0" className="space-y-4">
-          <SectionHeader
-            title="Episode 0 · Play now"
-            description="Entry episodes are the sharpest hooks. Choose a scene and jump in."
-          />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {FEATURED_MOMENTS.map((moment) => (
-              <EpisodeCard
-                key={moment.title}
-                title={moment.title}
-                subtitle={`${moment.character} · ${moment.archetype}`}
-                hook={moment.situation}
-                badge="Episode 0"
-                href={moment.href}
-                imageUrl={moment.imageUrl}
-                meta="In media res • Immediate stakes"
-                ctaText="Play Episode 0"
-              />
-            ))}
-          </div>
-          <div>
-            <Link
-              href="/login?next=/discover"
-              className="text-sm font-semibold text-primary hover:underline"
-            >
-              Explore all episodes →
-            </Link>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* How it works */}
         <section className="space-y-4">
