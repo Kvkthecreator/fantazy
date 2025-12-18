@@ -937,6 +937,129 @@ async def delete_gallery_item(
 # Admin / Calibration Endpoints
 # =============================================================================
 
+@router.get("/admin/diagnose-images")
+async def diagnose_images(
+    db=Depends(get_db),
+):
+    """Diagnose image storage issues for characters and series.
+
+    Returns information about:
+    - Characters with/without avatar kits
+    - Characters with expired signed URLs vs storage paths
+    - Series with/without cover images
+    - Episode templates with/without backgrounds
+    """
+    from app.services.storage import StorageService
+
+    storage = StorageService.get_instance()
+
+    # Check characters
+    char_rows = await db.fetch_all("""
+        SELECT
+            c.id,
+            c.name,
+            c.avatar_url,
+            c.active_avatar_kit_id,
+            ak.id as kit_id,
+            ak.status as kit_status,
+            ak.primary_anchor_id,
+            aa.storage_path as anchor_storage_path,
+            aa.is_active as anchor_is_active
+        FROM characters c
+        LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
+        LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id
+        WHERE c.status = 'active'
+        ORDER BY c.name
+    """)
+
+    characters = []
+    for row in char_rows:
+        r = dict(row)
+        has_kit = r["kit_id"] is not None
+        has_anchor = r["anchor_storage_path"] is not None
+        avatar_url_expired = (
+            r["avatar_url"] is not None and
+            "token=" in str(r["avatar_url"])  # Signed URLs have token param
+        )
+
+        # Try to generate fresh URL if we have storage path
+        fresh_url = None
+        if has_anchor:
+            try:
+                fresh_url = await storage.create_signed_url("avatars", r["anchor_storage_path"])
+            except:
+                fresh_url = "ERROR generating URL"
+
+        characters.append({
+            "name": r["name"],
+            "has_avatar_kit": has_kit,
+            "kit_status": r["kit_status"],
+            "has_anchor_asset": has_anchor,
+            "anchor_storage_path": r["anchor_storage_path"],
+            "current_avatar_url_type": "signed_url" if avatar_url_expired else ("static" if r["avatar_url"] else "none"),
+            "can_generate_fresh_url": fresh_url is not None and "ERROR" not in str(fresh_url),
+        })
+
+    # Check series
+    series_rows = await db.fetch_all("""
+        SELECT id, title, cover_image_url
+        FROM series
+        WHERE status = 'active'
+        ORDER BY title
+    """)
+
+    series = []
+    for row in series_rows:
+        r = dict(row)
+        cover_url = r["cover_image_url"]
+        is_storage_path = cover_url and not cover_url.startswith("http")
+        is_signed_url = cover_url and "token=" in str(cover_url)
+
+        series.append({
+            "title": r["title"],
+            "cover_image_type": "storage_path" if is_storage_path else ("signed_url" if is_signed_url else ("static_url" if cover_url else "none")),
+            "cover_image_value": cover_url[:80] + "..." if cover_url and len(cover_url) > 80 else cover_url,
+        })
+
+    # Check episode backgrounds
+    ep_rows = await db.fetch_all("""
+        SELECT et.id, et.title, et.background_image_url, c.name as character_name
+        FROM episode_templates et
+        JOIN characters c ON c.id = et.character_id
+        WHERE et.status = 'active'
+        ORDER BY c.name, et.episode_number
+        LIMIT 50
+    """)
+
+    episodes = []
+    for row in ep_rows:
+        r = dict(row)
+        bg_url = r["background_image_url"]
+        is_storage_path = bg_url and not bg_url.startswith("http")
+        is_signed_url = bg_url and "token=" in str(bg_url)
+
+        episodes.append({
+            "character": r["character_name"],
+            "title": r["title"],
+            "background_type": "storage_path" if is_storage_path else ("signed_url" if is_signed_url else ("static_url" if bg_url else "none")),
+        })
+
+    return {
+        "summary": {
+            "characters_with_kits": sum(1 for c in characters if c["has_avatar_kit"]),
+            "characters_with_anchors": sum(1 for c in characters if c["has_anchor_asset"]),
+            "characters_total": len(characters),
+            "series_with_covers": sum(1 for s in series if s["cover_image_type"] != "none"),
+            "series_total": len(series),
+            "episodes_with_backgrounds": sum(1 for e in episodes if e["background_type"] != "none"),
+            "episodes_total": len(episodes),
+        },
+        "characters": characters,
+        "series": series,
+        "episodes": episodes[:20],  # Limit output
+    }
+
+
 @router.post("/admin/fix-avatar-urls")
 async def fix_avatar_urls(
     user_id: UUID = Depends(get_current_user_id),
