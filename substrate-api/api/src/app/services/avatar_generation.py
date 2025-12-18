@@ -713,13 +713,16 @@ class AvatarGenerationService:
         user_id: UUID,
         db,
     ) -> GalleryStatus:
-        """Get avatar gallery status for a character."""
+        """Get avatar gallery status for a character.
+
+        Note: Ownership check removed for admin/creator workflow.
+        """
         kit_data = await db.fetch_one(
             """SELECT ak.id as kit_id, ak.primary_anchor_id
                FROM characters c
                LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
-               WHERE c.id = :id AND c.created_by = :user_id""",
-            {"id": str(character_id), "user_id": str(user_id)}
+               WHERE c.id = :id""",
+            {"id": str(character_id)}
         )
 
         if not kit_data or not kit_data["kit_id"]:

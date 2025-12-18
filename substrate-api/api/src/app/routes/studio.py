@@ -296,20 +296,23 @@ async def get_my_character(
     user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
-    """Get a character owned by the current user."""
+    """Get a character by ID.
+
+    Note: Ownership check removed for admin/creator workflow.
+    All authenticated users can view any character in studio.
+    """
     query = """
         SELECT * FROM characters
-        WHERE id = :character_id AND created_by = :user_id
+        WHERE id = :character_id
     """
     row = await db.fetch_one(query, {
         "character_id": str(character_id),
-        "user_id": str(user_id),
     })
 
     if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Character not found or not owned by you",
+            detail="Character not found",
         )
 
     return Character(**dict(row))
@@ -1542,17 +1545,18 @@ async def list_character_episode_templates(
     """List all episode templates for a character.
 
     Returns templates ordered by episode_number.
+    Note: Ownership check removed for admin/creator workflow.
     """
-    # Verify character ownership
+    # Verify character exists
     character = await db.fetch_one(
-        "SELECT id FROM characters WHERE id = :id AND created_by = :user_id",
-        {"id": str(character_id), "user_id": str(user_id)}
+        "SELECT id FROM characters WHERE id = :id",
+        {"id": str(character_id)}
     )
 
     if not character:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Character not found or not owned by you",
+            detail="Character not found",
         )
 
     rows = await db.fetch_all(
