@@ -12,6 +12,7 @@ from app.dependencies import get_current_user_id
 from app.models.image import (
     Memory,
     MemorySaveRequest,
+    SceneGalleryItem,
     SceneGenerateRequest,
     SceneGenerateResponse,
     SceneImageWithAsset,
@@ -21,6 +22,7 @@ from app.services.llm import LLMService
 from app.services.storage import StorageService
 from app.services.usage import UsageService
 from app.services.credits import CreditsService, InsufficientSparksError
+from app.services.content_image_generation import ALL_EPISODE_BACKGROUNDS
 
 log = logging.getLogger(__name__)
 
@@ -116,11 +118,6 @@ Example (for convenience store at 3AM): "solo, 1girl, young woman with long dark
 
 Your prompt:"""
 
-CAPTION_PROMPT = """Based on this scene prompt, write a short poetic caption (1-2 sentences) that captures the emotional moment. Keep it evocative but brief.
-
-Scene: {prompt}
-
-Caption:"""
 
 
 @router.post("/generate", response_model=SceneGenerateResponse)
@@ -163,6 +160,7 @@ async def generate_scene(
             ak.primary_anchor_id,
             'acquaintance' as relationship_stage,
             eng.dynamic as relationship_dynamic,
+            et.title as episode_template_title,
             et.situation as episode_situation,
             et.episode_frame,
             et.dramatic_question
@@ -255,9 +253,24 @@ async def generate_scene(
     if not prompt:
         llm = LLMService.get_instance()
 
-        # Extract episode context (from episode_template if available)
-        # Note: Database Record uses bracket notation, with None for missing keys
-        episode_situation = episode["episode_situation"] or episode["scene"] or "A cozy setting"
+        # Extract episode context - prioritize predefined configs, then template data
+        episode_title = episode["episode_template_title"] or episode["title"]
+
+        # Check if we have a predefined background config for this episode
+        episode_bg_config = ALL_EPISODE_BACKGROUNDS.get(episode_title, {})
+
+        if episode_bg_config:
+            # Use the rich config from content_image_generation.py
+            location = episode_bg_config.get("location", "")
+            time_desc = episode_bg_config.get("time", "")
+            mood = episode_bg_config.get("mood", "")
+            episode_situation = f"{location}. {time_desc}. {mood}".strip(". ")
+            log.info(f"Using predefined episode config for '{episode_title}'")
+        else:
+            # Fall back to template data
+            episode_situation = episode["episode_situation"] or episode["scene"] or "A cozy setting"
+            log.info(f"No predefined config for '{episode_title}', using template situation")
+
         episode_frame = episode["episode_frame"] or "A moment of connection"
 
         if use_kontext:
@@ -387,17 +400,6 @@ CRITICAL RULES:
             detail=f"Failed to store image: {str(e)}",
         )
 
-    # Generate caption
-    caption = None
-    try:
-        llm = LLMService.get_instance()
-        caption_response = await llm.generate([
-            {"role": "user", "content": CAPTION_PROMPT.format(prompt=prompt)},
-        ], max_tokens=100)
-        caption = caption_response.content.strip().strip('"')
-    except Exception as e:
-        log.warning(f"Caption generation failed: {e}")
-
     # Get next sequence index (function works with renamed table)
     index_query = "SELECT get_next_episode_image_index(:episode_id) as idx"
     index_row = await db.fetch_one(index_query, {"episode_id": str(data.episode_id)})
@@ -433,10 +435,10 @@ CRITICAL RULES:
     # 2. Create scene_images record (renamed from episode_images)
     scene_image_query = """
         INSERT INTO scene_images (
-            episode_id, image_id, sequence_index, caption, trigger_type, avatar_kit_id
+            episode_id, image_id, sequence_index, trigger_type, avatar_kit_id
         )
         VALUES (
-            :episode_id, :image_id, :sequence_index, :caption, :trigger_type, :avatar_kit_id
+            :episode_id, :image_id, :sequence_index, :trigger_type, :avatar_kit_id
         )
         RETURNING id
     """
@@ -446,7 +448,6 @@ CRITICAL RULES:
             "episode_id": str(data.episode_id),
             "image_id": str(image_id),
             "sequence_index": sequence_index,
-            "caption": caption,
             "trigger_type": data.trigger_type,
             "avatar_kit_id": str(avatar_kit_id) if avatar_kit_id else None,
         },
@@ -481,7 +482,7 @@ CRITICAL RULES:
         episode_id=data.episode_id,
         storage_path=storage_path,
         image_url=image_url,
-        caption=caption,
+        caption=None,  # No longer generating poetic captions
         prompt=prompt,
         model_used=image_response.model,
         latency_ms=image_response.latency_ms,
@@ -613,5 +614,58 @@ async def list_memories(
         data = dict(row)
         data["image_url"] = await storage.create_signed_url("scenes", data["storage_path"])
         results.append(Memory(**data))
+
+    return results
+
+
+@router.get("/gallery", response_model=List[SceneGalleryItem])
+async def list_all_scenes(
+    user_id: UUID = Depends(get_current_user_id),
+    character_id: Optional[UUID] = Query(None, description="Filter by character"),
+    limit: int = Query(50, ge=1, le=100, description="Max scenes to return"),
+    db=Depends(get_db),
+):
+    """List all scene cards for the user (gallery view).
+
+    Returns all generated scenes, not just saved memories.
+    Includes series/episode context for organization.
+    """
+    query = """
+        SELECT
+            si.image_id,
+            si.episode_id,
+            si.is_memory,
+            si.trigger_type,
+            si.created_at,
+            s.character_id,
+            c.name as character_name,
+            ser.title as series_title,
+            et.title as episode_title,
+            ia.storage_path,
+            ia.prompt
+        FROM scene_images si
+        JOIN sessions s ON s.id = si.episode_id
+        JOIN characters c ON c.id = s.character_id
+        JOIN image_assets ia ON ia.id = si.image_id
+        LEFT JOIN episode_templates et ON et.id = s.episode_template_id
+        LEFT JOIN series ser ON ser.id = et.series_id
+        WHERE s.user_id = :user_id
+    """
+    params = {"user_id": str(user_id), "limit": limit}
+
+    if character_id:
+        query += " AND s.character_id = :character_id"
+        params["character_id"] = str(character_id)
+
+    query += " ORDER BY si.created_at DESC LIMIT :limit"
+
+    rows = await db.fetch_all(query, params)
+
+    storage = StorageService.get_instance()
+    results = []
+    for row in rows:
+        data = dict(row)
+        data["image_url"] = await storage.create_signed_url("scenes", data["storage_path"])
+        results.append(SceneGalleryItem(**data))
 
     return results

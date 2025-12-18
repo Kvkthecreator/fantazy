@@ -256,3 +256,20 @@ class Memory(BaseModel):
     style_tags: List[str] = Field(default_factory=list)
     saved_at: datetime
     episode_started_at: datetime
+
+
+class SceneGalleryItem(BaseModel):
+    """Scene card for gallery/story view (all scenes, not just memories)."""
+
+    image_id: UUID
+    episode_id: UUID
+    character_id: UUID
+    character_name: str
+    series_title: Optional[str] = None
+    episode_title: Optional[str] = None
+    prompt: Optional[str] = None
+    storage_path: str
+    image_url: str
+    is_memory: bool = False
+    trigger_type: Optional[str] = None
+    created_at: datetime

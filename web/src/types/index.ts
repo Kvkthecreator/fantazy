@@ -581,6 +581,24 @@ export interface SceneMemory {
   episode_started_at: string;
 }
 
+/**
+ * Scene gallery item - for viewing all generated scenes (not just memories)
+ */
+export interface SceneGalleryItem {
+  image_id: string;
+  episode_id: string;
+  character_id: string;
+  character_name: string;
+  series_title: string | null;
+  episode_title: string | null;
+  prompt: string | null;
+  storage_path: string;
+  image_url: string;
+  is_memory: boolean;
+  trigger_type: string | null;
+  created_at: string;
+}
+
 // ============================================================================
 // Avatar Kit Types (Visual Identity Contracts)
 // ============================================================================

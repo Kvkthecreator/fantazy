@@ -70,11 +70,8 @@ export function SceneCard({ scene, onMemoryToggle }: SceneCardProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/10" />
         </div>
 
-        {/* Caption and save button */}
-        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-between gap-3 px-4 py-3">
-          <p className="flex-1 text-sm italic text-white drop-shadow-lg leading-relaxed">
-            {scene.caption || "A moment captured..."}
-          </p>
+        {/* Save button (no caption) */}
+        <div className="absolute bottom-0 left-0 right-0 flex items-end justify-end gap-3 px-4 py-3">
           {episodeImageId && (
             <button
               onClick={handleToggleMemory}

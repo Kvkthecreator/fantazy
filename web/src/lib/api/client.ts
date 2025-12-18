@@ -439,6 +439,16 @@ export const api = {
         `/scenes/memories${query ? `?${query}` : ""}`
       );
     },
+    listGallery: (params?: { character_id?: string; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.character_id)
+        searchParams.set("character_id", params.character_id);
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      const query = searchParams.toString();
+      return request<import("@/types").SceneGalleryItem[]>(
+        `/scenes/gallery${query ? `?${query}` : ""}`
+      );
+    },
   },
 
   // Hook endpoints
