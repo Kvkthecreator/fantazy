@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { api, APIError } from "@/lib/api/client";
-import type { EpisodeImage, SceneGenerateResponse, QuotaExceededError, InsufficientSparksError } from "@/types";
+import type { EpisodeImage, SceneGenerateResponse, QuotaExceededError, InsufficientSparksError, SceneGenerationMode } from "@/types";
 
 interface UseScenesOptions {
   episodeId: string | null;
@@ -16,7 +16,7 @@ interface UseScenesReturn {
   scenes: EpisodeImage[];
   isLoading: boolean;
   isGenerating: boolean;
-  generateScene: (prompt?: string) => Promise<SceneGenerateResponse | null>;
+  generateScene: (prompt?: string, mode?: SceneGenerationMode) => Promise<SceneGenerateResponse | null>;
   refreshScenes: () => Promise<void>;
   quotaExceeded: boolean;
 }
@@ -59,7 +59,7 @@ export function useScenes({
   }, [episodeId]);
 
   const generateScene = useCallback(
-    async (prompt?: string): Promise<SceneGenerateResponse | null> => {
+    async (prompt?: string, mode?: SceneGenerationMode): Promise<SceneGenerateResponse | null> => {
       if (!episodeId || isGenerating) return null;
 
       setIsGenerating(true);
@@ -69,6 +69,7 @@ export function useScenes({
           episode_id: episodeId,
           prompt,
           trigger_type: "user_request",
+          generation_mode: mode,
         });
 
         // Refresh scenes list to include the new one

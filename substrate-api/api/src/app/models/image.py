@@ -16,6 +16,7 @@ class SceneGenerateRequest(BaseModel):
     episode_id: UUID
     prompt: Optional[str] = None  # Auto-generated if not provided
     trigger_type: str = "user_request"  # milestone, user_request, stage_change, episode_start
+    generation_mode: Optional[str] = None  # "t2i" or "kontext" - if None, auto-detect based on anchor availability
 
 
 class SceneGenerateResponse(BaseModel):

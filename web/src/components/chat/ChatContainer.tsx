@@ -6,7 +6,7 @@ import { useCharacter } from "@/hooks/useCharacters";
 import { useScenes } from "@/hooks/useScenes";
 import { ChatHeader } from "./ChatHeader";
 import { MessageBubble, StreamingBubble } from "./MessageBubble";
-import { MessageInput } from "./MessageInput";
+import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { RateLimitModal } from "./RateLimitModal";
 import { EpisodeDrawer } from "./EpisodeDrawer";
@@ -200,12 +200,16 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     };
   }, [hasBackground, activeBackgroundUrl]);
 
-  // Handle visualize button click
-  const handleVisualize = useCallback(async () => {
+  // Handle visualize button click with mode selection
+  const handleVisualize = useCallback(async (mode: SceneGenerationMode) => {
     if (!episode || isGeneratingScene) return;
     clearSceneSuggestion(); // Clear the suggestion
-    await generateScene();
+    await generateScene(undefined, mode);
   }, [episode, isGeneratingScene, clearSceneSuggestion, generateScene]);
+
+  // Check if character has an anchor image for Kontext mode
+  // For now, we assume characters have anchors if they have an avatar - this could be refined
+  const hasAnchorImage = !!character?.avatar_url;
 
   // Only show visualize button after some messages
   const showVisualizeButton = messages.length >= 2;
@@ -372,9 +376,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                     "text-xs font-semibold hover:underline",
                     hasBackground ? "text-white" : "text-primary"
                   )}
-                  onClick={handleVisualize}
+                  onClick={() => handleVisualize("t2i")}
                 >
-                  Visualize it
+                  Quick capture (1✦)
                 </button>
               </div>
             </div>
@@ -411,6 +415,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
               suggestScene={suggestScene}
               placeholder={`Message ${character.name}...`}
               hasBackground={hasBackground}
+              hasAnchorImage={hasAnchorImage}
             />
           </div>
           {/* AI disclaimer */}

@@ -521,11 +521,13 @@ export interface SeriesUserContextResponse {
 
 // Scene types
 export type SceneTriggerType = "milestone" | "user_request" | "stage_change" | "episode_start";
+export type SceneGenerationMode = "t2i" | "kontext";
 
 export interface SceneGenerateRequest {
   episode_id: string;
   prompt?: string;
   trigger_type?: SceneTriggerType;
+  generation_mode?: SceneGenerationMode; // t2i = 1 spark, kontext = 3 sparks
 }
 
 export interface SceneGenerateResponse {

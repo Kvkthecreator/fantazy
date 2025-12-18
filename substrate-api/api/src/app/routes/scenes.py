@@ -122,6 +122,11 @@ Your prompt:"""
 
 
 
+# Spark costs for different generation modes
+SPARK_COST_T2I = 1
+SPARK_COST_KONTEXT = 3
+
+
 @router.post("/generate", response_model=SceneGenerateResponse)
 async def generate_scene(
     data: SceneGenerateRequest,
@@ -132,10 +137,24 @@ async def generate_scene(
 
     If no prompt is provided, one will be auto-generated from episode context.
     Uses avatar kit for character consistency when available.
+
+    generation_mode parameter:
+    - "t2i": Text-to-image (1 spark) - always uses full prompt description
+    - "kontext": Character reference (3 sparks) - uses anchor image for consistency
+    - None: Auto-detect based on anchor availability
     """
-    # Check spark balance before generation
     credits_service = CreditsService.get_instance()
-    spark_check = await credits_service.check_balance(user_id, "flux_generation")
+
+    # Determine spark cost based on requested mode (may be adjusted later if mode is auto)
+    # For now, assume T2I cost for initial check if mode is auto
+    requested_mode = data.generation_mode
+    if requested_mode == "kontext":
+        spark_cost = SPARK_COST_KONTEXT
+    else:
+        spark_cost = SPARK_COST_T2I
+
+    # Check spark balance before generation
+    spark_check = await credits_service.check_balance(user_id, "flux_generation", explicit_cost=spark_cost)
 
     if not spark_check.allowed:
         raise HTTPException(
@@ -244,28 +263,61 @@ async def generate_scene(
 
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 1: Determine generation mode (Kontext vs T2I)
-    # Check if anchor exists FIRST - this determines which prompt template to use
+    # User can explicitly request a mode, or we auto-detect based on anchor availability
     # ═══════════════════════════════════════════════════════════════════════════
     primary_anchor_id = episode["primary_anchor_id"]
     use_kontext = False
     anchor_bytes = None
+    actual_spark_cost = spark_cost  # Will be used for final spend
 
-    if primary_anchor_id:
-        try:
-            anchor_query = """
-                SELECT storage_path FROM avatar_assets
-                WHERE id = :anchor_id AND is_active = TRUE
-            """
-            anchor = await db.fetch_one(anchor_query, {"anchor_id": str(primary_anchor_id)})
-            if anchor:
-                anchor_bytes = await storage.download("avatars", anchor["storage_path"])
-                use_kontext = True
-                log.info(f"KONTEXT MODE: Using anchor reference {primary_anchor_id}")
-        except Exception as e:
-            log.warning(f"Failed to fetch anchor, falling back to T2I: {e}")
+    # If user explicitly requested Kontext mode, try to use it
+    if requested_mode == "kontext":
+        if primary_anchor_id:
+            try:
+                anchor_query = """
+                    SELECT storage_path FROM avatar_assets
+                    WHERE id = :anchor_id AND is_active = TRUE
+                """
+                anchor = await db.fetch_one(anchor_query, {"anchor_id": str(primary_anchor_id)})
+                if anchor:
+                    anchor_bytes = await storage.download("avatars", anchor["storage_path"])
+                    use_kontext = True
+                    actual_spark_cost = SPARK_COST_KONTEXT
+                    log.info(f"KONTEXT MODE (user requested): Using anchor reference {primary_anchor_id}")
+                else:
+                    log.warning("KONTEXT MODE requested but anchor not found, falling back to T2I")
+                    actual_spark_cost = SPARK_COST_T2I
+            except Exception as e:
+                log.warning(f"KONTEXT MODE requested but failed to fetch anchor, falling back to T2I: {e}")
+                actual_spark_cost = SPARK_COST_T2I
+        else:
+            log.warning("KONTEXT MODE requested but no anchor configured, falling back to T2I")
+            actual_spark_cost = SPARK_COST_T2I
+    elif requested_mode == "t2i":
+        # User explicitly requested T2I mode
+        use_kontext = False
+        actual_spark_cost = SPARK_COST_T2I
+        log.info("T2I MODE (user requested): Using text-to-image")
+    else:
+        # Auto-detect mode based on anchor availability (legacy behavior)
+        if primary_anchor_id:
+            try:
+                anchor_query = """
+                    SELECT storage_path FROM avatar_assets
+                    WHERE id = :anchor_id AND is_active = TRUE
+                """
+                anchor = await db.fetch_one(anchor_query, {"anchor_id": str(primary_anchor_id)})
+                if anchor:
+                    anchor_bytes = await storage.download("avatars", anchor["storage_path"])
+                    use_kontext = True
+                    actual_spark_cost = SPARK_COST_KONTEXT
+                    log.info(f"KONTEXT MODE (auto): Using anchor reference {primary_anchor_id}")
+            except Exception as e:
+                log.warning(f"Failed to fetch anchor, falling back to T2I: {e}")
 
-    if not use_kontext:
-        log.info("T2I MODE: No anchor available, using text-to-image")
+        if not use_kontext:
+            actual_spark_cost = SPARK_COST_T2I
+            log.info("T2I MODE (auto): No anchor available, using text-to-image")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # STEP 2: Generate prompt using appropriate template for the mode
@@ -479,7 +531,7 @@ CRITICAL RULES:
     # Create signed URL for the new image
     image_url = await storage.create_signed_url("scenes", storage_path)
 
-    # Spend sparks after successful generation
+    # Spend sparks after successful generation (use actual cost based on mode used)
     await credits_service.spend(
         user_id=user_id,
         feature_key="flux_generation",
@@ -488,7 +540,9 @@ CRITICAL RULES:
             "character_id": str(episode["character_id"]),
             "episode_id": str(data.episode_id),
             "model_used": image_response.model,
+            "generation_mode": "kontext" if use_kontext else "t2i",
         },
+        explicit_cost=actual_spark_cost,
     )
 
     # Also track in usage_events for analytics (keep existing tracking)

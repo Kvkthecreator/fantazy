@@ -101,10 +101,18 @@ class CreditsService:
             return 0
         return row["spark_cost"]
 
-    async def check_balance(self, user_id: UUID, feature_key: str) -> SparkCheckResult:
-        """Check if user has enough sparks for a feature."""
+    async def check_balance(
+        self, user_id: UUID, feature_key: str, explicit_cost: Optional[int] = None
+    ) -> SparkCheckResult:
+        """Check if user has enough sparks for a feature.
+
+        Args:
+            user_id: User ID
+            feature_key: Feature key for cost lookup (ignored if explicit_cost is set)
+            explicit_cost: Override the feature_key lookup with an explicit cost value
+        """
         balance = await self.get_balance(user_id)
-        cost = await self.get_feature_cost(feature_key)
+        cost = explicit_cost if explicit_cost is not None else await self.get_feature_cost(feature_key)
 
         # Cost of 0 means free (e.g., chat messages)
         if cost == 0:
@@ -131,6 +139,7 @@ class CreditsService:
         feature_key: str,
         reference_id: Optional[str] = None,
         metadata: Optional[dict] = None,
+        explicit_cost: Optional[int] = None,
     ) -> SparkTransaction:
         """
         Spend sparks for a feature.
@@ -140,6 +149,7 @@ class CreditsService:
             feature_key: Feature being used (e.g., 'flux_generation')
             reference_id: Optional reference to the generated item
             metadata: Optional additional context
+            explicit_cost: Override the feature_key lookup with an explicit cost value
 
         Returns:
             SparkTransaction record
@@ -147,7 +157,7 @@ class CreditsService:
         Raises:
             InsufficientSparksError: If user doesn't have enough sparks
         """
-        check = await self.check_balance(user_id, feature_key)
+        check = await self.check_balance(user_id, feature_key, explicit_cost=explicit_cost)
 
         # Free features don't create transactions
         if check.cost == 0:
