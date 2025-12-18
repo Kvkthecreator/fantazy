@@ -85,7 +85,6 @@ class EpisodeTemplate(EpisodeTemplateBase):
     is_default: bool
     sort_order: int
     status: str
-    starter_prompts: Optional[List[str]] = []
 
     class Config:
         from_attributes = True
@@ -225,7 +224,7 @@ async def get_episode_template(
         SELECT id, character_id, series_id, episode_number, title, slug,
                situation, opening_line, background_image_url,
                episode_frame, arc_hints, is_default, sort_order, status,
-               episode_type, starter_prompts, dramatic_question
+               episode_type, dramatic_question
         FROM episode_templates
         WHERE id = :id
     """
@@ -253,7 +252,7 @@ async def get_default_episode(
         SELECT id, character_id, series_id, episode_number, title, slug,
                situation, opening_line, background_image_url,
                episode_frame, arc_hints, is_default, sort_order, status,
-               episode_type, starter_prompts, dramatic_question
+               episode_type, dramatic_question
         FROM episode_templates
         WHERE character_id = :character_id
         AND is_default = TRUE
