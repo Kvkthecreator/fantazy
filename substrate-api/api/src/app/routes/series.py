@@ -9,7 +9,7 @@ import re
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app.deps import get_db
@@ -410,3 +410,107 @@ async def delete_series(
         )
 
     return None
+
+
+# =============================================================================
+# Episode Progress (User-specific)
+# =============================================================================
+
+class EpisodeProgress(BaseModel):
+    """Episode progress for a user within a series."""
+    episode_id: str
+    status: str  # "not_started", "in_progress", "completed"
+    last_played_at: Optional[str] = None
+
+
+class SeriesProgressResponse(BaseModel):
+    """Progress for all episodes in a series."""
+    series_id: str
+    progress: List[EpisodeProgress]
+
+
+@router.get("/{series_id}/progress", response_model=SeriesProgressResponse)
+async def get_series_progress(
+    series_id: UUID,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Get user's progress through episodes in a series.
+
+    Derives progress from session states:
+    - not_started: No session exists for the episode template
+    - in_progress: Session exists with state active/paused
+    - completed: Session exists with state complete/faded
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Get all episode templates for this series
+    episodes_query = """
+        SELECT id FROM episode_templates
+        WHERE series_id = :series_id
+        ORDER BY sort_order, episode_number
+    """
+    episode_rows = await db.fetch_all(episodes_query, {"series_id": str(series_id)})
+    episode_ids = [str(row["id"]) for row in episode_rows]
+
+    if not episode_ids:
+        return SeriesProgressResponse(series_id=str(series_id), progress=[])
+
+    # Get sessions for these episodes
+    sessions_query = """
+        SELECT
+            episode_template_id,
+            session_state,
+            MAX(started_at) as last_played_at
+        FROM episodes
+        WHERE user_id = :user_id
+        AND episode_template_id = ANY(:episode_ids)
+        GROUP BY episode_template_id, session_state
+        ORDER BY episode_template_id, last_played_at DESC
+    """
+    session_rows = await db.fetch_all(sessions_query, {
+        "user_id": user_id,
+        "episode_ids": episode_ids,
+    })
+
+    # Build a map of episode_template_id -> best status
+    episode_status: dict = {}
+    for row in session_rows:
+        ep_id = str(row["episode_template_id"])
+        state = row["session_state"]
+        last_played = row["last_played_at"]
+
+        # Map session_state to progress status
+        if state in ("complete", "faded"):
+            status = "completed"
+        elif state in ("active", "paused"):
+            status = "in_progress"
+        else:
+            status = "in_progress"  # Default for unknown states
+
+        # Keep the best status (completed > in_progress)
+        current = episode_status.get(ep_id, {})
+        if not current or status == "completed" or (status == "in_progress" and current.get("status") == "not_started"):
+            episode_status[ep_id] = {
+                "status": status,
+                "last_played_at": last_played.isoformat() if last_played else None,
+            }
+
+    # Build response with all episodes
+    progress = []
+    for ep_id in episode_ids:
+        if ep_id in episode_status:
+            progress.append(EpisodeProgress(
+                episode_id=ep_id,
+                status=episode_status[ep_id]["status"],
+                last_played_at=episode_status[ep_id]["last_played_at"],
+            ))
+        else:
+            progress.append(EpisodeProgress(
+                episode_id=ep_id,
+                status="not_started",
+            ))
+
+    return SeriesProgressResponse(series_id=str(series_id), progress=progress)

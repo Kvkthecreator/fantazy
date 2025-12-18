@@ -9,14 +9,15 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { RateLimitModal } from "./RateLimitModal";
+import { EpisodeDrawer } from "./EpisodeDrawer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuotaExceededModal } from "@/components/usage";
 import { InsufficientSparksModal } from "@/components/sparks";
 import { api } from "@/lib/api/client";
-import type { Relationship, Message, EpisodeImage, EpisodeTemplate, InsufficientSparksError, RateLimitError } from "@/types";
+import type { Relationship, Message, EpisodeImage, EpisodeTemplate, EpisodeDrawerItem, EpisodeProgressItem, InsufficientSparksError, RateLimitError } from "@/types";
+import { EpisodeProgress } from "./EpisodeDrawer";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { X } from "lucide-react";
 
 interface ChatContainerProps {
   characterId: string;
@@ -36,6 +37,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<RateLimitError | null>(null);
   const [episodeTemplate, setEpisodeTemplate] = useState<EpisodeTemplate | null>(null);
+  const [seriesEpisodes, setSeriesEpisodes] = useState<EpisodeDrawerItem[]>([]);
+  const [episodeProgress, setEpisodeProgress] = useState<EpisodeProgress[]>([]);
   const { character, isLoading: isLoadingCharacter } = useCharacter(characterId);
 
   // Load episode template if provided
@@ -54,6 +57,42 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         .catch(() => setEpisodeTemplate(null));
     }
   }, [episodeTemplateId, characterId]);
+
+  // Load series episodes when we have an episode template with series_id
+  useEffect(() => {
+    if (episodeTemplate?.series_id) {
+      api.series.getWithEpisodes(episodeTemplate.series_id)
+        .then((series) => setSeriesEpisodes(series.episodes))
+        .catch((err) => {
+          console.error("Failed to load series episodes:", err);
+          setSeriesEpisodes([]);
+        });
+    } else {
+      setSeriesEpisodes([]);
+    }
+  }, [episodeTemplate?.series_id]);
+
+  // Load episode progress for the series
+  useEffect(() => {
+    if (episodeTemplate?.series_id) {
+      api.series.getProgress(episodeTemplate.series_id)
+        .then((response) => {
+          // Convert API response to EpisodeProgress format
+          const progress: EpisodeProgress[] = response.progress.map((p) => ({
+            episodeId: p.episode_id,
+            status: p.status,
+            lastPlayedAt: p.last_played_at ?? undefined,
+          }));
+          setEpisodeProgress(progress);
+        })
+        .catch((err) => {
+          console.error("Failed to load episode progress:", err);
+          setEpisodeProgress([]);
+        });
+    } else {
+      setEpisodeProgress([]);
+    }
+  }, [episodeTemplate?.series_id]);
 
   // Background image from episode template
   const backgroundImageUrl = episodeTemplate?.background_image_url;
@@ -217,9 +256,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         )}>
           <ChatHeader
             character={character}
-            relationship={relationship}
-            episode={episode}
-            onEndEpisode={endEpisode}
             hasBackground={hasBackground}
           />
           {/* Integrated context bar */}
@@ -229,9 +265,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
               ? "text-white/90"
               : "border-t border-border text-muted-foreground"
           )}>
-            {relationship && (
-              <ContextChip label="Stage" value={formatStage(relationship.stage)} hasBackground={hasBackground} />
-            )}
             {episode && (
               <ContextChip
                 label="Episode"
@@ -246,11 +279,15 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                 hasBackground={hasBackground}
               />
             )}
-            {character.content_rating && (
+            {relationship && (
+              <ContextChip label="Stage" value={formatStage(relationship.stage)} hasBackground={hasBackground} />
+            )}
+            {/* Only show content rating badge for adult content */}
+            {character.content_rating === "adult" && (
               <ContextChip
                 label="Content"
-                value={character.content_rating.toUpperCase()}
-                accent={character.content_rating === "adult" ? "destructive" : "primary"}
+                value="ADULT"
+                accent="destructive"
                 hasBackground={hasBackground}
               />
             )}
@@ -342,6 +379,17 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
               </div>
             </div>
           </div>
+        )}
+
+        {/* Episode Drawer - only show when we have multiple episodes in a series */}
+        {seriesEpisodes.length > 1 && (
+          <EpisodeDrawer
+            characterId={characterId}
+            currentEpisodeId={episodeTemplate?.id}
+            episodes={seriesEpisodes}
+            progress={episodeProgress}
+            hasBackground={hasBackground}
+          />
         )}
 
         {/* Input bar - glass when immersive, standard when not */}

@@ -558,12 +558,12 @@ class AvatarGenerationService:
             # 6. Create asset record
             await db.execute(
                 """INSERT INTO avatar_assets (
-                    id, avatar_kit_id, asset_type, label,
+                    id, avatar_kit_id, asset_type, expression,
                     storage_bucket, storage_path, source_type,
                     generation_metadata, is_canonical, is_active,
                     mime_type, file_size_bytes
                 ) VALUES (
-                    :id, :kit_id, 'portrait', :label,
+                    :id, :kit_id, 'portrait', :expression,
                     'avatars', :storage_path, 'ai_generated',
                     :metadata, :is_canonical, TRUE,
                     'image/png', :file_size
@@ -571,7 +571,7 @@ class AvatarGenerationService:
                 {
                     "id": str(asset_id),
                     "kit_id": str(kit_id),
-                    "label": label,
+                    "expression": label,  # Use label param as expression value
                     "storage_path": storage_path,
                     "metadata": json.dumps({"prompt": prompt_assembly.full_prompt[:500], "model": response.model}),
                     "is_canonical": is_first_portrait,
@@ -734,7 +734,7 @@ class AvatarGenerationService:
 
         # Get all gallery items
         assets = await db.fetch_all(
-            """SELECT id, label, storage_path
+            """SELECT id, expression, storage_path
                FROM avatar_assets
                WHERE avatar_kit_id = :kit_id AND is_active = TRUE
                ORDER BY is_canonical DESC, created_at ASC""",
@@ -755,7 +755,7 @@ class AvatarGenerationService:
             gallery.append(GalleryItem(
                 id=str(asset_dict["id"]),
                 url=url,
-                label=asset_dict.get("label"),
+                label=asset_dict.get("expression"),  # Use expression as label
                 is_primary=is_primary,
             ))
 

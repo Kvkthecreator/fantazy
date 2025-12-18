@@ -416,10 +416,23 @@ export interface Series extends SeriesSummary {
 }
 
 /**
+ * Episode Summary for drawer/navigation - includes situation for context
+ * (Richer than EpisodeTemplateSummary, used by series.getWithEpisodes)
+ */
+export interface EpisodeDrawerItem extends EpisodeTemplateSummary {
+  situation: string;
+  opening_line?: string;
+  episode_frame?: string | null;
+  dramatic_question?: string | null;
+  sort_order: number;
+  status: string;
+}
+
+/**
  * Series with embedded episode templates
  */
 export interface SeriesWithEpisodes extends Series {
-  episodes: EpisodeTemplateSummary[];
+  episodes: EpisodeDrawerItem[];
 }
 
 /**
@@ -427,6 +440,23 @@ export interface SeriesWithEpisodes extends Series {
  */
 export interface SeriesWithCharacters extends Series {
   characters: CharacterSummary[];
+}
+
+/**
+ * Episode progress for a user (derived from session states)
+ */
+export interface EpisodeProgressItem {
+  episode_id: string;
+  status: "not_started" | "in_progress" | "completed";
+  last_played_at?: string | null;
+}
+
+/**
+ * Series progress response - user's progress through all episodes
+ */
+export interface SeriesProgressResponse {
+  series_id: string;
+  progress: EpisodeProgressItem[];
 }
 
 // Scene types
