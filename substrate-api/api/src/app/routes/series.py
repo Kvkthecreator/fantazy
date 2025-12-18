@@ -226,7 +226,16 @@ async def get_series_with_characters(
             AND status = 'active'
         """
         char_rows = await db.fetch_all(chars_query, {"char_ids": featured_chars})
-        characters = [dict(row) for row in char_rows]
+
+        # Convert avatar storage paths to signed URLs
+        storage = StorageService.get_instance()
+        for row in char_rows:
+            char_data = dict(row)
+            if char_data.get("avatar_url") and not char_data["avatar_url"].startswith("http"):
+                char_data["avatar_url"] = await storage.create_signed_url(
+                    "scenes", char_data["avatar_url"], expires_in=3600
+                )
+            characters.append(char_data)
 
     series_data["characters"] = characters
     return SeriesWithCharactersResponse(**series_data)
@@ -562,6 +571,7 @@ async def get_continue_watching(
         raise HTTPException(status_code=401, detail="Authentication required")
 
     # Get user's most recent session per series, with series and episode info
+    # Only include sessions that have an episode template (exclude free chat sessions)
     query = """
         WITH ranked_sessions AS (
             SELECT
@@ -575,6 +585,7 @@ async def get_continue_watching(
             FROM sessions s
             WHERE s.user_id = :user_id
             AND s.series_id IS NOT NULL
+            AND s.episode_template_id IS NOT NULL
         )
         SELECT
             rs.session_id,
