@@ -34,47 +34,44 @@ router = APIRouter(prefix="/scenes", tags=["Scenes"])
 # Used when we have an anchor/reference image. Character appearance comes from
 # the reference image, so prompt describes ONLY action/setting/mood.
 # ═══════════════════════════════════════════════════════════════════════════════
-KONTEXT_PROMPT_TEMPLATE = """Create an image prompt that transforms a reference photo into a NEW SCENE.
+KONTEXT_PROMPT_TEMPLATE = """Create an image prompt capturing THIS EXACT MOMENT from the conversation.
 
-CRITICAL: The reference image already shows the character's appearance.
-DO NOT describe the character's face, hair, eyes, or clothing.
-ONLY describe the ACTION, SETTING, and MOOD.
+CRITICAL: The reference image shows the character's appearance.
+DO NOT describe face, hair, eyes, or clothing.
+ONLY describe ACTION, SETTING, and EXPRESSION.
 
-PHYSICAL SETTING (MOST IMPORTANT - ground the scene here):
-{episode_situation}
-
-EPISODE CONTEXT:
-{episode_frame}
-
-SETTING & MOOD:
-- Location: {scene}
-- Relationship stage: {relationship_stage}
-- Emotional tone: {emotional_tone}
-- Tension level: {tension_level}/100
-
-CURRENT CONVERSATION (capture THIS specific moment):
+═══════════════════════════════════════════════════════════════════════════════
+STEP 1: THE CONVERSATION (What's happening RIGHT NOW?)
+═══════════════════════════════════════════════════════════════════════════════
 {conversation_summary}
 
-TENSION LEVEL VISUAL GUIDE:
-- Low (0-30): Casual activity, soft gaze, comfortable posture
-- Medium (30-60): Attentive pose, warm eye contact, open body language
-- High (60-80): Leaning in, intense gaze, dramatic lighting
-- Peak (80-100): Intimate proximity, charged atmosphere, breath-close
+═══════════════════════════════════════════════════════════════════════════════
+STEP 2: THE SETTING (Where are they?)
+═══════════════════════════════════════════════════════════════════════════════
+{episode_situation}
 
-WHAT TO DESCRIBE (action/setting only, NOT appearance):
-1. What ACTION is the character doing right now in THIS specific place?
-2. What SETTING DETAILS from the physical location should be visible?
-3. What is the LIGHTING mood appropriate for this setting?
-4. What EXPRESSION/EMOTION should show?
+Episode context: {episode_frame}
 
-Write a prompt (40-60 words) describing ONLY the scene transformation.
-CRITICAL: Reference the PHYSICAL SETTING above - don't use generic backgrounds.
+═══════════════════════════════════════════════════════════════════════════════
+STEP 3: THE EMOTIONAL BEAT
+═══════════════════════════════════════════════════════════════════════════════
+Relationship: {relationship_stage} | Tone: {emotional_tone} | Tension: {tension_level}/100
 
-FORMAT: "[action/pose], [specific setting details from episode], [lighting], [expression], anime style, cinematic"
+Tension guide:
+- 0-30: Casual, comfortable, soft gaze
+- 30-60: Attentive, warm eye contact, slightly leaning in
+- 60-80: Intense gaze, dramatic lighting, close proximity
+- 80-100: Intimate, charged atmosphere, breath-close
 
-GOOD EXAMPLE (for convenience store at 3AM): "reaching for a snack on convenience store shelf, harsh fluorescent lighting overhead, colorful packaged goods visible, glass refrigerator doors in background, soft amused smile, anime style, cinematic"
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK: Write ONE prompt (40-60 words)
+═══════════════════════════════════════════════════════════════════════════════
+Capture what's happening in the conversation above:
+1. WHAT action matches the conversation? (Don't invent - use what they're discussing)
+2. WHERE exactly? (Use the setting details)
+3. WHAT expression fits the emotional tone?
 
-BAD EXAMPLE (DO NOT DO THIS): "young woman with brown hair and amber eyes, wearing cream sweater..." ← This describes appearance which comes from the reference!
+FORMAT: "[action from conversation], [setting details], [lighting], [expression], anime style, cinematic"
 
 Your prompt:"""
 
@@ -82,39 +79,44 @@ Your prompt:"""
 # T2I MODE PROMPT TEMPLATE
 # Used when NO reference image exists. Must include full character appearance.
 # ═══════════════════════════════════════════════════════════════════════════════
-T2I_PROMPT_TEMPLATE = """Create an image prompt for this romantic moment. Include full character description.
+T2I_PROMPT_TEMPLATE = """Create an image prompt capturing THIS EXACT MOMENT. Include character appearance.
 
-CHARACTER:
-- Name: {character_name}
-- Appearance: {appearance_prompt}
+CHARACTER: {character_name}
+Appearance: {appearance_prompt}
 
-PHYSICAL SETTING (MOST IMPORTANT - ground the scene here):
-{episode_situation}
-
-EPISODE CONTEXT:
-{episode_frame}
-
-SETTING & MOOD:
-- Location: {scene}
-- Relationship stage: {relationship_stage}
-- Emotional tone: {emotional_tone}
-- Tension level: {tension_level}/100
-
-CURRENT CONVERSATION (capture THIS specific moment):
+═══════════════════════════════════════════════════════════════════════════════
+STEP 1: THE CONVERSATION (What's happening RIGHT NOW?)
+═══════════════════════════════════════════════════════════════════════════════
 {conversation_summary}
 
-TENSION LEVEL VISUAL GUIDE:
-- Low (0-30): Casual activity, soft gaze, comfortable posture
-- Medium (30-60): Attentive pose, warm eye contact, open body language
-- High (60-80): Leaning in, intense gaze, dramatic lighting
-- Peak (80-100): Intimate proximity, charged atmosphere, breath-close
+═══════════════════════════════════════════════════════════════════════════════
+STEP 2: THE SETTING (Where are they?)
+═══════════════════════════════════════════════════════════════════════════════
+{episode_situation}
 
-Write a prompt (50-80 words) for this specific scenario.
-CRITICAL: Reference the PHYSICAL SETTING above - don't use generic backgrounds.
+Episode context: {episode_frame}
 
-FORMAT: "solo, 1girl, [character appearance from above], [action in specific setting], [setting details], [lighting], [expression], anime style, cinematic"
+═══════════════════════════════════════════════════════════════════════════════
+STEP 3: THE EMOTIONAL BEAT
+═══════════════════════════════════════════════════════════════════════════════
+Relationship: {relationship_stage} | Tone: {emotional_tone} | Tension: {tension_level}/100
 
-Example (for convenience store at 3AM): "solo, 1girl, young woman with long dark hair and warm brown eyes wearing casual hoodie, browsing snacks at convenience store shelf, fluorescent lighting overhead, colorful packages visible, soft curious expression, anime style, cinematic"
+Tension guide:
+- 0-30: Casual, comfortable, soft gaze
+- 30-60: Attentive, warm eye contact, slightly leaning in
+- 60-80: Intense gaze, dramatic lighting, close proximity
+- 80-100: Intimate, charged atmosphere, breath-close
+
+═══════════════════════════════════════════════════════════════════════════════
+YOUR TASK: Write ONE prompt (50-80 words)
+═══════════════════════════════════════════════════════════════════════════════
+Capture what's happening in the conversation above:
+1. Start with "solo, 1girl" (or 1boy) + character appearance
+2. WHAT action matches the conversation? (Don't invent - use what they're discussing)
+3. WHERE exactly? (Use the setting details)
+4. WHAT expression fits the emotional tone?
+
+FORMAT: "solo, 1girl, [appearance], [action from conversation], [setting], [lighting], [expression], anime style, cinematic"
 
 Your prompt:"""
 
@@ -196,18 +198,39 @@ async def generate_scene(
     emotional_tone = relationship_dynamic.get("tone", "intrigued")
     tension_level = relationship_dynamic.get("tension_level", 45)
 
-    # Get conversation summary for context (last few messages)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # BUILD CONVERSATION CONTEXT (the moment we're capturing)
+    # Priority: Recent messages (full detail) > Session summary > Generic
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    # Get recent messages with fuller content (last 6 messages, 300 chars each)
     messages_query = """
         SELECT role, content
         FROM messages
         WHERE episode_id = :episode_id
         ORDER BY created_at DESC
-        LIMIT 10
+        LIMIT 6
     """
     messages = await db.fetch_all(messages_query, {"episode_id": str(data.episode_id)})
-    conversation_summary = "\n".join(
-        [f"{m['role']}: {m['content'][:100]}..." for m in reversed(messages)]
-    ) if messages else "No messages yet"
+
+    if messages:
+        # Build conversation context from recent messages
+        recent_exchange = "\n".join(
+            [f"{m['role'].upper()}: {m['content'][:300]}" for m in reversed(messages)]
+        )
+        conversation_summary = f"RECENT CONVERSATION:\n{recent_exchange}"
+    else:
+        conversation_summary = "The conversation is just beginning."
+
+    # Also get the session summary if available (narrative arc context)
+    session_summary_query = """
+        SELECT summary, scene FROM sessions WHERE id = :episode_id
+    """
+    session_row = await db.fetch_one(session_summary_query, {"episode_id": str(data.episode_id)})
+    session_narrative = session_row["summary"] if session_row and session_row["summary"] else None
+
+    if session_narrative:
+        conversation_summary = f"SESSION CONTEXT: {session_narrative}\n\n{conversation_summary}"
 
     # Extract avatar kit data (if available)
     # Note: Database Record uses bracket notation, not .get()
@@ -278,22 +301,23 @@ async def generate_scene(
             prompt_request = KONTEXT_PROMPT_TEMPLATE.format(
                 episode_situation=episode_situation,
                 episode_frame=episode_frame,
-                scene=episode["scene"] or "A cozy setting",
                 relationship_stage=relationship_stage,
                 emotional_tone=emotional_tone,
                 tension_level=tension_level,
                 conversation_summary=conversation_summary,
             )
-            system_prompt = """You are an expert at writing scene transformation prompts for FLUX Kontext.
+            system_prompt = """You are an expert at writing scene prompts for FLUX Kontext.
 
 CRITICAL: A reference image of the character will be provided separately.
 Your prompt must describe ONLY the scene/action - NOT the character's appearance.
 
-DO NOT mention: hair color, eye color, face features, clothing details, body type
-DO describe: action, pose, setting, lighting, mood, expression
+DO NOT mention: hair color, eye color, face features, clothing details
+DO describe: action, pose, setting, lighting, expression
 
-MOST IMPORTANT: Use the PHYSICAL SETTING provided - this is where the scene takes place.
-The reference image handles character consistency. Your prompt handles the scene."""
+MOST IMPORTANT:
+1. Read the CONVERSATION first - capture what's actually happening
+2. Use the SETTING provided - ground the scene in that specific place
+3. Match the expression to the conversation's emotional tone"""
 
         else:
             # T2I MODE: Prompt includes full character appearance
@@ -302,7 +326,6 @@ The reference image handles character consistency. Your prompt handles the scene
                 appearance_prompt=appearance_prompt,
                 episode_situation=episode_situation,
                 episode_frame=episode_frame,
-                scene=episode["scene"] or "A cozy setting",
                 relationship_stage=relationship_stage,
                 emotional_tone=emotional_tone,
                 tension_level=tension_level,
