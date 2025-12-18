@@ -1,6 +1,4 @@
-import { ChatContainer } from "@/components/chat/ChatContainer";
-
-// Chat page - renders ChatContainer client component
+import { ChatContainer } from "@/components/chat";
 interface ChatPageProps {
   params: Promise<{
     characterId: string;
