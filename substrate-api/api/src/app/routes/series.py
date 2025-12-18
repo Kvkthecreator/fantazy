@@ -5,6 +5,7 @@ Reference: docs/GLOSSARY.md, docs/CONTENT_ARCHITECTURE_CANON.md
 """
 
 import json
+import re
 from typing import List, Optional
 from uuid import UUID
 
@@ -12,6 +13,21 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.deps import get_db
+
+
+def slugify(text: str) -> str:
+    """Convert text to URL-friendly slug."""
+    # Lowercase and replace spaces with hyphens
+    slug = text.lower().strip()
+    # Remove special characters except hyphens
+    slug = re.sub(r'[^a-z0-9\s-]', '', slug)
+    # Replace spaces with hyphens
+    slug = re.sub(r'[\s_]+', '-', slug)
+    # Remove multiple consecutive hyphens
+    slug = re.sub(r'-+', '-', slug)
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    return slug
 from app.models.series import (
     Series,
     SeriesSummary,
@@ -252,6 +268,9 @@ async def update_series(
     if data.title is not None:
         updates.append("title = :title")
         values["title"] = data.title
+        # Auto-update slug when title changes
+        updates.append("slug = :slug")
+        values["slug"] = slugify(data.title)
 
     if data.description is not None:
         updates.append("description = :description")
