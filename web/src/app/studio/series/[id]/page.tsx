@@ -210,6 +210,26 @@ export default function SeriesDetailPage({ params }: PageProps) {
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6 mt-6">
+          {/* Series Cover Image */}
+          {series.cover_image_url && (
+            <Card className="overflow-hidden">
+              <div className="relative aspect-video w-full max-h-64">
+                <img
+                  src={series.cover_image_url}
+                  alt={series.title}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="absolute bottom-4 left-4 right-4">
+                  <h2 className="text-white text-xl font-semibold">{series.title}</h2>
+                  {series.tagline && (
+                    <p className="text-white/80 text-sm mt-1">{series.tagline}</p>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+
           <div className="grid gap-6 md:grid-cols-2">
             {/* Series Info Card */}
             <Card>

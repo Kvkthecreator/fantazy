@@ -1089,6 +1089,111 @@ async def activate_all_kits(
     }
 
 
+@router.post("/admin/create-kit-from-storage")
+async def create_kit_from_storage(
+    character_id: str,
+    storage_path: str,
+    bucket: str = "scenes",
+    db=Depends(get_db),
+):
+    """Create an avatar kit for a character using an existing storage path.
+
+    This copies the image from the source bucket to the avatars bucket and
+    creates a kit with it as the primary anchor.
+
+    Args:
+        character_id: UUID of the character
+        storage_path: Path in the source bucket (e.g., 'series/weekend-regular/cover.png')
+        bucket: Source bucket name (default: 'scenes')
+    """
+    import uuid
+    from app.services.storage import StorageService
+
+    storage = StorageService.get_instance()
+
+    # Verify character exists
+    char_row = await db.fetch_one(
+        "SELECT id, name FROM characters WHERE id = :id",
+        {"id": character_id},
+    )
+    if not char_row:
+        return {"error": f"Character {character_id} not found"}
+
+    char_name = char_row["name"]
+
+    # Generate IDs
+    kit_id = uuid.uuid4()
+    asset_id = uuid.uuid4()
+
+    # Download image from source bucket
+    try:
+        image_bytes = await storage.download_file(bucket, storage_path)
+    except Exception as e:
+        return {"error": f"Failed to download from {bucket}/{storage_path}: {str(e)}"}
+
+    # Upload to avatars bucket
+    new_path = f"{kit_id}/anchors/{asset_id}.png"
+    try:
+        await storage.upload_file("avatars", new_path, image_bytes, "image/png")
+    except Exception as e:
+        return {"error": f"Failed to upload to avatars/{new_path}: {str(e)}"}
+
+    # Create avatar kit
+    await db.execute(
+        """
+        INSERT INTO avatar_kits (id, character_id, name, status, is_default)
+        VALUES (:id, :character_id, :name, 'active', true)
+        """,
+        {
+            "id": str(kit_id),
+            "character_id": character_id,
+            "name": f"{char_name} Default Kit",
+        },
+    )
+
+    # Create avatar asset
+    await db.execute(
+        """
+        INSERT INTO avatar_assets (id, avatar_kit_id, storage_path, asset_type, is_active)
+        VALUES (:id, :kit_id, :storage_path, 'portrait', true)
+        """,
+        {
+            "id": str(asset_id),
+            "kit_id": str(kit_id),
+            "storage_path": new_path,
+        },
+    )
+
+    # Set as primary anchor
+    await db.execute(
+        """
+        UPDATE avatar_kits SET primary_anchor_id = :asset_id, updated_at = NOW()
+        WHERE id = :kit_id
+        """,
+        {"asset_id": str(asset_id), "kit_id": str(kit_id)},
+    )
+
+    # Link kit to character
+    await db.execute(
+        """
+        UPDATE characters SET active_avatar_kit_id = :kit_id, updated_at = NOW()
+        WHERE id = :character_id
+        """,
+        {"kit_id": str(kit_id), "character_id": character_id},
+    )
+
+    # Generate signed URL for verification
+    signed_url = await storage.create_signed_url("avatars", new_path)
+
+    return {
+        "message": f"Created avatar kit for {char_name}",
+        "kit_id": str(kit_id),
+        "asset_id": str(asset_id),
+        "storage_path": new_path,
+        "signed_url": signed_url,
+    }
+
+
 @router.post("/admin/fix-avatar-urls")
 async def fix_avatar_urls(
     user_id: UUID = Depends(get_current_user_id),
