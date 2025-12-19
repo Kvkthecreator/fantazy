@@ -255,48 +255,94 @@ MIDNIGHT_EVIDENCE_BACKGROUNDS = {
     },
 }
 
-# Terms of Control (Real Life, corporate noir)
-TERMS_OF_CONTROL_BACKGROUNDS = {
-    "NDA & First Command": {
-        "location": "glass-walled corner office at night, city lights reflecting, contract on table, jacket off, sleeves rolled",
-        "time": "late night, cool city glow with warm desk lamp",
-        "mood": "controlled tension, first order given",
-        "rendering": "cinematic corporate noir, soft film grain, shallow depth",
+# Penthouse Secrets (Real Life, luxury dark romance - Julian Cross)
+PENTHOUSE_SECRETS_BACKGROUNDS = {
+    "The Drop": {
+        "location": "luxury penthouse floor at golden hour, floor-to-ceiling windows with Manhattan skyline, marble credenza with envelope, modern art on walls, warm amber light mixing with blue city twilight",
+        "time": "golden hour dusk, warm interior glow against deepening city sky",
+        "mood": "first encounter tension, luxury and danger, breathless anticipation",
+        "rendering": "cinematic photography, luxury interior, shallow depth of field, film noir romance",
         "quality": "masterpiece, best quality, cinematic film still, high detail",
     },
-    "House Rules": {
-        "location": "minimalist penthouse living room, tablet with rules on low table, decanter nearby, city night beyond windows",
-        "time": "night, warm interior light against cool skyline",
-        "mood": "power negotiation, private rule-setting",
-        "rendering": "cinematic photography, crisp modern interior, soft grain",
+    "Summoned": {
+        "location": "executive office at night, mahogany desk with single warm lamp, floor-to-ceiling windows with city lights, leather chairs, door open with light spilling into dark hallway",
+        "time": "late night, warm desk lamp against cool city glow, intimate shadows",
+        "mood": "anticipation, pretense stripped away, the summons answered",
+        "rendering": "cinematic photography, warm and cool contrast, soft film grain",
         "quality": "masterpiece, best quality, cinematic film still, high detail",
     },
-    "Public Proof": {
-        "location": "upscale lounge with city view, partners in suits at nearby tables, low light, polished marble bar",
-        "time": "evening, warm ambient with cool city spill",
-        "mood": "public compliance under watch, covert signal",
-        "rendering": "cinematic photography, shallow depth, soft reflections",
+    "Stay": {
+        "location": "private office after hours, city dark and glittering through glass walls, leather armchair waiting empty, whiskey glass on side table, tension visible in the stillness",
+        "time": "late night, city lights the only illumination, intimate darkness",
+        "mood": "power and waiting, charged silence, deliberate patience",
+        "rendering": "cinematic photography, moody luxury interior, shallow depth",
         "quality": "masterpiece, best quality, cinematic film still, high detail",
     },
-    "Breach": {
-        "location": "office hallway with emergency lights, glass walls, his hand on the wall, close quarters",
-        "time": "late night, low emergency glow",
-        "mood": "confrontation, intimate pressure",
-        "rendering": "cinematic photography, moody lighting, soft grain",
+    "His Rules": {
+        "location": "penthouse living area at night, low intimate lighting, floor-to-ceiling windows with city glowing beneath, two wine glasses untouched on glass coffee table, him silhouetted against skyline",
+        "time": "night, warm interior glow, city lights twinkling through windows",
+        "mood": "revelation, honest danger, the moment before everything changes",
+        "rendering": "cinematic photography, romantic noir, soft reflections",
         "quality": "masterpiece, best quality, cinematic film still, high detail",
     },
-    "Penalty or Gift": {
-        "location": "dark bedroom with city glow through curtains, cuffs on nightstand, contract folder half-open",
-        "time": "night, warm lamp with cool city spill",
-        "mood": "controlled intimacy, choice framed as bind",
-        "rendering": "cinematic photography, soft focus, gentle grain",
+    "Caught": {
+        "location": "office with blinds half-drawn casting sharp shadows, jacket off, tie loosened, phone screen glowing with threatening message, city indifferent below",
+        "time": "late night, dramatic shadow play, tension crackling",
+        "mood": "controlled fury, protective instinct, vulnerability exposed",
+        "rendering": "cinematic photography, high contrast, moody lighting",
         "quality": "masterpiece, best quality, cinematic film still, high detail",
     },
-    "Ownership Clause": {
-        "location": "glass office at dawn, contract folder open, skyline warming, tie on the table",
-        "time": "sunrise, soft gold light mixing with cool glass reflections",
-        "mood": "final decision, possessive tenderness",
-        "rendering": "cinematic photography, soft dawn grade, crisp detail",
+    "The Price": {
+        "location": "penthouse at night, city stretched beneath like a secret, him on the edge of the couch looking vulnerable, window he always occupies now empty, roles reversed",
+        "time": "night, city lights painting the room, intimate quiet",
+        "mood": "power inverted, walls down, everything offered",
+        "rendering": "cinematic photography, soft romantic lighting, emotional depth",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+}
+
+# Code Violet (Medical Romance - Dr. Maya Chen)
+CODE_VIOLET_BACKGROUNDS = {
+    "Code Blue": {
+        "location": "ER trauma bay at 2 AM, harsh fluorescent lights reflecting off steel surfaces, cardiac monitors with green waveforms, crash cart in corner, empty gurney waiting, blue surgical drapes",
+        "time": "2 AM, harsh clinical fluorescent lighting, late night emergency energy",
+        "mood": "urgent, high stakes, controlled chaos frozen in a moment",
+        "rendering": "cinematic photography, medical drama aesthetic, Grey's Anatomy lighting, shallow depth of field",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+    "Night Shift": {
+        "location": "hospital cafeteria at 4 AM, harsh vending machine glow, empty plastic tables stretching into shadow, two forgotten coffee cups on a table, rain against dark windows",
+        "time": "4 AM, mix of vending machine glow and fluorescent overheads, exhausted quietude",
+        "mood": "vulnerable, intimate in unexpected place, the quiet after chaos",
+        "rendering": "cinematic photography, soft intimate lighting, film grain, Edward Hopper meets hospital",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+    "Supply Run": {
+        "location": "hospital corridor at a dead run, fluorescent lights stretching into perspective, crash cart visible at end of hall, supply room door with keypad, everything in motion blur",
+        "time": "middle of night, fluorescent tubes flickering, urgent energy",
+        "mood": "adrenaline, time pressure, the hallway stretched by urgency",
+        "rendering": "cinematic photography, dynamic motion suggestion, hospital thriller aesthetic",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+    "Flatline": {
+        "location": "operating room in crisis, harsh surgical lights casting sharp shadows, anesthesia monitors showing flatline, sterile blue drapes, scattered instruments, everything frozen in crisis moment",
+        "time": "middle of night, surgical lights harsh and unforgiving, crisis lighting",
+        "mood": "life and death, pressure, the weight of a moment that changes everything",
+        "rendering": "cinematic photography, high contrast medical drama, surgical precision, emotional weight",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+    "Break Room": {
+        "location": "cramped on-call room lit only by hallway light through cracked door, narrow cot with rumpled sheets, coat hooks with scrubs, medical textbooks stacked in corner, intimate darkness",
+        "time": "pre-dawn, sliver of hallway light, shadows and exhaustion",
+        "mood": "vulnerable, intimate, walls down, the space where armor comes off",
+        "rendering": "cinematic photography, intimate low-light, emotional depth, soft shadows",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+    "Dawn Rounds": {
+        "location": "hospital rooftop at sunrise, city skyline turning gold, concrete railing with two coffee cups, door to stairwell behind, the whole city waking below",
+        "time": "sunrise, golden hour, the night finally ending, new beginning light",
+        "mood": "hope, possibility, the weight lifted, everything ahead",
+        "rendering": "cinematic photography, golden hour magic, hopeful and warm, romantic resolution",
         "quality": "masterpiece, best quality, cinematic film still, high detail",
     },
 }
@@ -308,7 +354,8 @@ ALL_EPISODE_BACKGROUNDS = {
     **HOMETOWN_CRUSH_BACKGROUNDS,
     **KPOP_BOY_IDOL_BACKGROUNDS,
     **MIDNIGHT_EVIDENCE_BACKGROUNDS,
-    **TERMS_OF_CONTROL_BACKGROUNDS,
+    **PENTHOUSE_SECRETS_BACKGROUNDS,
+    **CODE_VIOLET_BACKGROUNDS,
 }
 
 
@@ -506,14 +553,25 @@ def build_midnight_evidence_cover_prompt() -> tuple[str, str]:
     )
 
 
-def build_terms_of_control_cover_prompt() -> tuple[str, str]:
-    """Series cover prompt for Terms of Control (real-life corporate dark romance)."""
+def build_penthouse_secrets_cover_prompt() -> tuple[str, str]:
+    """Series cover prompt for Penthouse Secrets (luxury dark romance - Julian Cross)."""
     return build_series_cover_prompt(
-        character_description="intense Korean lawyer late 30s, sharp jawline, short neatly styled black hair, light stubble, tailored charcoal suit with black shirt, polished watch, composed and imposing stance",
-        scene_description="glass-walled corner office at night with city lights reflecting, contract on desk, jacket draped over chair",
-        pose_and_expression="leaning slightly over the desk, one hand on the NDA, gaze steady and possessive toward the viewer",
-        lighting_and_time="night office lighting with cool city glow and warm desk lamp, soft film grain",
-        genre_style="cinematic corporate noir, sleek and moody, shallow depth of field",
+        character_description="strikingly handsome Black man late 30s, rich dark skin, strong angular jaw with close-cropped beard, intense deep brown eyes, short fade haircut, athletic powerful build, fitted charcoal three-piece suit with open collar, sleeves rolled to forearms, expensive watch, commanding presence",
+        scene_description="luxury Manhattan penthouse at night with floor-to-ceiling windows, city skyline glittering below, warm amber lighting mixing with cool city glow, modern art on walls",
+        pose_and_expression="standing by the window with whiskey in hand, silhouette against city lights, looking back over shoulder with knowing half-smile, eyes that see everything",
+        lighting_and_time="night, warm interior amber glow against cool blue city lights, cinematic contrast, soft shadows",
+        genre_style="luxury dark romance, film noir aesthetic, Idris Elba energy, GQ editorial meets thriller",
+    )
+
+
+def build_code_violet_cover_prompt() -> tuple[str, str]:
+    """Series cover prompt for Code Violet (medical romance - Dr. Maya Chen)."""
+    return build_series_cover_prompt(
+        character_description="beautiful East Asian woman early 30s, sharp intelligent eyes, high cheekbones, straight black hair pulled back in a practical ponytail, minimal makeup, natural beauty, exhausted but determined expression, fitted navy blue scrubs, stethoscope around neck, hospital ID badge",
+        scene_description="ER trauma bay at night, harsh fluorescent lights softened by depth of field, cardiac monitors glowing green in background, steel surfaces reflecting light, hint of city through window",
+        pose_and_expression="standing with arms crossed, looking directly at viewer with piercing evaluating gaze, slight challenge in her expression, the look of someone who's seen everything and still fights",
+        lighting_and_time="late night ER lighting, mix of harsh fluorescent and softer fill, dramatic shadows on her face, medical drama cinematic look",
+        genre_style="medical romance drama, Grey's Anatomy aesthetic, Sandra Oh energy, cinematic and emotional",
     )
 
 
@@ -524,7 +582,8 @@ SERIES_COVER_PROMPTS = {
     "hometown-crush": build_hometown_crush_cover_prompt,
     "k-pop-boy-idol": build_kpop_boy_idol_cover_prompt,
     "midnight-evidence": build_midnight_evidence_cover_prompt,
-    "terms-of-control": build_terms_of_control_cover_prompt,
+    "penthouse-secrets": build_penthouse_secrets_cover_prompt,
+    "code-violet": build_code_violet_cover_prompt,
 }
 
 

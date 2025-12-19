@@ -10,7 +10,7 @@ from app.models.character import Character
 from app.models.session import Session
 from app.models.message import Message, MessageRole, ConversationContext, MemorySummary, HookSummary
 from app.models.engagement import Engagement
-from app.models.episode_template import EpisodeTemplate, CompletionMode
+from app.models.episode_template import EpisodeTemplate, AutoSceneMode
 from app.services.llm import LLMService
 from app.services.memory import MemoryService
 from app.services.usage import UsageService
@@ -244,17 +244,45 @@ class ConversationService:
                     user_id=user_id,
                 )
 
+                # Emit Director action events
+                if director_output.actions:
+                    actions = director_output.actions
+
+                    # Visual pending (if generating)
+                    if actions.visual_type != "none":
+                        if actions.visual_type == "instruction":
+                            # Instruction cards are immediate (no image generation)
+                            yield json.dumps({
+                                "type": "instruction_card",
+                                "content": actions.visual_hint or "",
+                            }) + "\n"
+                        else:
+                            # Image-based visual - emit pending, then generate async
+                            yield json.dumps({
+                                "type": "visual_pending",
+                                "visual_type": actions.visual_type,
+                                "visual_hint": actions.visual_hint,
+                                "sparks_deducted": actions.deduct_sparks,
+                            }) + "\n"
+
+                    # Needs sparks prompt (first time only)
+                    if actions.needs_sparks:
+                        yield json.dumps({
+                            "type": "needs_sparks",
+                            "message": "You need more Sparks to unlock auto-generated scenes.",
+                        }) + "\n"
+
                 # Emit episode_complete event if Director detected completion
                 if director_output.is_complete:
                     yield json.dumps({
                         "type": "episode_complete",
                         "turn_count": director_output.turn_count,
-                        "evaluation": director_output.evaluation,
+                        "trigger": director_output.completion_trigger or "unknown",
                         "next_suggestion": await self.director_service.suggest_next_episode(
                             session=refreshed_session,
                             evaluation=director_output.evaluation,
                         ),
-                    })
+                    }) + "\n"
 
             # Also run legacy memory extraction until fully absorbed by Director
             await self._process_exchange(
@@ -283,13 +311,14 @@ class ConversationService:
         }
 
         # ALWAYS include Director state for ALL episodes (open + bounded)
-        # This surfaces turn tracking, beat info, etc. for every conversation
+        # This surfaces turn tracking, semantic status, etc. for every conversation
         if director_output:
             turn_budget = episode_template.turn_budget if episode_template else None
             done_event["director"] = {
                 "turn_count": director_output.turn_count,
                 "turns_remaining": max(0, turn_budget - director_output.turn_count) if turn_budget else None,
                 "is_complete": director_output.is_complete,
+                "status": director_output.evaluation.get("status") if director_output.evaluation else "going",
             }
 
         yield json.dumps(done_event)

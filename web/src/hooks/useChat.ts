@@ -8,8 +8,19 @@ import type {
   RateLimitError,
   StreamDirectorState,
   StreamEpisodeCompleteEvent,
+  StreamVisualPendingEvent,
+  StreamInstructionCardEvent,
+  StreamNeedsSparksEvent,
   StreamEvent,
+  VisualType,
 } from "@/types";
+
+// Visual pending state for Director V2
+interface VisualPendingState {
+  visual_type: Exclude<VisualType, "none" | "instruction">;
+  visual_hint: string | null;
+  sparks_deducted: number;
+}
 
 interface UseChatOptions {
   characterId: string;
@@ -18,6 +29,9 @@ interface UseChatOptions {
   onError?: (error: Error) => void;
   onRateLimitExceeded?: (error: RateLimitError) => void;
   onEpisodeComplete?: (event: StreamEpisodeCompleteEvent) => void;
+  onVisualPending?: (event: StreamVisualPendingEvent) => void;
+  onInstructionCard?: (event: StreamInstructionCardEvent) => void;
+  onNeedsSparks?: (event: StreamNeedsSparksEvent) => void;
 }
 
 interface UseChatReturn {
@@ -27,11 +41,14 @@ interface UseChatReturn {
   episode: Episode | null;
   streamingContent: string;
   suggestScene: boolean;
-  // Director state (for ALL episodes)
+  // Director V2 state
   directorState: StreamDirectorState | null;
   isEpisodeComplete: boolean;
-  evaluation: StreamEpisodeCompleteEvent["evaluation"];
   nextSuggestion: StreamEpisodeCompleteEvent["next_suggestion"];
+  // Director V2 visual state
+  visualPending: VisualPendingState | null;
+  instructionCards: string[];  // Accumulated instruction cards for session
+  needsSparks: boolean;
   // Actions
   sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
@@ -39,9 +56,21 @@ interface UseChatReturn {
   endEpisode: () => Promise<void>;
   clearSceneSuggestion: () => void;
   clearCompletion: () => void;
+  clearVisualPending: () => void;
+  clearNeedsSparks: () => void;
 }
 
-export function useChat({ characterId, episodeTemplateId, enabled = true, onError, onRateLimitExceeded, onEpisodeComplete }: UseChatOptions): UseChatReturn {
+export function useChat({
+  characterId,
+  episodeTemplateId,
+  enabled = true,
+  onError,
+  onRateLimitExceeded,
+  onEpisodeComplete,
+  onVisualPending,
+  onInstructionCard,
+  onNeedsSparks,
+}: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
@@ -49,11 +78,15 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
   const [streamingContent, setStreamingContent] = useState("");
   const [suggestScene, setSuggestScene] = useState(false);
 
-  // Director state (for ALL episodes - open + bounded)
+  // Director V2 state
   const [directorState, setDirectorState] = useState<StreamDirectorState | null>(null);
   const [isEpisodeComplete, setIsEpisodeComplete] = useState(false);
-  const [evaluation, setEvaluation] = useState<StreamEpisodeCompleteEvent["evaluation"]>(null);
   const [nextSuggestion, setNextSuggestion] = useState<StreamEpisodeCompleteEvent["next_suggestion"]>(null);
+
+  // Director V2 visual state
+  const [visualPending, setVisualPending] = useState<VisualPendingState | null>(null);
+  const [instructionCards, setInstructionCards] = useState<string[]>([]);
+  const [needsSparks, setNeedsSparks] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -64,6 +97,12 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
   onRateLimitExceededRef.current = onRateLimitExceeded;
   const onEpisodeCompleteRef = useRef(onEpisodeComplete);
   onEpisodeCompleteRef.current = onEpisodeComplete;
+  const onVisualPendingRef = useRef(onVisualPending);
+  onVisualPendingRef.current = onVisualPending;
+  const onInstructionCardRef = useRef(onInstructionCard);
+  onInstructionCardRef.current = onInstructionCard;
+  const onNeedsSparksRef = useRef(onNeedsSparks);
+  onNeedsSparksRef.current = onNeedsSparks;
 
   // Track if we've already loaded for this characterId + episodeTemplateId combo
   const loadedKeyRef = useRef<string | null>(null);
@@ -198,18 +237,35 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
         if (event.type === "chunk") {
           fullContent += event.content;
           setStreamingContent(fullContent);
+        } else if (event.type === "visual_pending") {
+          // Director V2: Visual generation started
+          setVisualPending({
+            visual_type: event.visual_type,
+            visual_hint: event.visual_hint,
+            sparks_deducted: event.sparks_deducted,
+          });
+          onVisualPendingRef.current?.(event);
+        } else if (event.type === "instruction_card") {
+          // Director V2: Instruction card (free, no image)
+          setInstructionCards((prev) => [...prev, event.content]);
+          onInstructionCardRef.current?.(event);
+        } else if (event.type === "needs_sparks") {
+          // Director V2: User needs more sparks
+          setNeedsSparks(true);
+          onNeedsSparksRef.current?.(event);
         } else if (event.type === "episode_complete") {
           // Director detected episode completion
           setIsEpisodeComplete(true);
-          setEvaluation(event.evaluation);
           setNextSuggestion(event.next_suggestion);
 
           // Update director state to show completion
-          setDirectorState({
+          setDirectorState((prev) => ({
+            ...(prev || { turn_count: event.turn_count, turns_remaining: 0 }),
             turn_count: event.turn_count,
             turns_remaining: 0,
             is_complete: true,
-          });
+            status: "done",
+          }));
 
           // Call callback if provided
           onEpisodeCompleteRef.current?.(event);
@@ -314,8 +370,17 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
   // Clear completion state (for dismissing the completion modal)
   const clearCompletion = useCallback(() => {
     setIsEpisodeComplete(false);
-    setEvaluation(null);
     setNextSuggestion(null);
+  }, []);
+
+  // Clear visual pending state (after image is rendered or dismissed)
+  const clearVisualPending = useCallback(() => {
+    setVisualPending(null);
+  }, []);
+
+  // Clear needs sparks state (after user dismisses prompt)
+  const clearNeedsSparks = useCallback(() => {
+    setNeedsSparks(false);
   }, []);
 
   // Load on mount (only when enabled, and only once per characterId + episodeTemplateId combo)
@@ -348,11 +413,14 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
     episode,
     streamingContent,
     suggestScene,
-    // Director state
+    // Director V2 state
     directorState,
     isEpisodeComplete,
-    evaluation,
     nextSuggestion,
+    // Director V2 visual state
+    visualPending,
+    instructionCards,
+    needsSparks,
     // Actions
     sendMessage,
     loadMessages,
@@ -360,5 +428,7 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
     endEpisode,
     clearSceneSuggestion,
     clearCompletion,
+    clearVisualPending,
+    clearNeedsSparks,
   };
 }

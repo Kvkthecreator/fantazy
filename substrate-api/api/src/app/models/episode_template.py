@@ -14,12 +14,11 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 
-class CompletionMode:
-    """Completion mode constants for bounded episodes."""
-    OPEN = "open"              # No defined end, fade naturally (default)
-    TURN_LIMITED = "turn_limited"  # Ends after N turns (games, tests)
-    BEAT_GATED = "beat_gated"      # Ends when specific beat is reached (mystery)
-    OBJECTIVE = "objective"        # Ends when objective is achieved (puzzles)
+class AutoSceneMode:
+    """Auto scene generation mode constants."""
+    OFF = "off"           # No auto-generation, manual only
+    PEAKS = "peaks"       # Generate on visual moments (Director detects)
+    RHYTHMIC = "rhythmic" # Generate every N turns
 
 
 class EpisodeType:
@@ -70,17 +69,19 @@ class EpisodeTemplate(BaseModel):
 
     # Episode dynamics (per EPISODE_DYNAMICS_CANON.md)
     dramatic_question: Optional[str] = None
-    beat_guidance: Dict[str, Any] = Field(default_factory=dict)
     resolution_types: List[str] = Field(
         default_factory=lambda: ["positive", "neutral", "negative"]
     )
     fade_hints: Dict[str, Any] = Field(default_factory=dict)
     arc_hints: List[Any] = Field(default_factory=list)
 
-    # Completion configuration (for bounded episodes)
-    completion_mode: str = CompletionMode.OPEN
-    turn_budget: Optional[int] = None
-    completion_criteria: Dict[str, Any] = Field(default_factory=dict)
+    # Director V2 configuration (per DIRECTOR_ARCHITECTURE.md)
+    genre: str = "romance"  # Story genre for semantic evaluation context
+    auto_scene_mode: str = AutoSceneMode.OFF  # off, peaks, rhythmic
+    scene_interval: Optional[int] = None  # For rhythmic mode: every N turns
+    spark_cost_per_scene: int = 5  # Cost in sparks for auto-generated scenes
+    series_finale: bool = False  # Last episode of series
+    turn_budget: Optional[int] = None  # Optional turn limit
 
     # Status
     is_default: bool = False
@@ -91,7 +92,7 @@ class EpisodeTemplate(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    @field_validator("beat_guidance", "fade_hints", "completion_criteria", mode="before")
+    @field_validator("fade_hints", mode="before")
     @classmethod
     def ensure_dict(cls, v: Any) -> Dict[str, Any]:
         """Handle dict fields as JSON string (from DB)."""
@@ -145,15 +146,17 @@ class EpisodeTemplateCreate(BaseModel):
     episode_type: str = EpisodeType.CORE
     episode_frame: Optional[str] = None
     dramatic_question: Optional[str] = None
-    beat_guidance: Dict[str, Any] = Field(default_factory=dict)
     resolution_types: List[str] = Field(
         default_factory=lambda: ["positive", "neutral", "negative"]
     )
 
-    # Completion configuration
-    completion_mode: str = CompletionMode.OPEN
+    # Director V2 configuration
+    genre: str = "romance"
+    auto_scene_mode: str = AutoSceneMode.OFF
+    scene_interval: Optional[int] = None
+    spark_cost_per_scene: int = 5
+    series_finale: bool = False
     turn_budget: Optional[int] = None
-    completion_criteria: Dict[str, Any] = Field(default_factory=dict)
 
     # Status
     is_default: bool = False
@@ -170,14 +173,16 @@ class EpisodeTemplateUpdate(BaseModel):
     episode_type: Optional[str] = None
     episode_frame: Optional[str] = None
     dramatic_question: Optional[str] = None
-    beat_guidance: Optional[Dict[str, Any]] = None
     resolution_types: Optional[List[str]] = None
     fade_hints: Optional[Dict[str, Any]] = None
 
-    # Completion configuration
-    completion_mode: Optional[str] = None
+    # Director V2 configuration
+    genre: Optional[str] = None
+    auto_scene_mode: Optional[str] = None
+    scene_interval: Optional[int] = None
+    spark_cost_per_scene: Optional[int] = None
+    series_finale: Optional[bool] = None
     turn_budget: Optional[int] = None
-    completion_criteria: Optional[Dict[str, Any]] = None
 
     is_default: Optional[bool] = None
     sort_order: Optional[int] = None

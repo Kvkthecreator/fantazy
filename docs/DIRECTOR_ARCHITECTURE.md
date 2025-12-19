@@ -1,77 +1,70 @@
 # Director Architecture
 
-> **Status**: Active
+> **Status**: Active (v2 - Semantic Rewrite)
 > **Created**: 2024-12-19
-> **Purpose**: Define the Director/Observer/Operator entity for episode management, evaluation, and narrative continuity.
+> **Updated**: 2024-12-19
+> **Purpose**: Define the Director as a semantic runtime engine that drives episode experience through natural language understanding and deterministic actions.
 
 ---
 
 ## Overview
 
-The **Director** is a system entity that observes, evaluates, and operates conversations without being visible to users. It works alongside the Character (the "actor") to enable bounded episodes, progression tracking, and derived outputs like scores and recommendations.
+The **Director** is a hidden system entity that observes conversations and drives the episode experience. Unlike video game directors that rely on state machines and explicit triggers, our Director leverages the LLM's semantic understanding to evaluate conversations naturally, then executes deterministic actions based on those observations.
 
-### Metaphor
+### Core Principle: Semantic Evaluation → Deterministic Actions
 
-| Role | Responsibility | Visibility |
-|------|----------------|------------|
-| **Character** | Acting — dialogue, emotion, persona | User sees |
-| **Director** | Observing, judging, operating — state & system management | Hidden |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        DIRECTOR                                  │
+├─────────────────────────────────────────────────────────────────┤
+│  SEMANTIC EVALUATION          │  DETERMINISTIC ACTIONS          │
+│  (LLM understands meaning)    │  (Code executes behavior)       │
+│                               │                                  │
+│  "Was this visually           │  generate_scene: true/false     │
+│   evocative?"                 │  scene_hint: string             │
+│                               │                                  │
+│  "Is this episode ready       │  suggest_next: true/false       │
+│   to close?"                  │  deduct_sparks: int             │
+│                               │                                  │
+│  Natural language answers     │  Explicit system triggers        │
+│  Genre-appropriate reasoning  │  Monetization, state changes     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-The Director is the **brain, eyes, ears, and hands** of the interaction:
-- **Eyes & Ears**: Observes all exchanges, user signals, character responses
-- **Brain**: Interprets state, decides beat progression, detects completion
-- **Hands**: Triggers system actions (completion, UI elements, next-episode suggestions)
-- **Operator**: Controls system levers — manages the machinery of the conversation
+### Why This Approach?
+
+**Video game directors** (L4D, Hades) need explicit state machines because games don't understand meaning. They track discrete signals: `player_health < 30% → spawn_medkit`.
+
+**Our LLM-based Director** already understands what's happening. When a character says "I haven't slept in 36 hours and I just lost a patient," the LLM knows this is vulnerability, a potential connection moment, that the user's response matters. We don't need to tag this as `beat: "vulnerability_reveal"` — the meaning is in the text.
+
+**Previous approach (deprecated)**: Pre-defined completion modes (`beat_gated`, `objective`), structured beat tracking, typed evaluation schemas. This created sophisticated metadata the system couldn't actually use.
+
+**New approach**: Ask the LLM simple questions in natural language. Parse minimal signals from the response. Execute deterministic actions.
 
 ---
 
 ## Director Capabilities
 
-| Capability | Description | Use Case |
-|------------|-------------|----------|
-| **Beat Tracking** | Track progression through narrative beats | Guided/gated episodes |
-| **Turn Counting** | Track exchange count per session | Turn-limited games |
-| **Signal Collection** | Gather user behavior patterns | Scoring, personalization |
-| **Completion Detection** | Determine when episode is "done" | Bounded episodes |
-| **Evaluation Generation** | Produce reports, scores, summaries | Games, episode summaries |
-| **Next Episode Suggestion** | Recommend continuation | **All episodes** |
-| **State Injection** | Provide context to character LLM | Memory, flags, nudges |
-| **UI Triggers** | Surface choices, scene cards, prompts | Structured content |
-
-### Universal Application: Next Episode Suggestion
-
-The Director's `suggest_next_episode` capability applies to **all episode types**, not just bounded ones:
-
-| Scenario | Director Action |
-|----------|-----------------|
-| Flirt test completes | Evaluate → Result → Suggest Episode 1 of series |
-| Mystery episode completes | Clue revealed → Suggest next episode |
-| Open-ended episode fades | Detect natural pause → Suggest related episode |
-| Series completed | Suggest thematically matched series |
+| Capability | How It Works | Trigger |
+|------------|--------------|---------|
+| **Scene Generation** | LLM identifies visual moments → Director triggers image generation | Semantic ("worth capturing") or rhythmic (every N turns) |
+| **Episode Progression** | LLM senses closure → Director suggests next episode | Semantic ("ready to close") or hard cap (turn budget) |
+| **Turn Counting** | Increment after each exchange | Every exchange |
+| **Memory Extraction** | LLM identifies what mattered → Director saves to memory | Semantic ("significance") |
+| **Spark Deduction** | Attached to actions (scene generation, etc.) | Action execution |
 
 ---
 
-## Integration with Current Architecture
+## The Dual-LLM Architecture
 
-### Current Flow (from `conversation.py`)
+Two LLM roles, one conversation:
 
-```
-User message
-    ↓
-ConversationService.send_message_stream()
-    ↓
-Build ConversationContext (memories, hooks, episode dynamics)
-    ↓
-LLM.generate_stream() → Character response
-    ↓
-_process_exchange() → Extract memories, update relationship_dynamic
-    ↓
-Return to user
-```
+| Role | Purpose | Visibility |
+|------|---------|------------|
+| **Character LLM** | Generate in-character response (dialogue, emotion) | User sees output |
+| **Director LLM** | Observe exchange, evaluate semantically | Hidden from user |
 
-### New Flow with Director (Merged)
-
-**Decision**: Director absorbs `_process_exchange()` — unified post-exchange processing.
+The Character acts. The Director watches and decides what happens next.
 
 ```
 User message
@@ -80,667 +73,615 @@ ConversationService.send_message_stream()
     ↓
 Build ConversationContext
     ↓
-LLM.generate_stream() → Structured character output (JSON)
+Character LLM → Generate response (streamed to user)
     ↓
-DirectorService.process_exchange() → REPLACES _process_exchange()
-    ├── Extract memories, hooks
-    ├── Update relationship dynamic
-    ├── Increment turn count
-    ├── Track beat + user signals
-    ├── Check completion conditions
-    ├── If complete: generate evaluation, suggest next
-    └── Return DirectorOutput
+Director LLM → Evaluate exchange (post-processing)
     ↓
-Return to user (with director signals)
-```
-
-**Rationale**: Single LLM call can extract all signals. One service for all post-exchange logic.
-
-### Implementation: Post-Processing Model
-
-The Director runs **after** each exchange as a post-processing step. This:
-- Keeps character generation pure and fast
-- Allows Director logic to be optional (skip for open-ended content)
-- Enables gradual rollout
-
-```python
-# In conversation.py send_message_stream()
-
-# After _process_exchange()
-if episode_template.completion_mode != 'open':
-    director_output = await self.director_service.evaluate(
-        session_id=session.id,
-        messages=context.messages + [{"role": "assistant", "content": response_content}],
-        episode_template=episode_template,
-    )
-
-    if director_output.is_complete:
-        yield json.dumps({
-            "type": "episode_complete",
-            "evaluation": director_output.evaluation,
-            "next_episode": director_output.next_suggestion,
-        })
+Execute actions (scene, progression, memory, sparks)
+    ↓
+Return director signals to frontend
 ```
 
 ---
 
-## Schema Extensions
+## Semantic Evaluation
 
-### Session Extensions
+The Director asks simple, natural questions. The LLM answers in genre-appropriate language.
 
-```sql
-ALTER TABLE sessions ADD COLUMN IF NOT EXISTS
-    turn_count INT DEFAULT 0,
-    director_state JSONB DEFAULT '{}',
-    completion_trigger TEXT DEFAULT NULL;
+### Visual Type Taxonomy
 
--- director_state structure:
--- {
---   "current_beat": "escalation",
---   "beats_completed": ["establishment", "complication"],
---   "user_signals": {"confident": 3, "hesitant": 1, "playful": 2},
---   "tension_curve": [0.3, 0.5, 0.7],
---   "flags": {"key_moment_reached": true}
--- }
-```
+Not all visuals are character portraits. The Director classifies the visual type to route to the correct rendering pipeline:
 
-### Episode Template Extensions
+| Visual Type | Description | Rendering | Cost |
+|-------------|-------------|-----------|------|
+| `character` | Character in a moment (portrait + setting) | Image gen with Kontext/T2I | Sparks |
+| `object` | Close-up of item (letter, phone, key) | Image gen, no character | Sparks |
+| `atmosphere` | Setting/mood without character | Background image gen | Sparks |
+| `instruction` | Game-like info (codes, hints, choices) | Styled text card | Free |
+| `none` | No visual needed | Nothing | Free |
 
-```sql
-ALTER TABLE episode_templates ADD COLUMN IF NOT EXISTS
-    completion_mode TEXT DEFAULT 'open',  -- open, beat_gated, turn_limited, objective
-    turn_budget INT DEFAULT NULL,
-    completion_criteria JSONB DEFAULT NULL;
+**Examples by genre:**
 
--- completion_criteria structure (varies by mode):
--- turn_limited: {"max_turns": 8}
--- beat_gated: {"required_beat": "pivot", "require_resolution": true}
--- objective: {"objective_key": "accusation_made"}
-```
+| Genre | Moment | Visual Type | Hint |
+|-------|--------|-------------|------|
+| Romance | She smiled and looked away | `character` | Maya turning away, smile visible in reflection |
+| Romance | The letter sat unopened between them | `object` | Unopened letter on café table, morning light |
+| Mystery | User notices alibi inconsistency | `none` | — |
+| Mystery | Clue discovered | `object` | Close-up of train ticket with wrong date |
+| Thriller | Threatening text received | `object` | Phone screen showing "I know where you are" |
+| Medical | Maya gives you a task | `instruction` | Supply Room - Code: 4721 |
 
-### Session Evaluations (New Table)
-
-```sql
-CREATE TABLE session_evaluations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID REFERENCES sessions(id) ON DELETE CASCADE,
-    evaluation_type TEXT NOT NULL,  -- 'flirt_archetype', 'episode_summary', 'mystery_progress'
-    result JSONB NOT NULL,
-    model_used TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- result structure varies by type:
--- flirt_archetype: {"archetype": "tension_builder", "scores": {...}, "description": "..."}
--- episode_summary: {"summary": "...", "key_moments": [...], "emotional_arc": "..."}
--- mystery_progress: {"clues_found": [...], "suspects_cleared": [...], "current_theory": "..."}
-```
-
----
-
-## Completion Modes
-
-| Mode | Trigger | Use Case |
-|------|---------|----------|
-| `open` | Never (user decides) | Default, open-ended chat |
-| `beat_gated` | Final beat + resolution detected | Most series episodes |
-| `turn_limited` | Turn budget exhausted | Games, quick challenges |
-| `objective` | Specific flag set | Mystery (accusation), choices |
-
-### Completion Detection Logic
+### The Prompt
 
 ```python
-class DirectorService:
-    async def check_completion(
-        self,
-        session: Session,
-        episode_template: EpisodeTemplate,
-        director_state: dict,
-    ) -> tuple[bool, str | None]:
-        """Check if episode should complete.
-
-        Returns (is_complete, trigger_reason)
-        """
-        mode = episode_template.completion_mode
-
-        if mode == 'open':
-            return False, None
-
-        if mode == 'turn_limited':
-            budget = episode_template.turn_budget or 10
-            if director_state.get('turn_count', 0) >= budget:
-                return True, 'turn_limit'
-
-        if mode == 'beat_gated':
-            criteria = episode_template.completion_criteria or {}
-            required_beat = criteria.get('required_beat', 'pivot')
-            beats_completed = director_state.get('beats_completed', [])
-            if required_beat in beats_completed:
-                return True, 'beat_complete'
-
-        if mode == 'objective':
-            criteria = episode_template.completion_criteria or {}
-            objective_key = criteria.get('objective_key')
-            flags = director_state.get('flags', {})
-            if flags.get(objective_key):
-                return True, 'objective_met'
-
-        return False, None
-```
-
----
-
-## Completion Logic Details
-
-### Turn Definition
-
-One **turn** = one user message + one assistant response (a complete exchange).
-
-```python
-# Turn counting happens after each complete exchange
-async def increment_turn(self, session_id: UUID) -> int:
-    result = await self.db.fetch_one("""
-        UPDATE sessions
-        SET turn_count = turn_count + 1
-        WHERE id = :session_id
-        RETURNING turn_count
-    """, {"session_id": str(session_id)})
-    return result["turn_count"]
-```
-
-### Completion Mode: `turn_limited`
-
-Simplest mode — episode completes after N turns.
-
-```python
-async def check_turn_limited(
+async def evaluate_exchange(
     self,
-    turn_count: int,
-    turn_budget: int,
-) -> tuple[bool, str | None]:
-    if turn_count >= turn_budget:
-        return True, "turn_limit"
-    return False, None
-```
-
-**Recommended turn budgets**:
-| Content Type | Budget | Rationale |
-|--------------|--------|-----------|
-| Flirt test | 6-8 | Enough for signal, short enough for completion |
-| Quick challenge | 4-5 | Snackable, high completion rate |
-| Mini episode | 10-12 | Deeper but still bounded |
-
-### Completion Mode: `beat_gated`
-
-Episode completes when required narrative beat is reached.
-
-**Beat progression** (standard sequence):
-1. `establishment` — Scene set, characters introduced
-2. `complication` — Tension introduced, stakes raised
-3. `escalation` — Conflict peaks, pressure mounts
-4. `pivot` — Key moment, user choice matters most
-5. `resolution` — Outcome revealed (optional, can be next episode)
-
-**Beat detection** — two approaches:
-
-**Heuristic (v1)**: Infer from turn position
-```python
-def infer_beat_from_turn(turn_count: int, turn_budget: int) -> str:
-    progress = turn_count / turn_budget
-    if progress < 0.25:
-        return "establishment"
-    elif progress < 0.5:
-        return "complication"
-    elif progress < 0.75:
-        return "escalation"
-    else:
-        return "pivot"
-```
-
-**LLM-based (v2)**: Classify after each exchange
-```python
-async def detect_beat_llm(self, messages: list[dict]) -> str:
-    prompt = """Analyze this conversation exchange and classify the current narrative beat.
-
-LAST EXCHANGE:
-User: {user_message}
-Character: {character_response}
-
-Which beat best describes the current moment?
-- establishment: Setting the scene, initial dynamics
-- complication: New tension or obstacle introduced
-- escalation: Stakes raised, pressure mounting
-- pivot: Critical moment, response matters most
-
-Return only the beat name."""
-
-    return await self.llm.generate(prompt)
-```
-
-### Completion Mode: `objective`
-
-Episode completes when specific flag is set (event-driven).
-
-```python
-async def check_objective(
-    self,
-    director_state: dict,
-    objective_key: str,
-) -> tuple[bool, str | None]:
-    flags = director_state.get("flags", {})
-    if flags.get(objective_key):
-        return True, "objective_met"
-    return False, None
-```
-
-**Use cases**:
-- Mystery: `accusation_made` — user accuses a suspect
-- Choice point: `decision_selected` — user picks A or B
-- Discovery: `clue_found` — key information revealed
-
-**Setting flags**: Director sets flags based on conversation analysis
-```python
-async def check_for_objective_signals(
-    self,
-    messages: list[dict],
-    objective_key: str,
-) -> bool:
-    # LLM analyzes if objective condition was met
-    prompt = f"""Analyze if the user's last message indicates: {objective_key}
-
-    User message: {messages[-2]["content"]}
-
-    Return JSON: {{"met": true/false, "confidence": 0.0-1.0}}"""
-
-    result = await self.llm.generate_json(prompt)
-    return result.get("met", False) and result.get("confidence", 0) > 0.7
-```
-
-### Evaluation Timing
-
-**Decision**: Generate evaluation **immediately** on completion.
-
-Rationale:
-- Users expect instant result (personality test UX)
-- Evaluation LLM call is fast (~1-2s)
-- Avoids "calculating..." state and extra round-trip
-
-```python
-async def on_episode_complete(
-    self,
-    session_id: UUID,
-    trigger: str,
-    messages: list[dict],
-    director_state: dict,
-) -> dict:
-    # Generate evaluation immediately
-    evaluation = await self.generate_evaluation(
-        session_id=session_id,
-        evaluation_type="flirt_archetype",
-        messages=messages,
-        director_state=director_state,
-    )
-
-    # Persist evaluation with share_id
-    share_id = self._generate_share_id()  # e.g., "abc123"
-    await self._save_evaluation(session_id, evaluation, share_id)
-
-    # Get next suggestion
-    next_suggestion = await self.suggest_next_episode(session_id, evaluation)
-
-    return {
-        "evaluation": evaluation,
-        "share_id": share_id,
-        "next_suggestion": next_suggestion,
-    }
-```
-
-### Beat Display (User Visibility)
-
-**Decision**: Hidden by default. Optional progress indicator for certain content.
-
-| Content Type | Beat Visibility | Rationale |
-|--------------|-----------------|-----------|
-| Flirt test | Hidden | Game feel, surprise result |
-| Mystery serial | Optional progress bar | "Episode 2 of 4" |
-| Open-ended | Hidden | No defined end |
-
-If shown, display as progress dots or subtle indicator, not beat names.
-
----
-
-## Director Evaluation
-
-When episode completes, Director generates an evaluation based on episode type.
-
-### Flirt Test Evaluation
-
-```python
-async def evaluate_flirt_test(
-    self,
-    session_id: UUID,
-    messages: list[dict],
-    director_state: dict,
-) -> dict:
-    """Evaluate flirt conversation and assign archetype."""
-
-    prompt = """Analyze this flirtatious conversation and classify the user's flirt style.
-
-CONVERSATION:
-{conversation}
-
-USER SIGNALS OBSERVED:
-{signals}
-
-Based on the user's responses, determine their flirt archetype:
-- tension_builder: Masters the pause, creates anticipation
-- bold_mover: Direct, confident, takes initiative
-- playful_tease: Light, fun, uses humor
-- slow_burn: Patient, builds connection over time
-- mysterious_allure: Intriguing, doesn't reveal everything
-
-Return JSON:
-{
-  "archetype": "<archetype_key>",
-  "confidence": 0.0-1.0,
-  "primary_signals": ["signal1", "signal2"],
-  "description": "One sentence describing their style"
-}"""
-
-    # Call evaluation LLM
-    result = await self.llm.generate_json(prompt.format(
-        conversation=self._format_conversation(messages),
-        signals=json.dumps(director_state.get('user_signals', {})),
-    ))
-
-    return result
-```
-
-### Episode Summary Evaluation
-
-```python
-async def evaluate_episode_summary(
-    self,
-    session_id: UUID,
     messages: list[dict],
     character_name: str,
+    genre: str,
+    situation: str,
+    dramatic_question: str,
 ) -> dict:
-    """Generate episode summary for serial continuity."""
+    prompt = f"""You are the Director observing a {genre} story.
 
-    # Similar pattern - LLM generates structured summary
-    # Used for series_context in subsequent episodes
+Character: {character_name}
+Situation: {situation}
+Core tension: {dramatic_question}
+
+RECENT EXCHANGE:
+{format_messages(messages[-6:])}
+
+As a director, observe this moment. Answer naturally, then provide signals.
+
+1. VISUAL: Would this exchange benefit from a visual element?
+   - CHARACTER: A shot featuring the character (portrait, expression, pose)
+   - OBJECT: Close-up of an item (letter, phone, key, evidence)
+   - ATMOSPHERE: Setting/mood without character visible
+   - INSTRUCTION: Game-like information (codes, hints, choices)
+   - NONE: No visual needed
+
+   If not NONE, describe what should be shown in one evocative sentence.
+
+2. STATUS: Is this episode ready to close, approaching closure, or still unfolding?
+   Explain briefly in terms that make sense for this {genre} story.
+
+End with a signal line for parsing:
+SIGNAL: [visual: character/object/atmosphere/instruction/none] [status: going/closing/done]
+If visual is not "none", add: [hint: <description>]"""
+
+    response = await self.llm.generate(prompt)
+    return self._parse_evaluation(response.content)
 ```
 
----
+### Genre-Appropriate Responses
 
-## Next Episode Suggestion
+The LLM naturally adapts to genre and selects appropriate visual type:
 
-The Director suggests next steps based on context:
+**Romance - character moment:**
+```
+Maya turned away but you could see her smiling in the reflection. She's stopped
+pretending this is professional, though she hasn't said it out loud yet.
+
+SIGNAL: [visual: character] [status: closing] [hint: Maya turning away, smile visible in window reflection]
+```
+
+**Romance - object tension:**
+```
+The letter sits on the table between them. Neither wants to acknowledge what's
+inside, but it's all either of them can think about.
+
+SIGNAL: [visual: object] [status: going] [hint: unopened letter on café table, two coffee cups nearby, morning light]
+```
+
+**Mystery - no visual:**
+```
+The alibi inconsistency is noted but not confronted. The user is circling but
+hasn't committed to an accusation. The tension needs to build further.
+
+SIGNAL: [visual: none] [status: going]
+```
+
+**Thriller - object tension:**
+```
+The phone buzzes face-down on the table. Both of them know who it is. The threat
+is no longer abstract — it's here, and the next move matters.
+
+SIGNAL: [visual: object] [status: done] [hint: phone screen glowing with blocked number, threatening message visible]
+```
+
+**Medical drama - instruction:**
+```
+Maya needs backup now. The crash cart is in the supply room at the end of the
+hall. She shouts the code over her shoulder as she runs.
+
+SIGNAL: [visual: instruction] [status: going] [hint: Supply Room - End of Hall - Code: 4721]
+```
+
+### Parsing the Response
+
+Extract visual type, hint, and status:
 
 ```python
-async def suggest_next_episode(
-    self,
-    session: Session,
-    evaluation: dict | None,
-    series: Series | None,
-) -> dict | None:
-    """Suggest next episode or series."""
+def _parse_evaluation(self, response: str) -> dict:
+    """Parse natural language evaluation into actionable signals."""
+    import re
 
-    # 1. If in a series, suggest next episode in order
-    if series and series.episode_order:
-        current_idx = series.episode_order.index(str(session.episode_template_id))
-        if current_idx < len(series.episode_order) - 1:
-            next_template_id = series.episode_order[current_idx + 1]
-            return {
-                "type": "next_episode",
-                "episode_template_id": next_template_id,
-                "series_id": series.id,
-            }
+    # Extract signal line with visual type
+    signal_match = re.search(
+        r'SIGNAL:\s*\[visual:\s*(character|object|atmosphere|instruction|none)\]\s*\[status:\s*(going|closing|done)\]',
+        response, re.IGNORECASE
+    )
 
-    # 2. If evaluation has archetype, suggest matched series
-    if evaluation and evaluation.get('archetype'):
-        matched_series = await self._get_archetype_matched_series(
-            evaluation['archetype']
-        )
-        return {
-            "type": "matched_series",
-            "series": matched_series,
-        }
+    # Extract hint if present
+    hint_match = re.search(r'\[hint:\s*([^\]]+)\]', response, re.IGNORECASE)
 
-    # 3. Default: suggest same character's other content
+    if signal_match:
+        visual_type = signal_match.group(1).lower()  # character/object/atmosphere/instruction/none
+        status_signal = signal_match.group(2).lower()
+        visual_hint = hint_match.group(1).strip() if hint_match else None
+    else:
+        # Fallback parsing
+        visual_type = 'none'
+        status_signal = 'done' if 'done' in response.lower() else 'going'
+        visual_hint = None
+
     return {
-        "type": "character_content",
-        "character_id": session.character_id,
+        "raw_response": response,
+        "visual_type": visual_type,      # "character", "object", "atmosphere", "instruction", "none"
+        "visual_hint": visual_hint,       # Description of what to show
+        "status": status_signal,          # "going", "closing", "done"
     }
 ```
 
 ---
 
-## Conversation Data Types
+## Deterministic Actions
 
-A conversation contains multiple data types flowing through different channels:
+Actions are explicit, predictable, and driven by episode settings + evaluation signals.
 
-### Message-Level Data Types
-
-| Type | Source | Storage | Display |
-|------|--------|---------|---------|
-| **User message** | User | `messages` table | Chat bubble |
-| **Character response** | Character LLM | `messages` table | Chat bubble |
-| **Director metadata** | Director | `messages.metadata` | Hidden |
-
-### System-Level Data Types (Stream Events)
-
-| Type | Source | Trigger | Display |
-|------|--------|---------|---------|
-| **Scene card** | Episode template | Episode start | Visual card |
-| **Beat indicator** | Director | Beat transition | Progress UI (optional) |
-| **Completion signal** | Director | Episode complete | UI transition |
-| **Evaluation result** | Director | Post-completion | Result screen |
-| **Next suggestion** | Director | Post-completion | CTA buttons |
-| **Choice prompt** | Director | Objective mode | Selection UI |
-
-### Structured Character Output
-
-Character LLM responses use **structured output** to separate content types:
-
-```json
-{
-  "dialogue": "You're brave, I'll give you that.",
-  "action": "She raises an eyebrow, a smirk tugging at her lips",
-  "internal": "Why does he make me nervous?",
-  "mood": "intrigued",
-  "tension_shift": 0.1
-}
-```
-
-**Rendered for user** (display format):
-```
-*She raises an eyebrow, a smirk tugging at her lips*
-"You're brave, I'll give you that."
-```
-
-**Benefits of structured output**:
-- Clean separation for Director analysis
-- Consistent formatting
-- Mood/tension signals without parsing
-- Enables dialogue-only or action-only views (future)
-
-### Message Metadata Enrichment
-
-Director enriches each message with observation data:
-
-```json
-{
-  "role": "assistant",
-  "content": "*She raises an eyebrow* \"You're brave, I'll give you that.\"",
-  "metadata": {
-    "structured": {
-      "dialogue": "You're brave, I'll give you that.",
-      "action": "She raises an eyebrow",
-      "mood": "intrigued",
-      "tension_shift": 0.1
-    },
-    "director": {
-      "turn_number": 3,
-      "beat": "complication",
-      "user_signals": ["confident", "playful"],
-      "completion_eligible": false
-    }
-  }
-}
-```
-
-### Stream Response Structure
+### DirectorActions
 
 ```python
-# Character response chunks (real-time)
-yield {"type": "chunk", "content": chunk}
-
-# Structured response complete
-yield {
-    "type": "message_complete",
-    "content": rendered_content,  # For display
-    "structured": {
-        "dialogue": "...",
-        "action": "...",
-        "mood": "intrigued"
-    },
-    "director": {
-        "turn_count": 5,
-        "beat": "escalation",
-        "completion_eligible": false
-    }
-}
-
-# Episode completion (if triggered)
-yield {
-    "type": "episode_complete",
-    "trigger": "turn_limit",
-    "evaluation": {
-        "archetype": "tension_builder",
-        "description": "You know exactly when to pause..."
-    },
-    "next_suggestion": {
-        "type": "character_continuity",
-        "character_id": "...",
-        "prompt": "Mina enjoyed that. Keep going?"
-    }
-}
-
-# Stream end
-yield {"type": "done"}
-
----
-
-## Director Service Interface
-
-```python
-class DirectorService:
-    """Service for episode observation, evaluation, and guidance."""
-
-    async def evaluate(
-        self,
-        session_id: UUID,
-        messages: list[dict],
-        episode_template: EpisodeTemplate,
-    ) -> DirectorOutput:
-        """Run Director evaluation after exchange.
-
-        Returns:
-            DirectorOutput with updated state, completion status,
-            evaluation if complete, next suggestion.
-        """
-
-    async def update_turn_count(self, session_id: UUID) -> int:
-        """Increment and return turn count."""
-
-    async def update_beat(
-        self,
-        session_id: UUID,
-        beat: str,
-        signals: dict,
-    ) -> None:
-        """Update current beat and user signals."""
-
-    async def check_completion(
-        self,
-        session: Session,
-        episode_template: EpisodeTemplate,
-        director_state: dict,
-    ) -> tuple[bool, str | None]:
-        """Check if episode should complete."""
-
-    async def generate_evaluation(
-        self,
-        session_id: UUID,
-        evaluation_type: str,
-        messages: list[dict],
-        director_state: dict,
-    ) -> dict:
-        """Generate evaluation (score, summary, etc.)."""
-
-    async def suggest_next_episode(
-        self,
-        session: Session,
-        evaluation: dict | None,
-        series: Series | None,
-    ) -> dict | None:
-        """Suggest next episode or content."""
-
-
 @dataclass
-class DirectorOutput:
-    """Output from Director evaluation."""
+class DirectorActions:
+    """Deterministic outputs for system behavior."""
 
-    director_state: dict
-    turn_count: int
-    is_complete: bool
-    completion_trigger: str | None
-    evaluation: dict | None
-    next_suggestion: dict | None
+    # Visual generation
+    visual_type: str = "none"           # character/object/atmosphere/instruction/none
+    visual_hint: Optional[str] = None   # What to show
+
+    # Episode progression
+    suggest_next: bool = False
+
+    # Monetization
+    deduct_sparks: int = 0
+
+    # Memory
+    save_memory: bool = False
+    memory_content: Optional[str] = None
+
+    # Flags
+    needs_sparks: bool = False  # User doesn't have enough
+```
+
+### Action Decision Logic
+
+```python
+def decide_actions(
+    evaluation: dict,
+    episode: EpisodeSettings,
+    session: Session,
+) -> DirectorActions:
+    """Convert semantic evaluation into deterministic actions."""
+
+    actions = DirectorActions()
+    turn = session.turn_count
+    visual_type = evaluation.get("visual_type", "none")
+
+    # --- Visual Generation ---
+    if episode.auto_scene_mode == "peaks":
+        # Generate on visual moments (any type except none)
+        if visual_type != "none":
+            actions.visual_type = visual_type
+            actions.visual_hint = evaluation.get("visual_hint")
+            # Only charge sparks for image generation (not instruction cards)
+            if visual_type in ("character", "object", "atmosphere"):
+                actions.deduct_sparks = episode.spark_cost_per_scene
+
+    elif episode.auto_scene_mode == "rhythmic":
+        # Generate every N turns
+        if turn > 0 and turn % episode.scene_interval == 0:
+            # Use detected type, or default to character
+            actions.visual_type = visual_type if visual_type != "none" else "character"
+            actions.visual_hint = evaluation.get("visual_hint") or "the current moment"
+            if actions.visual_type in ("character", "object", "atmosphere"):
+                actions.deduct_sparks = episode.spark_cost_per_scene
+
+    # --- Episode Progression ---
+    status = evaluation.get("status", "going")
+
+    if status == "done":
+        actions.suggest_next = True
+    elif episode.turn_budget and turn >= episode.turn_budget:
+        # Hard cap reached
+        actions.suggest_next = True
+
+    # --- Memory ---
+    if status in ("closing", "done"):
+        # Save something meaningful as episode winds down
+        actions.save_memory = True
+        actions.memory_content = evaluation.get("raw_response", "")[:500]
+
+    return actions
+```
+
+### Action Execution
+
+```python
+async def execute_actions(
+    self,
+    actions: DirectorActions,
+    session: Session,
+    user: User,
+) -> DirectorActions:
+    """Execute actions, handling constraints like spark balance."""
+
+    # Check spark balance for scene generation
+    if actions.generate_scene and actions.deduct_sparks > 0:
+        if user.sparks >= actions.deduct_sparks:
+            await self.deduct_sparks(user.id, actions.deduct_sparks)
+            await self.queue_scene_generation(session, actions.scene_hint)
+        else:
+            # Can't afford — signal to frontend
+            actions.generate_scene = False
+            actions.needs_sparks = True
+            actions.deduct_sparks = 0
+
+    # Save memory
+    if actions.save_memory and actions.memory_content:
+        await self.memory_service.save(
+            session_id=session.id,
+            content=actions.memory_content,
+            memory_type="episode_moment",
+        )
+
+    # Prep next episode suggestion
+    if actions.suggest_next:
+        await self.prep_episode_transition(session)
+
+    return actions
 ```
 
 ---
 
-## Implementation Priority
+## Episode Settings
 
-### Phase 1: Flirt Test MVP
-1. **Schema migration** — Add columns to sessions, episode_templates; create session_evaluations
-2. **Structured character output** — Modify LLM call to return JSON with dialogue/action/mood
-3. **DirectorService** — Turn counting, completion detection (`turn_limited`)
-4. **Evaluation generation** — Flirt archetype classification
-5. **Stream events** — `message_complete`, `episode_complete` with evaluation
-6. **Share infrastructure** — `session_evaluations` with share_id, result endpoint
+Episode templates become simpler — behavior-focused rather than logic-heavy.
 
-### Phase 2: Core Integration
-7. **Next episode suggestion** — Character continuity, series matching
-8. **Message metadata enrichment** — Director state in messages.metadata
-9. **Beat tracking (heuristic)** — Turn-position-based beat inference
+### Simplified Schema
 
-### Phase 3: Advanced Modes (Future)
-10. **Beat tracking (LLM)** — Real-time beat classification
-11. **Objective mode** — Flag-based completion for mystery/choices
-12. **Choice prompts** — UI for A/B decision points
+```python
+@dataclass
+class EpisodeSettings:
+    """Episode configuration for Director behavior."""
+
+    # --- Context (for LLM evaluation) ---
+    situation: str              # "ER at 2 AM, you're lost looking for someone"
+    dramatic_question: str      # "Can connection happen under pressure?"
+    genre: str                  # "medical_romance", "mystery", "thriller"
+
+    # --- Completion ---
+    turn_budget: Optional[int]  # Hard cap, or None for open-ended
+
+    # --- Visual Rhythm ---
+    auto_scene_mode: str        # "off", "peaks", "rhythmic"
+    scene_interval: Optional[int]  # For rhythmic mode (every N turns)
+    spark_cost_per_scene: int   # Monetization per auto-generated scene
+
+    # --- Progression ---
+    next_episode_id: Optional[UUID]  # What comes after
+    series_finale: bool         # Different handling for series end
+```
+
+### Database Schema
+
+```sql
+-- Episode templates (simplified)
+ALTER TABLE episode_templates
+    DROP COLUMN IF EXISTS completion_mode,
+    DROP COLUMN IF EXISTS completion_criteria,
+    DROP COLUMN IF EXISTS beat_guidance;
+
+ALTER TABLE episode_templates ADD COLUMN IF NOT EXISTS
+    genre TEXT DEFAULT 'romance',
+    auto_scene_mode TEXT DEFAULT 'off',  -- 'off', 'peaks', 'rhythmic'
+    scene_interval INT DEFAULT NULL,
+    spark_cost_per_scene INT DEFAULT 5,
+    series_finale BOOLEAN DEFAULT FALSE;
+
+-- Keep these existing columns:
+-- situation TEXT
+-- dramatic_question TEXT
+-- turn_budget INT
+-- next_episode_id UUID (via series linkage)
+```
+
+### auto_scene_mode Options
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `off` | No auto-generation; user clicks button | Default, manual control |
+| `peaks` | Generate when Director detects visual moment | Emotional highs, key reveals |
+| `rhythmic` | Generate every N turns (+ peaks) | Comic-book feel, consistent visuals |
 
 ---
 
-## Relationship to GTM Plan
+## Session State
 
-This architecture enables the Viral Play Feature:
+### Session Model
 
-| GTM Requirement | Director Capability |
-|-----------------|---------------------|
-| Bounded flirt test | `completion_mode: turn_limited` |
-| Archetype result | `evaluate_flirt_test()` |
-| "Continue with character" CTA | `suggest_next_episode()` |
-| Series-matched suggestions | Archetype → series matching |
+```python
+@dataclass
+class Session:
+    # ... existing fields ...
 
-The Director is **built for games, reusable for all content**.
+    # Director state
+    turn_count: int = 0
+    director_state: dict = field(default_factory=dict)
+
+    # Completion
+    session_state: str = "active"  # active, complete
+    completion_trigger: Optional[str] = None  # "semantic", "turn_limit"
+```
+
+### director_state Contents
+
+Minimal — just what's needed for continuity:
+
+```python
+director_state = {
+    "last_evaluation": {
+        "status": "closing",
+        "visual_type": "character",
+        "visual_hint": "She turned away to hide her smile",
+    },
+    "visuals_generated": 3,
+    "sparks_spent": 15,
+}
+```
+
+No beat tracking. No signal accumulation. The LLM re-evaluates fresh each exchange.
+
+---
+
+## Frontend Integration
+
+### Stream Events
+
+```python
+# After character response completes
+yield {
+    "type": "director",
+    "turn_count": session.turn_count,
+    "evaluation": {
+        "status": evaluation["status"],
+        "visual_type": evaluation.get("visual_type", "none"),
+        "visual_hint": evaluation.get("visual_hint"),
+    },
+    "actions": {
+        "visual_type": actions.visual_type,      # character/object/atmosphere/instruction/none
+        "visual_hint": actions.visual_hint,
+        "suggesting_next": actions.suggest_next,
+        "sparks_deducted": actions.deduct_sparks,
+        "needs_sparks": actions.needs_sparks,
+    },
+}
+
+# If generating a visual (async for images, immediate for instruction)
+if actions.visual_type == "instruction":
+    # Instruction cards render immediately (no image gen)
+    yield {
+        "type": "instruction_card",
+        "content": actions.visual_hint,
+    }
+elif actions.visual_type in ("character", "object", "atmosphere"):
+    # Image-based visuals start async generation
+    yield {
+        "type": "visual_pending",
+        "visual_type": actions.visual_type,
+        "hint": actions.visual_hint,
+        "sparks_deducted": actions.deduct_sparks,
+    }
+    # Kick off async generation, emit visual_ready when done
+
+# If episode complete
+if actions.suggest_next:
+    yield {
+        "type": "episode_complete",
+        "turn_count": session.turn_count,
+        "trigger": "semantic" if evaluation["status"] == "done" else "turn_limit",
+        "next_suggestion": await self.get_next_episode(session),
+    }
+```
+
+### TypeScript Types
+
+```typescript
+type VisualType = "character" | "object" | "atmosphere" | "instruction" | "none";
+
+interface StreamDirectorEvent {
+  type: "director";
+  turn_count: number;
+
+  evaluation: {
+    status: "going" | "closing" | "done";
+    visual_type: VisualType;
+    visual_hint: string | null;
+  };
+
+  actions: {
+    visual_type: VisualType;
+    visual_hint?: string;
+    suggesting_next: boolean;
+    sparks_deducted: number;
+    needs_sparks: boolean;
+  };
+}
+
+// Image-based visual starting generation
+interface StreamVisualPendingEvent {
+  type: "visual_pending";
+  visual_type: "character" | "object" | "atmosphere";
+  hint: string;
+  sparks_deducted: number;
+}
+
+// Image-based visual ready
+interface StreamVisualReadyEvent {
+  type: "visual_ready";
+  visual_type: "character" | "object" | "atmosphere";
+  image_url: string;
+  caption?: string;
+}
+
+// Instruction card (immediate, no image gen)
+interface StreamInstructionCardEvent {
+  type: "instruction_card";
+  content: string;  // "Supply Room - Code: 4721"
+}
+
+interface StreamEpisodeCompleteEvent {
+  type: "episode_complete";
+  turn_count: number;
+  trigger: "semantic" | "turn_limit";
+  next_suggestion: EpisodeSuggestion | null;
+}
+
+interface StreamNeedsSparksEvent {
+  type: "needs_sparks";
+  balance: number;
+  cost: number;
+}
+```
+
+### UI Components by Visual Type
+
+| Visual Type | Component | Rendering |
+|-------------|-----------|-----------|
+| `character` | `<SceneCard>` | Image with character (Kontext/T2I) |
+| `object` | `<ObjectCard>` | Close-up image, no character |
+| `atmosphere` | `<AtmosphereCard>` | Background/setting image |
+| `instruction` | `<InstructionCard>` | Styled text card (no image) |
+| `none` | — | Nothing rendered |
+
+### UI Responses to Actions
+
+| Action | UI Behavior |
+|--------|-------------|
+| `visual_type: "character"` | Show skeleton → render SceneCard when ready |
+| `visual_type: "object"` | Show skeleton → render ObjectCard when ready |
+| `visual_type: "instruction"` | Immediately render InstructionCard (free, no async) |
+| `suggesting_next: true` | Show InlineSuggestionCard with next episode |
+| `needs_sparks: true` | Show spark purchase prompt |
+| `status: "closing"` | Optional: subtle visual cue that episode is winding down |
+
+---
+
+## Monetization Integration
+
+Scene generation is the primary spark sink:
+
+```python
+# Episode settings drive cost
+episode.auto_scene_mode = "peaks"
+episode.spark_cost_per_scene = 5  # 5 sparks per auto-generated scene
+
+# User-initiated scenes (button click) can have different cost
+MANUAL_SCENE_COST = 3
+
+# Premium episodes might have higher visual density
+premium_episode.auto_scene_mode = "rhythmic"
+premium_episode.scene_interval = 3  # Scene every 3 turns
+premium_episode.spark_cost_per_scene = 5  # 5 sparks × ~4 scenes = 20 sparks/episode
+```
+
+### Spark Flow
+
+```
+Episode starts
+    ↓
+Turn 1: Director evaluates → no visual moment → no sparks
+    ↓
+Turn 2: Director evaluates → visual moment detected
+    ↓
+Check user sparks >= 5?
+    ├── Yes → Deduct 5, generate scene, show in chat
+    └── No → Set needs_sparks=true, prompt purchase
+    ↓
+Turn 3-N: Continue...
+    ↓
+Episode complete → Suggest next episode
+```
+
+---
+
+## Comparison: Old vs New
+
+| Aspect | Old Approach | New Approach |
+|--------|--------------|--------------|
+| **Completion detection** | `completion_mode` enum, beat tracking | Semantic "status: done" signal |
+| **Beat tracking** | `beats_completed[]`, `current_beat` | None — LLM evaluates fresh |
+| **Evaluation schema** | Typed (`flirt_archetype`, `mystery_progress`) | Freeform natural language |
+| **Scene triggers** | Manual button only | Auto on peaks or rhythm |
+| **Episode metadata** | Heavy (`beat_guidance`, `completion_criteria`) | Light (`genre`, `dramatic_question`) |
+| **Flexibility** | Genre-specific logic required | Genre-agnostic, LLM adapts |
+
+---
+
+## Implementation Phases
+
+### Phase 1: Semantic Evaluation Core
+1. Refactor `DirectorService.process_exchange()` to use semantic evaluation prompt
+2. Implement `_parse_evaluation()` with SIGNAL line parsing
+3. Implement `decide_actions()` logic
+4. Update stream events to include director signals
+5. Add `auto_scene_mode`, `scene_interval`, `spark_cost_per_scene` to episode_templates
+
+### Phase 2: Scene Generation Integration
+6. Wire auto-scene generation to existing scene service
+7. Implement spark checking/deduction in `execute_actions()`
+8. Frontend: Handle `generating_scene` and `needs_sparks` actions
+9. Add SceneCardSkeleton for loading state
+
+### Phase 3: Cleanup
+10. Remove unused columns: `completion_mode`, `completion_criteria`, `beat_guidance`
+11. Simplify `director_state` schema
+12. Update existing episodes to use new settings
+
+---
+
+## Key Design Decisions
+
+### Why no beat tracking?
+
+Beats were a video game concept ported to LLMs. The LLM doesn't need us to tell it "you're in the escalation phase" — it can feel when tension is rising. Beat tracking created metadata we couldn't use (no code to detect beats) and rigid structures that didn't match genre diversity.
+
+### Why freeform evaluation?
+
+Pre-defining `connection_level: "genuine"` or `tension: 0.7` forces the LLM into our mental model. Different genres have different "what matters" — romance cares about vulnerability moments, mystery cares about clue revelation, thriller cares about threat escalation. Natural language lets the LLM express genre-appropriate observations.
+
+### Why structured actions?
+
+User-facing behavior must be predictable. "Generate a scene" is a yes/no with clear cost. "Suggest next episode" triggers specific UI. Monetization requires explicit spark deduction. The semantic layer interprets; the action layer executes.
+
+### Why SIGNAL line?
+
+Balance between rich evaluation (for debugging, potential features) and reliable parsing. The LLM writes naturally, then summarizes into parseable format. Fallback parsing handles cases where SIGNAL line is malformed.
 
 ---
 
 ## References
 
-- [VIRAL_PLAY_FEATURE_GTM.md](plans/VIRAL_PLAY_FEATURE_GTM.md) — GTM strategy
 - [EPISODE_DYNAMICS_CANON.md](EPISODE_DYNAMICS_CANON.md) — Episode philosophy
-- [conversation.py](../substrate-api/api/src/app/services/conversation.py) — Current implementation
+- [conversation.py](../substrate-api/api/src/app/services/conversation.py) — Conversation service
+- [director.py](../substrate-api/api/src/app/services/director.py) — Current Director implementation

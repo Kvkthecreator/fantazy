@@ -257,7 +257,7 @@ export interface EpisodeDiscoveryItem extends EpisodeTemplateSummary {
 
 /**
  * Episode Template - full details for starting a conversation
- * Extended with Episode Dynamics per EPISODE_DYNAMICS_CANON.md
+ * Extended with Director V2 configuration per DIRECTOR_ARCHITECTURE.md
  */
 export interface EpisodeTemplate extends EpisodeTemplateSummary {
   character_id: string | null;  // Anchor character (nullable for drafts)
@@ -270,10 +270,16 @@ export interface EpisodeTemplate extends EpisodeTemplateSummary {
   starter_prompts?: string[];  // Optional - falls back to character's prompts
   sort_order: number;
   status: string;
-  // Episode Dynamics (per EPISODE_DYNAMICS_CANON.md)
+  // Episode Dynamics
   dramatic_question: string | null;  // Narrative tension to explore
-  beat_guidance: Record<string, string>;  // Soft waypoints: establishment, complication, escalation, pivot_opportunity
   resolution_types: string[];  // Valid endings: positive, neutral, negative, surprise
+  // Director V2 configuration
+  genre: string;  // Story genre for semantic evaluation
+  auto_scene_mode: AutoSceneMode;  // off, peaks, rhythmic
+  scene_interval: number | null;  // For rhythmic mode
+  spark_cost_per_scene: number;  // Cost per auto-generated visual
+  series_finale: boolean;  // Is this the last episode in series
+  turn_budget: number | null;  // Optional turn limit
 }
 
 // Message types
@@ -843,22 +849,34 @@ export interface GalleryStatusResponse {
 }
 
 // ============================================================================
-// Director & Completion Types (per DIRECTOR_ARCHITECTURE.md)
+// Director V2 Types (per DIRECTOR_ARCHITECTURE.md)
 // ============================================================================
 
 /**
- * Completion mode for bounded episodes
+ * Auto scene generation mode
  */
-export type CompletionMode = "open" | "turn_limited" | "beat_gated" | "objective";
+export type AutoSceneMode = "off" | "peaks" | "rhythmic";
+
+/**
+ * Visual type taxonomy for Director-triggered visuals
+ */
+export type VisualType = "character" | "object" | "atmosphere" | "instruction" | "none";
+
+/**
+ * Director semantic status
+ */
+export type DirectorStatus = "going" | "closing" | "done";
 
 /**
  * Director state tracked per session
  */
 export interface DirectorState {
-  current_beat?: string;
-  tension_level?: number;
-  signals?: Record<string, unknown>[];
-  beat_history?: string[];
+  last_evaluation?: {
+    status: DirectorStatus;
+    visual_type: VisualType;
+    turn: number;
+  };
+  spark_prompt_shown?: boolean;
 }
 
 /**
@@ -874,12 +892,15 @@ export interface SessionWithDirector extends Session {
 }
 
 /**
- * Extended Episode Template with completion configuration
+ * Extended Episode Template with Director V2 configuration
  */
-export interface EpisodeTemplateWithCompletion extends EpisodeTemplate {
-  completion_mode: CompletionMode;
+export interface EpisodeTemplateWithDirector extends EpisodeTemplate {
+  genre: string;
+  auto_scene_mode: AutoSceneMode;
+  scene_interval: number | null;
+  spark_cost_per_scene: number;
+  series_finale: boolean;
   turn_budget: number | null;
-  completion_criteria: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -1032,7 +1053,7 @@ export interface FlirtArchetypeEvaluation {
 }
 
 // ============================================================================
-// Stream Event Types (for conversation streaming with Director integration)
+// Stream Event Types (for conversation streaming with Director V2 integration)
 // ============================================================================
 
 /**
@@ -1044,12 +1065,13 @@ export interface StreamChunkEvent {
 }
 
 /**
- * Director state in stream events
+ * Director state in stream events (V2)
  */
 export interface StreamDirectorState {
   turn_count: number;
   turns_remaining: number | null;
   is_complete: boolean;
+  status: DirectorStatus;  // V2: semantic status (going/closing/done)
 }
 
 /**
@@ -1064,18 +1086,47 @@ export interface StreamDoneEvent {
 }
 
 /**
+ * Visual pending event - image generation started (V2)
+ */
+export interface StreamVisualPendingEvent {
+  type: "visual_pending";
+  visual_type: Exclude<VisualType, "none" | "instruction">;  // character/object/atmosphere
+  visual_hint: string | null;
+  sparks_deducted: number;
+}
+
+/**
+ * Visual ready event - image generation complete (V2)
+ */
+export interface StreamVisualReadyEvent {
+  type: "visual_ready";
+  image_url: string;
+  caption?: string;
+}
+
+/**
+ * Instruction card event - game-like information card (V2)
+ */
+export interface StreamInstructionCardEvent {
+  type: "instruction_card";
+  content: string;
+}
+
+/**
+ * Needs sparks event - user needs more sparks for visuals (V2)
+ */
+export interface StreamNeedsSparksEvent {
+  type: "needs_sparks";
+  message: string;
+}
+
+/**
  * Episode complete event - Director detected completion
  */
 export interface StreamEpisodeCompleteEvent {
   type: "episode_complete";
   turn_count: number;
-  evaluation: {
-    id: string;
-    session_id: string;
-    evaluation_type: EvaluationType;
-    result: FlirtArchetypeEvaluation | Record<string, unknown>;
-    share_id: string;
-  } | null;
+  trigger: string;  // V2: "semantic" | "turn_limit" | "unknown"
   next_suggestion: {
     episode_id: string;
     title: string;
@@ -1089,4 +1140,11 @@ export interface StreamEpisodeCompleteEvent {
 /**
  * Union of all stream event types
  */
-export type StreamEvent = StreamChunkEvent | StreamDoneEvent | StreamEpisodeCompleteEvent;
+export type StreamEvent =
+  | StreamChunkEvent
+  | StreamDoneEvent
+  | StreamVisualPendingEvent
+  | StreamVisualReadyEvent
+  | StreamInstructionCardEvent
+  | StreamNeedsSparksEvent
+  | StreamEpisodeCompleteEvent;

@@ -1,23 +1,21 @@
-"""Director Service - Unified post-exchange processing.
+"""Director Service - Semantic evaluation and runtime orchestration.
 
 The Director is the system entity that observes, evaluates, and orchestrates
-episode progression. It merges with the existing _process_exchange() flow
-to avoid duplicate LLM calls.
+episode progression through semantic understanding rather than state machines.
 
 Reference: docs/DIRECTOR_ARCHITECTURE.md
 """
 
 import json
 import logging
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+import re
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from app.models.episode_template import CompletionMode, EpisodeTemplate
+from app.models.episode_template import EpisodeTemplate, AutoSceneMode
 from app.models.session import Session
 from app.models.evaluation import (
-    SessionEvaluation,
-    SessionEvaluationCreate,
     EvaluationType,
     FlirtArchetype,
     FLIRT_ARCHETYPES,
@@ -29,47 +27,239 @@ log = logging.getLogger(__name__)
 
 
 @dataclass
-class DirectorOutput:
-    """Output from Director processing."""
-    # Memory/hook data (existing behavior)
-    extracted_memories: List[Dict[str, Any]]
-    beat_data: Optional[Dict[str, Any]]
-    extracted_hooks: List[Dict[str, Any]]
+class DirectorActions:
+    """Deterministic outputs for system behavior.
 
-    # Director-specific data
-    turn_count: int
-    is_complete: bool
-    completion_trigger: Optional[str]  # "turn_limit", "beat_gate", "objective", None
-
-    # Structured character output (if enabled)
-    structured_response: Optional[Dict[str, Any]]
-
-    # Evaluation (if episode completed)
-    evaluation: Optional[Dict[str, Any]]
+    These are explicit actions the system should take - no interpretation needed.
+    """
+    visual_type: str = "none"  # character/object/atmosphere/instruction/none
+    visual_hint: Optional[str] = None  # What to show (for image generation)
+    suggest_next: bool = False  # Suggest moving to next episode
+    deduct_sparks: int = 0  # Sparks to deduct for scene generation
+    save_memory: bool = False  # Save evaluation as memory
+    memory_content: Optional[str] = None  # Content to save
+    needs_sparks: bool = False  # User needs more sparks (first-time prompt)
 
 
 @dataclass
-class CompletionCheck:
-    """Result of completion check."""
+class DirectorOutput:
+    """Output from Director processing."""
+    # Core state
+    turn_count: int
     is_complete: bool
-    trigger: Optional[str]  # What triggered completion
-    reason: Optional[str]  # Human-readable reason
+    completion_trigger: Optional[str]  # "semantic", "turn_limit", None
+
+    # Semantic evaluation result
+    evaluation: Optional[Dict[str, Any]] = None
+
+    # Deterministic actions
+    actions: Optional[DirectorActions] = None
+
+    # Legacy compatibility (will be removed)
+    extracted_memories: List[Dict[str, Any]] = field(default_factory=list)
+    beat_data: Optional[Dict[str, Any]] = None
+    extracted_hooks: List[Dict[str, Any]] = field(default_factory=list)
+    structured_response: Optional[Dict[str, Any]] = None
 
 
 class DirectorService:
-    """Director service - unified post-exchange processing.
+    """Director service - semantic evaluation and runtime orchestration.
 
     The Director is the "brain, eyes, ears, and hands" of the conversation system:
     - Eyes/Ears: Observes all exchanges
-    - Brain: Evaluates state, progression, completion
-    - Hands: Triggers actions (completion, UI updates, evaluations)
-
-    This service merges with _process_exchange() to avoid duplicate analysis.
+    - Brain: Evaluates semantically (not state machines)
+    - Hands: Triggers deterministic actions
     """
 
     def __init__(self, db):
         self.db = db
         self.llm = LLMService.get_instance()
+
+    async def evaluate_exchange(
+        self,
+        messages: List[Dict[str, str]],
+        character_name: str,
+        genre: str,
+        situation: str,
+        dramatic_question: str,
+    ) -> Dict[str, Any]:
+        """Semantic evaluation of exchange.
+
+        Uses LLM to understand the meaning and emotional state of the conversation,
+        then extracts minimal structured signals for deterministic action.
+        """
+        # Format recent messages (last 3 exchanges = 6 messages)
+        recent = messages[-6:] if len(messages) > 6 else messages
+        formatted = "\n".join(
+            f"{m['role'].upper()}: {m['content']}"
+            for m in recent
+        )
+
+        prompt = f"""You are the Director observing a {genre} story.
+
+Character: {character_name}
+Situation: {situation}
+Core tension: {dramatic_question}
+
+RECENT EXCHANGE:
+{formatted}
+
+As a director, observe this moment. Answer naturally, then provide signals.
+
+1. VISUAL: Would this exchange benefit from a visual element?
+   - CHARACTER: A shot featuring the character (portrait, expression, pose)
+   - OBJECT: Close-up of an item (letter, phone, key, evidence)
+   - ATMOSPHERE: Setting/mood without character visible
+   - INSTRUCTION: Game-like information (codes, hints, choices)
+   - NONE: No visual needed
+
+   If not NONE, describe what should be shown in one evocative sentence.
+
+2. STATUS: Is this episode ready to close, approaching closure, or still unfolding?
+   Explain briefly in terms that make sense for this {genre} story.
+
+End with a signal line for parsing:
+SIGNAL: [visual: character/object/atmosphere/instruction/none] [status: going/closing/done]
+If visual is not "none", add: [hint: <description>]"""
+
+        try:
+            response = await self.llm.generate([
+                {"role": "system", "content": "You are a story director. Be concise."},
+                {"role": "user", "content": prompt}
+            ], max_tokens=250)
+
+            return self._parse_evaluation(response.content)
+        except Exception as e:
+            log.error(f"Director evaluation failed: {e}")
+            return {
+                "raw_response": "",
+                "visual_type": "none",
+                "visual_hint": None,
+                "status": "going",
+            }
+
+    def _parse_evaluation(self, response: str) -> Dict[str, Any]:
+        """Parse natural language evaluation into actionable signals."""
+        # Extract signal line with visual type
+        signal_match = re.search(
+            r'SIGNAL:\s*\[visual:\s*(character|object|atmosphere|instruction|none)\]\s*\[status:\s*(going|closing|done)\]',
+            response, re.IGNORECASE
+        )
+
+        # Extract hint if present
+        hint_match = re.search(r'\[hint:\s*([^\]]+)\]', response, re.IGNORECASE)
+
+        if signal_match:
+            visual_type = signal_match.group(1).lower()
+            status_signal = signal_match.group(2).lower()
+            visual_hint = hint_match.group(1).strip() if hint_match else None
+        else:
+            # Fallback parsing
+            visual_type = 'none'
+            status_signal = 'done' if 'done' in response.lower() else 'going'
+            visual_hint = None
+
+        return {
+            "raw_response": response,
+            "visual_type": visual_type,
+            "visual_hint": visual_hint,
+            "status": status_signal,
+        }
+
+    def decide_actions(
+        self,
+        evaluation: Dict[str, Any],
+        episode: Optional[EpisodeTemplate],
+        session: Session,
+    ) -> DirectorActions:
+        """Convert semantic evaluation into deterministic actions."""
+        actions = DirectorActions()
+        turn = session.turn_count + 1  # New turn count after this exchange
+        visual_type = evaluation.get("visual_type", "none")
+
+        if not episode:
+            return actions
+
+        # --- Visual Generation ---
+        auto_mode = getattr(episode, 'auto_scene_mode', AutoSceneMode.OFF)
+
+        if auto_mode == AutoSceneMode.PEAKS:
+            # Generate on visual moments (any type except none)
+            if visual_type != "none":
+                actions.visual_type = visual_type
+                actions.visual_hint = evaluation.get("visual_hint")
+                # Only charge sparks for image generation (not instruction cards)
+                if visual_type in ("character", "object", "atmosphere"):
+                    actions.deduct_sparks = getattr(episode, 'spark_cost_per_scene', 5)
+
+        elif auto_mode == AutoSceneMode.RHYTHMIC:
+            interval = getattr(episode, 'scene_interval', 3) or 3
+            if turn > 0 and turn % interval == 0:
+                # Use detected type, or default to character
+                actions.visual_type = visual_type if visual_type != "none" else "character"
+                actions.visual_hint = evaluation.get("visual_hint") or "the current moment"
+                if actions.visual_type in ("character", "object", "atmosphere"):
+                    actions.deduct_sparks = getattr(episode, 'spark_cost_per_scene', 5)
+
+        # --- Episode Progression ---
+        status = evaluation.get("status", "going")
+        turn_budget = getattr(episode, 'turn_budget', None)
+
+        if status == "done":
+            actions.suggest_next = True
+        elif turn_budget and turn >= turn_budget:
+            actions.suggest_next = True
+
+        # --- Memory ---
+        if status in ("closing", "done") and evaluation.get("raw_response"):
+            actions.save_memory = True
+            actions.memory_content = evaluation["raw_response"][:500]
+
+        return actions
+
+    async def execute_actions(
+        self,
+        actions: DirectorActions,
+        session: Session,
+        user_id: UUID,
+    ) -> DirectorActions:
+        """Execute actions, handling spark balance.
+
+        Returns potentially modified actions (e.g., if sparks insufficient).
+        """
+        from app.services.credits import CreditsService, InsufficientSparksError
+
+        credits = CreditsService.get_instance()
+
+        # Handle scene generation with spark check
+        if actions.visual_type != "none" and actions.deduct_sparks > 0:
+            director_state = dict(session.director_state) if session.director_state else {}
+
+            try:
+                # Try to spend sparks
+                await credits.spend(
+                    user_id=user_id,
+                    feature_key="auto_scene",
+                    explicit_cost=actions.deduct_sparks,
+                    reference_id=str(session.id),
+                    metadata={"scene_hint": actions.visual_hint},
+                )
+                # Sparks deducted, proceed with generation
+
+            except InsufficientSparksError:
+                # Can't afford
+                actions.visual_type = "none"
+                actions.visual_hint = None
+                actions.deduct_sparks = 0
+
+                # Only show prompt once per episode
+                if not director_state.get("spark_prompt_shown"):
+                    actions.needs_sparks = True
+                    director_state["spark_prompt_shown"] = True
+                    # Update session state
+                    await self._update_director_state(session.id, director_state)
+
+        return actions
 
     async def process_exchange(
         self,
@@ -80,287 +270,85 @@ class DirectorService:
         user_id: UUID,
         structured_response: Optional[Dict[str, Any]] = None,
     ) -> DirectorOutput:
-        """Process a complete exchange.
+        """Process exchange with semantic evaluation.
 
-        This is the unified entry point that replaces _process_exchange().
-        It handles:
-        1. Memory/hook extraction (existing behavior)
-        2. Turn counting and state updates
-        3. Completion detection
-        4. Evaluation generation (if complete)
-
-        Args:
-            session: Current session
-            episode_template: Template if playing an episode (can be None for free-form)
-            messages: Full conversation history
-            character_id: Character UUID
-            user_id: User UUID
-            structured_response: Structured LLM output (if using structured mode)
-
-        Returns:
-            DirectorOutput with all processing results
+        This is the unified entry point for Director processing.
         """
         # 1. Increment turn count
         new_turn_count = session.turn_count + 1
 
-        # 2. Update director state with structured response signals
-        # Handle None case for director_state
+        # 2. Get character for evaluation
+        character = await self._get_character(character_id)
+        character_name = character.get("name", "Character") if character else "Character"
+
+        # 3. Semantic evaluation
+        if episode_template:
+            evaluation = await self.evaluate_exchange(
+                messages=messages,
+                character_name=character_name,
+                genre=getattr(episode_template, 'genre', 'romance'),
+                situation=episode_template.situation or "",
+                dramatic_question=episode_template.dramatic_question or "",
+            )
+        else:
+            # Free-form chat - minimal evaluation
+            evaluation = {"status": "going", "visual_type": "none", "raw_response": ""}
+
+        # 4. Decide actions
+        actions = self.decide_actions(evaluation, episode_template, session) if episode_template else DirectorActions()
+
+        # 5. Execute actions (spark check, etc.)
+        actions = await self.execute_actions(actions, session, user_id)
+
+        # 6. Determine completion
+        is_complete = actions.suggest_next
+        completion_trigger = None
+        if is_complete:
+            if evaluation.get("status") == "done":
+                completion_trigger = "semantic"
+            elif episode_template and getattr(episode_template, 'turn_budget', None):
+                if new_turn_count >= episode_template.turn_budget:
+                    completion_trigger = "turn_limit"
+
+        # 7. Update session state
         director_state = dict(session.director_state) if session.director_state else {}
-        if structured_response:
-            # Extract signals from structured response
-            tension_shift = structured_response.get("tension_shift", 0)
-            mood = structured_response.get("mood")
+        director_state["last_evaluation"] = {
+            "status": evaluation.get("status"),
+            "visual_type": evaluation.get("visual_type"),
+            "turn": new_turn_count,
+        }
 
-            # Update tension level
-            current_tension = director_state.get("tension_level", 50)
-            new_tension = max(0, min(100, current_tension + int(tension_shift * 10)))
-            director_state["tension_level"] = new_tension
-
-            # Track mood history
-            mood_history = director_state.get("mood_history", [])
-            if mood:
-                mood_history.append(mood)
-                director_state["mood_history"] = mood_history[-10:]  # Keep last 10
-
-            # Track signals for evaluation
-            signals = director_state.get("signals", [])
-            signals.append({
-                "turn": new_turn_count,
-                "mood": mood,
-                "tension_shift": tension_shift,
-            })
-            director_state["signals"] = signals[-20:]  # Keep last 20
-
-        # 3. Check completion
-        completion = await self.check_completion(
-            session=session,
-            episode_template=episode_template,
-            turn_count=new_turn_count,
-            director_state=director_state,
-        )
-
-        # 4. Update session in database
         await self._update_session_director_state(
             session_id=session.id,
             turn_count=new_turn_count,
             director_state=director_state,
-            is_complete=completion.is_complete,
-            completion_trigger=completion.trigger,
+            is_complete=is_complete,
+            completion_trigger=completion_trigger,
         )
 
-        # 5. Generate evaluation if complete
-        evaluation = None
-        if completion.is_complete and episode_template:
-            evaluation = await self.generate_evaluation(
-                session_id=session.id,
-                evaluation_type=self._get_evaluation_type(episode_template),
-                messages=messages,
-                director_state=director_state,
-            )
-
+        # 8. Build output
         return DirectorOutput(
-            extracted_memories=[],  # Will be populated by caller (memory_service)
-            beat_data=None,  # Will be populated by caller
-            extracted_hooks=[],  # Will be populated by caller
             turn_count=new_turn_count,
-            is_complete=completion.is_complete,
-            completion_trigger=completion.trigger,
-            structured_response=structured_response,
+            is_complete=is_complete,
+            completion_trigger=completion_trigger,
             evaluation=evaluation,
+            actions=actions,
         )
 
-    async def check_completion(
-        self,
-        session: Session,
-        episode_template: Optional[EpisodeTemplate],
-        turn_count: int,
-        director_state: Dict[str, Any],
-    ) -> CompletionCheck:
-        """Check if episode should complete.
-
-        Checks based on completion_mode:
-        - open: Never auto-complete (user/fade decides)
-        - turn_limited: Complete when turn_count >= turn_budget
-        - beat_gated: Complete when required beat is reached (future)
-        - objective: Complete when objective is achieved (future)
-        """
-        if not episode_template:
-            return CompletionCheck(is_complete=False, trigger=None, reason=None)
-
-        completion_mode = getattr(episode_template, 'completion_mode', CompletionMode.OPEN)
-
-        if completion_mode == CompletionMode.OPEN:
-            return CompletionCheck(is_complete=False, trigger=None, reason=None)
-
-        elif completion_mode == CompletionMode.TURN_LIMITED:
-            turn_budget = getattr(episode_template, 'turn_budget', None)
-            if turn_budget and turn_count >= turn_budget:
-                return CompletionCheck(
-                    is_complete=True,
-                    trigger="turn_limit",
-                    reason=f"Reached turn limit ({turn_count}/{turn_budget})"
-                )
-            return CompletionCheck(is_complete=False, trigger=None, reason=None)
-
-        elif completion_mode == CompletionMode.BEAT_GATED:
-            # Future: Check if required beat has been reached
-            criteria = getattr(episode_template, 'completion_criteria', {})
-            required_beat = criteria.get("required_beat")
-            current_beat = director_state.get("current_beat")
-
-            if required_beat and current_beat == required_beat:
-                return CompletionCheck(
-                    is_complete=True,
-                    trigger="beat_gate",
-                    reason=f"Reached required beat: {required_beat}"
-                )
-            return CompletionCheck(is_complete=False, trigger=None, reason=None)
-
-        elif completion_mode == CompletionMode.OBJECTIVE:
-            # Future: Check if objective is achieved
-            return CompletionCheck(is_complete=False, trigger=None, reason=None)
-
-        return CompletionCheck(is_complete=False, trigger=None, reason=None)
-
-    async def generate_evaluation(
-        self,
-        session_id: UUID,
-        evaluation_type: str,
-        messages: List[Dict[str, str]],
-        director_state: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Generate evaluation at episode completion.
-
-        Currently supports:
-        - flirt_archetype: Classify user's flirt style
-
-        Future:
-        - mystery_summary: Summarize mystery episode
-        - compatibility: Character compatibility score
-        """
-        if evaluation_type == EvaluationType.FLIRT_ARCHETYPE:
-            result = await self._evaluate_flirt_archetype(messages, director_state)
-        else:
-            # Default to episode summary
-            result = await self._evaluate_episode_summary(messages, director_state)
-
-        # Generate share ID
-        share_id = generate_share_id()
-
-        # Save to database
-        evaluation_id = await self._save_evaluation(
-            session_id=session_id,
-            evaluation_type=evaluation_type,
-            result=result,
-            share_id=share_id,
+    async def _get_character(self, character_id: UUID) -> Optional[Dict[str, Any]]:
+        """Get character data."""
+        row = await self.db.fetch_one(
+            "SELECT name, archetype FROM characters WHERE id = :character_id",
+            {"character_id": str(character_id)}
         )
+        return dict(row) if row else None
 
-        return {
-            "id": str(evaluation_id),
-            "session_id": str(session_id),
-            "evaluation_type": evaluation_type,
-            "result": result,
-            "share_id": share_id,
-        }
-
-    async def _evaluate_flirt_archetype(
-        self,
-        messages: List[Dict[str, str]],
-        director_state: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Evaluate flirt archetype from conversation."""
-        # Format conversation for analysis
-        conversation = "\n".join(
-            f"{m['role'].upper()}: {m['content']}"
-            for m in messages
-            if m['role'] in ('user', 'assistant')
+    async def _update_director_state(self, session_id: UUID, director_state: Dict[str, Any]):
+        """Update just the director_state field."""
+        await self.db.execute(
+            "UPDATE sessions SET director_state = :director_state WHERE id = :session_id",
+            {"director_state": json.dumps(director_state), "session_id": str(session_id)}
         )
-
-        # Format signals
-        signals = director_state.get("signals", [])
-        signals_str = json.dumps(signals, indent=2) if signals else "No signals tracked"
-
-        prompt = f"""Analyze this flirtatious conversation and classify the user's flirt style.
-
-CONVERSATION:
-{conversation}
-
-STRUCTURED SIGNALS:
-{signals_str}
-
-Based on the user's responses, determine their primary flirt archetype:
-- tension_builder: Masters the pause, creates anticipation, comfortable with silence
-- bold_mover: Direct, confident, takes initiative, says what they want
-- playful_tease: Light, fun, uses humor, keeps it breezy
-- slow_burn: Patient, builds connection, values depth over speed
-- mysterious_allure: Intriguing, doesn't reveal everything, leaves them wanting more
-
-Return ONLY valid JSON (no markdown):
-{{
-    "archetype": "<key>",
-    "confidence": 0.0-1.0,
-    "primary_signals": ["signal1", "signal2", "signal3"],
-    "reasoning": "Brief explanation of why this archetype"
-}}"""
-
-        try:
-            response = await self.llm.generate([
-                {"role": "system", "content": "You are an expert at analyzing flirtation styles and romantic communication patterns. Respond only with valid JSON."},
-                {"role": "user", "content": prompt}
-            ])
-
-            # Parse response
-            result = json.loads(response.content)
-            archetype = result.get("archetype", FlirtArchetype.PLAYFUL_TEASE)
-
-            # Get metadata from constants
-            metadata = FLIRT_ARCHETYPES.get(archetype, FLIRT_ARCHETYPES[FlirtArchetype.PLAYFUL_TEASE])
-
-            return {
-                "archetype": archetype,
-                "confidence": result.get("confidence", 0.7),
-                "primary_signals": result.get("primary_signals", []),
-                "title": metadata["title"],
-                "description": metadata["description"],
-            }
-
-        except Exception as e:
-            log.error(f"Flirt archetype evaluation failed: {e}")
-            # Default fallback
-            return {
-                "archetype": FlirtArchetype.PLAYFUL_TEASE,
-                "confidence": 0.5,
-                "primary_signals": [],
-                "title": FLIRT_ARCHETYPES[FlirtArchetype.PLAYFUL_TEASE]["title"],
-                "description": FLIRT_ARCHETYPES[FlirtArchetype.PLAYFUL_TEASE]["description"],
-            }
-
-    async def _evaluate_episode_summary(
-        self,
-        messages: List[Dict[str, str]],
-        director_state: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        """Generate episode summary evaluation."""
-        # Simple summary - can be enhanced later
-        return {
-            "summary": "Episode completed",
-            "turn_count": len([m for m in messages if m['role'] == 'user']),
-            "final_tension": director_state.get("tension_level", 50),
-        }
-
-    def _get_evaluation_type(self, episode_template: EpisodeTemplate) -> str:
-        """Determine evaluation type from episode template."""
-        # Check completion_criteria for evaluation type hint
-        criteria = getattr(episode_template, 'completion_criteria', {})
-        if criteria.get("evaluation_type"):
-            return criteria["evaluation_type"]
-
-        # Check series/title for hints
-        title = episode_template.title.lower() if episode_template.title else ""
-        if "flirt" in title or "test" in title:
-            return EvaluationType.FLIRT_ARCHETYPE
-
-        return EvaluationType.EPISODE_SUMMARY
 
     async def _update_session_director_state(
         self,
@@ -388,77 +376,12 @@ Return ONLY valid JSON (no markdown):
             updates
         )
 
-    async def _save_evaluation(
-        self,
-        session_id: UUID,
-        evaluation_type: str,
-        result: Dict[str, Any],
-        share_id: str,
-    ) -> UUID:
-        """Save evaluation to database."""
-        row = await self.db.fetch_one(
-            """
-            INSERT INTO session_evaluations (session_id, evaluation_type, result, share_id, model_used)
-            VALUES (:session_id, :evaluation_type, :result, :share_id, :model_used)
-            RETURNING id
-            """,
-            {
-                "session_id": str(session_id),
-                "evaluation_type": evaluation_type,
-                "result": json.dumps(result),
-                "share_id": share_id,
-                "model_used": self.llm.model_name if hasattr(self.llm, 'model_name') else None,
-            }
-        )
-        return row["id"]
-
-    async def get_evaluation_by_share_id(self, share_id: str) -> Optional[Dict[str, Any]]:
-        """Get evaluation by share ID (for share pages)."""
-        row = await self.db.fetch_one(
-            """
-            SELECT
-                se.*,
-                s.character_id,
-                c.name as character_name,
-                s.series_id
-            FROM session_evaluations se
-            JOIN sessions s ON s.id = se.session_id
-            LEFT JOIN characters c ON c.id = s.character_id
-            WHERE se.share_id = :share_id
-            """,
-            {"share_id": share_id}
-        )
-
-        if not row:
-            return None
-
-        return {
-            "evaluation_type": row["evaluation_type"],
-            "result": json.loads(row["result"]) if isinstance(row["result"], str) else row["result"],
-            "share_id": row["share_id"],
-            "share_count": row["share_count"],
-            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-            "character_id": str(row["character_id"]) if row["character_id"] else None,
-            "character_name": row["character_name"],
-            "series_id": str(row["series_id"]) if row["series_id"] else None,
-        }
-
-    async def increment_share_count(self, share_id: str):
-        """Increment share count for analytics."""
-        await self.db.execute(
-            "UPDATE session_evaluations SET share_count = share_count + 1 WHERE share_id = :share_id",
-            {"share_id": share_id}
-        )
-
     async def suggest_next_episode(
         self,
         session: Session,
         evaluation: Optional[Dict[str, Any]],
     ) -> Optional[Dict[str, Any]]:
-        """Suggest next episode based on current session and evaluation.
-
-        Future enhancement: Use evaluation results to match appropriate content.
-        """
+        """Suggest next episode based on current session."""
         if not session.series_id:
             return None
 
