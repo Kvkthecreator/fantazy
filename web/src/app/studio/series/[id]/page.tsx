@@ -395,7 +395,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
                 <div className="space-y-2">
                   <Label>Series Type</Label>
                   <div className="grid grid-cols-2 gap-2">
-                    {(['standalone', 'serial', 'anthology', 'crossover'] as const).map(type => (
+                    {(['standalone', 'serial', 'anthology', 'crossover', 'play'] as const).map(type => (
                       <button
                         key={type}
                         onClick={() => updateForm('series_type', type)}
@@ -415,6 +415,7 @@ export default function SeriesDetailPage({ params }: PageProps) {
                     {editForm.series_type === 'serial' && 'Sequential narrative, Episode 0 recommended first'}
                     {editForm.series_type === 'anthology' && 'Themed collection, loosely connected'}
                     {editForm.series_type === 'crossover' && 'Multiple characters from different worlds'}
+                    {editForm.series_type === 'play' && 'Viral/game content for /play route (anonymous-first)'}
                   </p>
                 </div>
 

@@ -26,6 +26,7 @@ const SERIES_TYPES = [
   { value: 'serial', label: 'Serial', description: 'Sequential narrative, Episode 0 recommended first' },
   { value: 'anthology', label: 'Anthology', description: 'Themed collection, loosely connected stories' },
   { value: 'crossover', label: 'Crossover', description: 'Multiple characters from different worlds' },
+  { value: 'play', label: 'Play', description: 'Viral/game content for /play route (anonymous-first)' },
 ] as const
 
 export default function CreateSeriesPage() {
@@ -40,7 +41,7 @@ export default function CreateSeriesPage() {
     tagline: '',
     description: '',
     genre: 'romantic_tension' as string,
-    series_type: 'standalone' as 'standalone' | 'serial' | 'anthology' | 'crossover',
+    series_type: 'standalone' as 'standalone' | 'serial' | 'anthology' | 'crossover' | 'play',
     world_id: '' as string | null,
   })
 
