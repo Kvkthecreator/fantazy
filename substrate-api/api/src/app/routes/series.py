@@ -747,6 +747,7 @@ async def get_continue_watching(
 
     # Get user's most recent session per series, with series and episode info
     # Only include sessions that have an episode template (exclude free chat sessions)
+    # Excludes 'play' type series (viral/game content) from main app continue watching
     query = """
         WITH ranked_sessions AS (
             SELECT
@@ -782,6 +783,7 @@ async def get_continue_watching(
         LEFT JOIN episode_templates et ON et.id = rs.episode_template_id
         LEFT JOIN characters c ON c.id = rs.character_id
         WHERE rs.rn = 1
+        AND ser.series_type != 'play'
         ORDER BY rs.started_at DESC
         LIMIT :limit
     """

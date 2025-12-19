@@ -9,15 +9,13 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { RateLimitModal } from "./RateLimitModal";
-import { EpisodeDrawer } from "./EpisodeDrawer";
-import { EpisodeCompleteModal } from "./EpisodeCompleteModal";
+import { InlineCompletionCard } from "./InlineCompletionCard";
+import { InlineSuggestionCard } from "./InlineSuggestionCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuotaExceededModal } from "@/components/usage";
 import { InsufficientSparksModal } from "@/components/sparks";
 import { api } from "@/lib/api/client";
-import type { Relationship, Message, EpisodeImage, EpisodeTemplate, EpisodeDrawerItem, EpisodeProgressItem, InsufficientSparksError, RateLimitError } from "@/types";
-import { EpisodeProgress } from "./EpisodeDrawer";
-import { Badge } from "@/components/ui/badge";
+import type { Message, EpisodeImage, EpisodeTemplate, InsufficientSparksError, RateLimitError } from "@/types";
 import { cn } from "@/lib/utils";
 
 interface ChatContainerProps {
@@ -25,10 +23,12 @@ interface ChatContainerProps {
   episodeTemplateId?: string;
 }
 
-// A chat item can be a message or a scene card
+// A chat item can be a message, scene card, or inline card
 type ChatItem =
   | { type: "message"; data: Message }
-  | { type: "scene"; data: EpisodeImage };
+  | { type: "scene"; data: EpisodeImage }
+  | { type: "completion"; id: string }
+  | { type: "suggestion"; id: string };
 
 export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -38,8 +38,12 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<RateLimitError | null>(null);
   const [episodeTemplate, setEpisodeTemplate] = useState<EpisodeTemplate | null>(null);
-  const [seriesEpisodes, setSeriesEpisodes] = useState<EpisodeDrawerItem[]>([]);
-  const [episodeProgress, setEpisodeProgress] = useState<EpisodeProgress[]>([]);
+  const [seriesEpisodes, setSeriesEpisodes] = useState<Array<{
+    id: string;
+    title: string;
+    episode_number: number;
+    status: "not_started" | "in_progress" | "completed";
+  }>>([]);
   const { character, isLoading: isLoadingCharacter } = useCharacter(characterId);
 
   // Load episode template if provided
@@ -59,39 +63,31 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     }
   }, [episodeTemplateId, characterId]);
 
-  // Load series episodes when we have an episode template with series_id
+  // Load series episodes for header picker
   useEffect(() => {
     if (episodeTemplate?.series_id) {
-      api.series.getWithEpisodes(episodeTemplate.series_id)
-        .then((series) => setSeriesEpisodes(series.episodes))
+      Promise.all([
+        api.series.getWithEpisodes(episodeTemplate.series_id),
+        api.series.getProgress(episodeTemplate.series_id),
+      ])
+        .then(([series, progressResponse]) => {
+          const progressMap = new Map(
+            progressResponse.progress.map((p) => [p.episode_id, p.status])
+          );
+          const episodesWithStatus = series.episodes.map((ep) => ({
+            id: ep.id,
+            title: ep.title,
+            episode_number: ep.episode_number ?? 0,
+            status: progressMap.get(ep.id) ?? ("not_started" as const),
+          }));
+          setSeriesEpisodes(episodesWithStatus);
+        })
         .catch((err) => {
-          console.error("Failed to load series episodes:", err);
+          console.error("Failed to load series data:", err);
           setSeriesEpisodes([]);
         });
     } else {
       setSeriesEpisodes([]);
-    }
-  }, [episodeTemplate?.series_id]);
-
-  // Load episode progress for the series
-  useEffect(() => {
-    if (episodeTemplate?.series_id) {
-      api.series.getProgress(episodeTemplate.series_id)
-        .then((response) => {
-          // Convert API response to EpisodeProgress format
-          const progress: EpisodeProgress[] = response.progress.map((p) => ({
-            episodeId: p.episode_id,
-            status: p.status,
-            lastPlayedAt: p.last_played_at ?? undefined,
-          }));
-          setEpisodeProgress(progress);
-        })
-        .catch((err) => {
-          console.error("Failed to load episode progress:", err);
-          setEpisodeProgress([]);
-        });
-    } else {
-      setEpisodeProgress([]);
     }
   }, [episodeTemplate?.series_id]);
 
@@ -115,7 +111,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     nextSuggestion,
     // Actions
     sendMessage,
-    endEpisode,
     clearSceneSuggestion,
     clearCompletion,
   } = useChat({
@@ -151,7 +146,19 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     },
   });
 
-  // Merge messages and scenes into a single timeline
+  // Build series progress for header
+  const seriesProgress = useMemo(() => {
+    if (!seriesEpisodes.length || !episodeTemplate) return null;
+    const currentIndex = seriesEpisodes.findIndex((ep) => ep.id === episodeTemplate.id);
+    if (currentIndex === -1) return null;
+    return {
+      current: currentIndex + 1,
+      total: seriesEpisodes.length,
+      episodes: seriesEpisodes,
+    };
+  }, [seriesEpisodes, episodeTemplate]);
+
+  // Merge messages, scenes, and inline cards into a single timeline
   const chatItems = useMemo((): ChatItem[] => {
     const items: ChatItem[] = [];
 
@@ -167,8 +174,10 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
 
     // Sort by created_at
     items.sort((a, b) => {
-      const timeA = new Date(a.data.created_at).getTime();
-      const timeB = new Date(b.data.created_at).getTime();
+      if (a.type === "completion" || a.type === "suggestion") return 1;
+      if (b.type === "completion" || b.type === "suggestion") return -1;
+      const timeA = new Date((a.data as Message | EpisodeImage).created_at).getTime();
+      const timeB = new Date((b.data as Message | EpisodeImage).created_at).getTime();
       return timeA - timeB;
     });
 
@@ -178,22 +187,13 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatItems, streamingContent, isGeneratingScene]);
-
-  // Get relationship
-  const [relationship, setRelationship] = React.useState<Relationship | null>(null);
-  React.useEffect(() => {
-    api.relationships.getByCharacter(characterId)
-      .then(setRelationship)
-      .catch(() => setRelationship(null));
-  }, [characterId]);
+  }, [chatItems, streamingContent, isGeneratingScene, isEpisodeComplete]);
 
   // Background is ALWAYS the episode template background - scene cards stay inline only
   const activeBackgroundUrl = backgroundImageUrl;
   const hasBackground = !!activeBackgroundUrl;
 
   // Broadcast background to document root so shell (sidebar/header) can inherit the immersive layer.
-  // This hook MUST be called before any early returns to satisfy React's rules of hooks.
   useEffect(() => {
     if (!hasBackground || !activeBackgroundUrl) {
       document.documentElement.classList.remove("chat-has-bg");
@@ -211,12 +211,11 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   // Handle visualize button click with mode selection
   const handleVisualize = useCallback(async (mode: SceneGenerationMode) => {
     if (!episode || isGeneratingScene) return;
-    clearSceneSuggestion(); // Clear the suggestion
+    clearSceneSuggestion();
     await generateScene(undefined, mode);
   }, [episode, isGeneratingScene, clearSceneSuggestion, generateScene]);
 
   // Check if character has an anchor image for Kontext mode
-  // For now, we assume characters have anchors if they have an avatar - this could be refined
   const hasAnchorImage = !!character?.avatar_url;
 
   // Only show visualize button after some messages
@@ -255,11 +254,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       )}
 
       {/* Content layer */}
-      <div className={cn(
-        "relative z-10 flex flex-col h-full",
-        hasBackground ? "" : ""
-      )}>
-        {/* Header - glass when immersive, standard when not */}
+      <div className="relative z-10 flex flex-col h-full">
+        {/* Header - unified info bar */}
         <div className={cn(
           "transition-colors",
           hasBackground
@@ -268,58 +264,14 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         )}>
           <ChatHeader
             character={character}
+            episodeTemplate={episodeTemplate}
+            directorState={directorState}
+            seriesProgress={seriesProgress}
             hasBackground={hasBackground}
           />
-          {/* Integrated context bar */}
-          <div className={cn(
-            "flex flex-wrap gap-2 px-4 py-2 text-xs",
-            hasBackground
-              ? "text-white/90"
-              : "border-t border-border text-muted-foreground"
-          )}>
-            {episode && (
-              <ContextChip
-                label="Episode"
-                value={`#${episode.episode_number}${episode.started_at ? " • " + formatRelative(episode.started_at) : ""}`}
-                hasBackground={hasBackground}
-              />
-            )}
-            {episodeTemplate && !episode && (
-              <ContextChip
-                label="Scene"
-                value={episodeTemplate.title}
-                hasBackground={hasBackground}
-              />
-            )}
-            {relationship && (
-              <ContextChip label="Stage" value={formatStage(relationship.stage)} hasBackground={hasBackground} />
-            )}
-            {/* Only show content rating badge for adult content */}
-            {character.content_rating === "adult" && (
-              <ContextChip
-                label="Content"
-                value="ADULT"
-                accent="destructive"
-                hasBackground={hasBackground}
-              />
-            )}
-            {/* Director turn counter for ALL episodes */}
-            {directorState && (
-              <ContextChip
-                label="Turns"
-                value={directorState.turns_remaining !== null
-                  ? `${directorState.turns_remaining} left`
-                  : `${directorState.turn_count}`}
-                accent={directorState.turns_remaining !== null && directorState.turns_remaining <= 2
-                  ? "destructive"
-                  : "primary"}
-                hasBackground={hasBackground}
-              />
-            )}
-          </div>
         </div>
 
-        {/* Messages area - centered with max-width for readability */}
+        {/* Messages area - single focal point for all content */}
         <div className="flex-1 overflow-y-auto py-6">
           <div className="mx-auto max-w-2xl px-4">
             {isLoadingChat ? (
@@ -342,6 +294,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                     hasBackground={hasBackground}
                   />
                 )}
+
+                {/* Chat items (messages + scenes) */}
                 {chatItems.map((item) =>
                   item.type === "message" ? (
                     <MessageBubble
@@ -351,13 +305,15 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                       characterAvatar={character.avatar_url}
                       hasBackground={hasBackground}
                     />
-                  ) : (
+                  ) : item.type === "scene" ? (
                     <SceneCard
                       key={`scene-${item.data.id}`}
                       scene={item.data}
                     />
-                  )
+                  ) : null
                 )}
+
+                {/* Streaming content */}
                 {streamingContent && (
                   <StreamingBubble
                     content={streamingContent}
@@ -366,8 +322,33 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                     hasBackground={hasBackground}
                   />
                 )}
+
+                {/* Scene generation skeleton */}
                 {isGeneratingScene && (
                   <SceneCardSkeleton caption="Creating a scene from your conversation..." />
+                )}
+
+                {/* Inline completion card - appears after episode completes */}
+                {isEpisodeComplete && evaluation && (
+                  <InlineCompletionCard
+                    evaluation={evaluation}
+                    nextSuggestion={nextSuggestion}
+                    characterId={characterId}
+                    characterName={character.name}
+                    hasBackground={hasBackground}
+                    onDismiss={clearCompletion}
+                  />
+                )}
+
+                {/* Inline suggestion card - for next episode (when not showing completion) */}
+                {!isEpisodeComplete && nextSuggestion && (
+                  <InlineSuggestionCard
+                    suggestion={nextSuggestion}
+                    characterId={characterId}
+                    characterName={character.name}
+                    hasBackground={hasBackground}
+                    variant="compact"
+                  />
                 )}
               </>
             )}
@@ -406,18 +387,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           </div>
         )}
 
-        {/* Episode Drawer - only show when we have multiple episodes in a series */}
-        {seriesEpisodes.length > 1 && (
-          <EpisodeDrawer
-            characterId={characterId}
-            currentEpisodeId={episodeTemplate?.id}
-            episodes={seriesEpisodes}
-            progress={episodeProgress}
-            hasBackground={hasBackground}
-          />
-        )}
-
-        {/* Input bar - glass when immersive, standard when not */}
+        {/* Input bar - just input */}
         <div className={cn(
           hasBackground ? "mx-3 mb-3" : "border-t border-border bg-card"
         )}>
@@ -449,13 +419,12 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         </div>
       </div>
 
-      {/* Quota Exceeded Modal */}
+      {/* Modals - only for system errors, not for episode completion */}
       <QuotaExceededModal
         open={showQuotaModal}
         onClose={() => setShowQuotaModal(false)}
       />
 
-      {/* Insufficient Sparks Modal */}
       <InsufficientSparksModal
         open={showSparksModal}
         onClose={() => setShowSparksModal(false)}
@@ -463,22 +432,11 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         featureName="image generation"
       />
 
-      {/* Rate Limit Modal */}
       <RateLimitModal
         open={showRateLimitModal}
         onClose={() => setShowRateLimitModal(false)}
         resetAt={rateLimitError?.reset_at}
         cooldownSeconds={rateLimitError?.cooldown_seconds}
-      />
-
-      {/* Episode Complete Modal (Director completion) */}
-      <EpisodeCompleteModal
-        open={isEpisodeComplete}
-        onClose={clearCompletion}
-        evaluation={evaluation}
-        nextSuggestion={nextSuggestion}
-        characterId={characterId}
-        characterName={character.name}
       />
     </div>
   );
@@ -595,7 +553,7 @@ function EmptyState({
             ? "bg-black/30 text-white"
             : "bg-muted/50 border border-border/50"
         )}>
-          <p className="italic">"{episodeTemplate.opening_line}"</p>
+          <p className="italic">&quot;{episodeTemplate.opening_line}&quot;</p>
           <p className={cn(
             "text-xs mt-1",
             hasBackground ? "text-white/60" : "text-muted-foreground"
@@ -625,74 +583,12 @@ function EmptyState({
                   : "border border-border/70 bg-card hover:border-primary/40 hover:shadow-sm"
               )}
             >
-              "{prompt}"
+              &quot;{prompt}&quot;
             </button>
           ))}
         </div>
       )}
     </div>
-  );
-}
-
-function formatStage(stage?: string | null) {
-  if (!stage) return "";
-  const map: Record<string, string> = {
-    acquaintance: "Just met",
-    friendly: "Friendly",
-    close: "Close",
-    intimate: "Special",
-  };
-  return map[stage] || stage;
-}
-
-function formatRelative(dateString?: string | null) {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const minutes = Math.floor(diffMs / 60000);
-  const hours = Math.floor(diffMs / 3600000);
-  const days = Math.floor(diffMs / 86400000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return date.toLocaleDateString();
-}
-
-function ContextChip({
-  label,
-  value,
-  accent = "muted",
-  hasBackground,
-}: {
-  label: string;
-  value: string;
-  accent?: "muted" | "primary" | "destructive";
-  hasBackground?: boolean;
-}) {
-  return (
-    <Badge
-      variant="secondary"
-      className={cn(
-        "h-7 rounded-full px-3 text-[11px] font-medium border-0",
-        hasBackground
-          ? "bg-white/10 text-white/90"
-          : accent === "primary"
-            ? "bg-primary/15 text-primary"
-            : accent === "destructive"
-              ? "bg-destructive/10 text-destructive"
-              : ""
-      )}
-    >
-      <span className={cn(
-        "text-[10px] uppercase tracking-wide mr-1",
-        hasBackground ? "text-white/60" : "text-muted-foreground/80"
-      )}>
-        {label}
-      </span>
-      {value}
-    </Badge>
   );
 }
 
