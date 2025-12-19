@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
-from app.models.episode_template import EpisodeTemplate, CompletionMode
+from app.models.episode_template import EpisodeTemplate
 from app.models.session import Session
 from app.models.message import MessageRole
 from app.models.evaluation import generate_share_id
