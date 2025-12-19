@@ -10,10 +10,12 @@ from app.models.character import Character
 from app.models.session import Session
 from app.models.message import Message, MessageRole, ConversationContext, MemorySummary, HookSummary
 from app.models.engagement import Engagement
+from app.models.episode_template import EpisodeTemplate, CompletionMode
 from app.services.llm import LLMService
 from app.services.memory import MemoryService
 from app.services.usage import UsageService
 from app.services.rate_limiter import MessageRateLimiter, RateLimitExceededError
+from app.services.director import DirectorService
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +32,7 @@ class ConversationService:
         self.memory_service = MemoryService(db)
         self.usage_service = UsageService.get_instance()
         self.rate_limiter = MessageRateLimiter.get_instance()
+        self.director_service = DirectorService(db)
 
     async def send_message(
         self,
@@ -47,7 +50,8 @@ class ConversationService:
         5. Generate LLM response
         6. Save assistant message
         7. Extract memories and hooks (async)
-        8. Record message for rate limiting
+        8. Run Director for bounded episodes
+        9. Record message for rate limiting
         """
         # Check rate limit (messages are FREE but rate-limited for abuse prevention)
         subscription_status = await self._get_user_subscription_status(user_id)
@@ -63,6 +67,9 @@ class ConversationService:
 
         # Get or create episode
         episode = await self.get_or_create_episode(user_id, character_id)
+
+        # Get episode template if session has one (for Director integration)
+        episode_template = await self._get_episode_template(episode.episode_template_id)
 
         # Build context
         context = await self.get_context(user_id, character_id, episode.id)
@@ -115,6 +122,22 @@ class ConversationService:
         except Exception as e:
             log.error(f"Memory extraction failed: {e}")
 
+        # Director integration (per DIRECTOR_ARCHITECTURE.md)
+        # Run Director for bounded episodes (completion_mode != 'open')
+        if episode_template and episode_template.completion_mode != CompletionMode.OPEN:
+            try:
+                refreshed_session = await self._get_session(episode.id)
+                if refreshed_session:
+                    await self.director_service.process_exchange(
+                        session=refreshed_session,
+                        episode_template=episode_template,
+                        messages=context.messages + [{"role": "assistant", "content": llm_response.content}],
+                        character_id=character_id,
+                        user_id=user_id,
+                    )
+            except Exception as e:
+                log.error(f"Director processing failed: {e}")
+
         # Record message for rate limiting (after successful send)
         await self.rate_limiter.record_message(user_id)
 
@@ -134,7 +157,11 @@ class ConversationService:
         character_id: UUID,
         content: str,
     ) -> AsyncIterator[str]:
-        """Send a message and stream the response."""
+        """Send a message and stream the response.
+
+        Per DIRECTOR_ARCHITECTURE.md, this method integrates DirectorService
+        for bounded episodes (completion_mode != 'open').
+        """
         # Check rate limit (messages are FREE but rate-limited for abuse prevention)
         subscription_status = await self._get_user_subscription_status(user_id)
         rate_check = await self.rate_limiter.check_rate_limit(user_id, subscription_status)
@@ -149,6 +176,9 @@ class ConversationService:
 
         # Get or create episode
         episode = await self.get_or_create_episode(user_id, character_id)
+
+        # Get episode template if session has one (for Director integration)
+        episode_template = await self._get_episode_template(episode.episode_template_id)
 
         # Build context
         context = await self.get_context(user_id, character_id, episode.id)
@@ -192,7 +222,7 @@ class ConversationService:
         for hook in context.hooks:
             await self._mark_hook_triggered(hook.id)
 
-        # Process exchange
+        # Process exchange (memory extraction)
         try:
             await self._process_exchange(
                 user_id=user_id,
@@ -203,6 +233,36 @@ class ConversationService:
         except Exception as e:
             log.error(f"Memory extraction failed: {e}")
 
+        # Director integration (per DIRECTOR_ARCHITECTURE.md)
+        # Run Director for bounded episodes (completion_mode != 'open')
+        director_output = None
+        if episode_template and episode_template.completion_mode != CompletionMode.OPEN:
+            try:
+                # Refresh session to get latest turn_count and director_state
+                refreshed_session = await self._get_session(episode.id)
+                if refreshed_session:
+                    director_output = await self.director_service.process_exchange(
+                        session=refreshed_session,
+                        episode_template=episode_template,
+                        messages=context.messages + [{"role": "assistant", "content": response_content}],
+                        character_id=character_id,
+                        user_id=user_id,
+                    )
+
+                    # Emit episode_complete event if Director detected completion
+                    if director_output.is_complete:
+                        yield json.dumps({
+                            "type": "episode_complete",
+                            "turn_count": director_output.turn_count,
+                            "evaluation": director_output.evaluation,
+                            "next_suggestion": await self.director_service.suggest_next_episode(
+                                session=refreshed_session,
+                                evaluation=director_output.evaluation,
+                            ),
+                        })
+            except Exception as e:
+                log.error(f"Director processing failed: {e}")
+
         # Record message for rate limiting (after successful exchange)
         await self.rate_limiter.record_message(user_id)
 
@@ -211,12 +271,24 @@ class ConversationService:
         message_count = len(context.messages) + 2  # +2 for this exchange
         should_suggest_scene = self._should_suggest_scene(message_count)
 
-        yield json.dumps({
+        # Build done event with optional Director data
+        done_event = {
             "type": "done",
             "content": response_content,
             "suggest_scene": should_suggest_scene,
             "episode_id": str(episode.id),
-        })
+        }
+
+        # Add Director state to done event for bounded episodes
+        if director_output and not director_output.is_complete:
+            turn_budget = episode_template.turn_budget if episode_template else None
+            done_event["director"] = {
+                "turn_count": director_output.turn_count,
+                "turns_remaining": max(0, turn_budget - director_output.turn_count) if turn_budget else None,
+                "is_complete": False,
+            }
+
+        yield json.dumps(done_event)
 
     async def get_context(
         self,
@@ -814,3 +886,42 @@ class ConversationService:
             return None
 
         return "Previous episodes:\n" + "\n".join(context_parts)
+
+    async def _get_episode_template(
+        self,
+        episode_template_id: Optional[UUID],
+    ) -> Optional[EpisodeTemplate]:
+        """Get episode template by ID.
+
+        Used by Director integration to check completion_mode.
+        """
+        if not episode_template_id:
+            return None
+
+        query = "SELECT * FROM episode_templates WHERE id = :template_id"
+        row = await self.db.fetch_one(query, {"template_id": str(episode_template_id)})
+
+        if not row:
+            return None
+
+        try:
+            return EpisodeTemplate(**{
+                k: row[k] for k in row.keys()
+                if k in EpisodeTemplate.model_fields
+            })
+        except Exception as e:
+            log.warning(f"Failed to parse episode template: {e}")
+            return None
+
+    async def _get_session(self, session_id: UUID) -> Optional[Session]:
+        """Get session by ID.
+
+        Used by Director to get fresh turn_count and director_state.
+        """
+        query = "SELECT * FROM sessions WHERE id = :session_id"
+        row = await self.db.fetch_one(query, {"session_id": str(session_id)})
+
+        if not row:
+            return None
+
+        return Session(**dict(row))
