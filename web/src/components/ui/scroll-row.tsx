@@ -38,7 +38,7 @@ export function ScrollRow({ title, icon, children, className, showArrows = true 
         </div>
       )}
 
-      <div className="group relative">
+      <div className="group/row relative">
         {/* Left arrow */}
         {showArrows && (
           <Button
@@ -48,7 +48,7 @@ export function ScrollRow({ title, icon, children, className, showArrows = true 
               "absolute left-0 top-1/2 -translate-y-1/2 z-10",
               "h-12 w-8 rounded-r-lg rounded-l-none",
               "bg-black/60 hover:bg-black/80 text-white",
-              "opacity-0 group-hover:opacity-100 transition-opacity",
+              "opacity-0 group-hover/row:opacity-100 transition-opacity",
               "hidden md:flex"
             )}
             onClick={() => scroll("left")}
@@ -78,7 +78,7 @@ export function ScrollRow({ title, icon, children, className, showArrows = true 
               "absolute right-0 top-1/2 -translate-y-1/2 z-10",
               "h-12 w-8 rounded-l-lg rounded-r-none",
               "bg-black/60 hover:bg-black/80 text-white",
-              "opacity-0 group-hover:opacity-100 transition-opacity",
+              "opacity-0 group-hover/row:opacity-100 transition-opacity",
               "hidden md:flex"
             )}
             onClick={() => scroll("right")}
