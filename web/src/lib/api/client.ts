@@ -718,6 +718,88 @@ export const api = {
     getBySlug: (slug: string) =>
       request<import("@/types").World>(`/worlds/slug/${slug}`),
   },
+
+  // Games endpoints (Flirt Test and other bounded episodes)
+  games: {
+    start: (gameSlug: string, characterChoice?: "m" | "f") =>
+      request<import("@/types").GameStartResponse>(`/games/${gameSlug}/start`, {
+        method: "POST",
+        body: JSON.stringify({ character_choice: characterChoice }),
+      }),
+    sendMessage: (gameSlug: string, sessionId: string, content: string) =>
+      request<import("@/types").GameMessageResponse>(
+        `/games/${gameSlug}/${sessionId}/message`,
+        {
+          method: "POST",
+          body: JSON.stringify({ content }),
+        }
+      ),
+    sendMessageStream: async function* (
+      gameSlug: string,
+      sessionId: string,
+      content: string
+    ) {
+      const headers = await getAuthHeaders();
+
+      const response = await fetch(
+        `${API_BASE_URL}/games/${gameSlug}/${sessionId}/message/stream`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ content }),
+        }
+      );
+
+      if (!response.ok) {
+        let data;
+        try {
+          data = await response.json();
+        } catch {
+          data = null;
+        }
+        throw new APIError(response.status, response.statusText, data);
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+
+      if (!reader) {
+        throw new Error("No response body");
+      }
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") {
+              return;
+            }
+            if (data.startsWith("[ERROR]")) {
+              throw new Error(data.slice(8));
+            }
+            try {
+              const parsed = JSON.parse(data);
+              yield parsed;
+            } catch {
+              // Ignore parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+    },
+    getResult: (gameSlug: string, sessionId: string) =>
+      request<import("@/types").GameResultResponse>(
+        `/games/${gameSlug}/${sessionId}/result`
+      ),
+    getSharedResult: (shareId: string) =>
+      request<import("@/types").SharedResultResponse>(`/games/r/${shareId}`),
+  },
 };
 
 export default api;

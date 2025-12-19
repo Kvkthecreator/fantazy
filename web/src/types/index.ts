@@ -974,18 +974,20 @@ export interface GameStartResponse {
  * Game message response - extends standard with Director data
  */
 export interface GameMessageResponse {
-  message: Message;
+  message_content: string;
   turn_count: number;
   turns_remaining: number;
   is_complete: boolean;
-  director_state: DirectorState;
+  mood?: string;
 }
 
 /**
  * Game result response - evaluation after completion
  */
 export interface GameResultResponse {
-  evaluation: SessionEvaluation;
+  evaluation_type: string;
+  result: FlirtArchetypeEvaluation | Record<string, unknown>;
+  share_id: string;
   share_url: string;
   character_id: string;
   character_name: string;
@@ -1002,3 +1004,38 @@ export interface SharePageData {
   game_url: string;
   continue_url: string | null;  // If character_id present
 }
+
+/**
+ * Shared result response from /games/r/{share_id}
+ */
+export interface SharedResultResponse {
+  evaluation_type: string;
+  result: FlirtArchetypeEvaluation | Record<string, unknown>;
+  share_id: string;
+  share_count: number;
+  created_at: string;
+  character_id: string | null;
+  character_name: string | null;
+  series_id: string | null;
+}
+
+/**
+ * Flirt archetype evaluation result
+ */
+export interface FlirtArchetypeEvaluation {
+  archetype: FlirtArchetype;
+  confidence: number;
+  primary_signals: string[];
+  title: string;
+  description: string;
+}
+
+/**
+ * Flirt archetype enum
+ */
+export type FlirtArchetype =
+  | "tension_builder"
+  | "bold_mover"
+  | "playful_tease"
+  | "slow_burn"
+  | "mysterious_allure";
