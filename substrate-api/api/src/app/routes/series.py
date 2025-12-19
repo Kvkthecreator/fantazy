@@ -13,6 +13,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 
 from app.deps import get_db
+from app.models.series import (
+    Series,
+    SeriesSummary,
+    SeriesCreate,
+    SeriesUpdate,
+    SeriesType,
+)
+from app.services.storage import StorageService
 
 
 def slugify(text: str) -> str:
@@ -28,14 +36,30 @@ def slugify(text: str) -> str:
     # Remove leading/trailing hyphens
     slug = slug.strip('-')
     return slug
-from app.models.series import (
-    Series,
-    SeriesSummary,
-    SeriesCreate,
-    SeriesUpdate,
-    SeriesType,
-)
-from app.services.storage import StorageService
+
+
+def normalize_series_cover_path(cover_url: Optional[str], series_slug: Optional[str]) -> Optional[str]:
+    """Normalize cover image URLs to storage paths for signing."""
+    if not cover_url:
+        return None
+    if cover_url.startswith("http"):
+        return cover_url
+
+    path = cover_url.lstrip("/")
+
+    if path.startswith("studio/series/"):
+        tail = path[len("studio/series/"):]
+        if tail.endswith("cover.png"):
+            parts = [p for p in tail.split("/") if p]
+            slug = parts[0] if len(parts) > 1 else series_slug
+            if slug:
+                return f"series/{slug}/cover.png"
+        return None
+
+    if path.startswith("series/"):
+        return path
+
+    return None
 
 
 router = APIRouter(prefix="/series", tags=["Series"])
@@ -111,11 +135,10 @@ async def list_series(
     results = []
     for row in rows:
         data = dict(row)
-        # If cover_image_url is a storage path (not a full URL), generate signed URL
-        if data.get("cover_image_url") and not data["cover_image_url"].startswith("http"):
-            data["cover_image_url"] = await storage.create_signed_url(
-                "scenes", data["cover_image_url"], expires_in=3600
-            )
+        cover_url = normalize_series_cover_path(data.get("cover_image_url"), data.get("slug"))
+        if cover_url and not cover_url.startswith("http"):
+            cover_url = await storage.create_signed_url("scenes", cover_url, expires_in=3600)
+        data["cover_image_url"] = cover_url
         results.append(SeriesSummary(**data))
 
     return results
@@ -138,11 +161,11 @@ async def get_series(
 
     data = dict(row)
     # Convert storage path to signed URL for cover image
-    if data.get("cover_image_url") and not data["cover_image_url"].startswith("http"):
-        storage = StorageService.get_instance()
-        data["cover_image_url"] = await storage.create_signed_url(
-            "scenes", data["cover_image_url"], expires_in=3600
-        )
+    storage = StorageService.get_instance()
+    cover_url = normalize_series_cover_path(data.get("cover_image_url"), data.get("slug"))
+    if cover_url and not cover_url.startswith("http"):
+        cover_url = await storage.create_signed_url("scenes", cover_url, expires_in=3600)
+    data["cover_image_url"] = cover_url
 
     return Series(**data)
 
@@ -178,10 +201,10 @@ async def get_series_with_episodes(
     storage = StorageService.get_instance()
 
     # Convert series cover storage path to signed URL
-    if series_data.get("cover_image_url") and not series_data["cover_image_url"].startswith("http"):
-        series_data["cover_image_url"] = await storage.create_signed_url(
-            "scenes", series_data["cover_image_url"], expires_in=3600
-        )
+    cover_url = normalize_series_cover_path(series_data.get("cover_image_url"), series_data.get("slug"))
+    if cover_url and not cover_url.startswith("http"):
+        cover_url = await storage.create_signed_url("scenes", cover_url, expires_in=3600)
+    series_data["cover_image_url"] = cover_url
 
     # Convert episode background storage paths to signed URLs
     episodes = []
@@ -217,11 +240,11 @@ async def get_series_with_characters(
     series_data = dict(series_row)
 
     # Convert series cover storage path to signed URL
-    if series_data.get("cover_image_url") and not series_data["cover_image_url"].startswith("http"):
-        storage = StorageService.get_instance()
-        series_data["cover_image_url"] = await storage.create_signed_url(
-            "scenes", series_data["cover_image_url"], expires_in=3600
-        )
+    storage = StorageService.get_instance()
+    cover_url = normalize_series_cover_path(series_data.get("cover_image_url"), series_data.get("slug"))
+    if cover_url and not cover_url.startswith("http"):
+        cover_url = await storage.create_signed_url("scenes", cover_url, expires_in=3600)
+    series_data["cover_image_url"] = cover_url
 
     # Get featured characters
     featured_chars = series_data.get("featured_characters", [])
@@ -794,7 +817,7 @@ async def get_continue_watching(
     items = []
     for row in rows:
         # Convert storage path to signed URL if needed
-        cover_url = row["series_cover_image_url"]
+        cover_url = normalize_series_cover_path(row["series_cover_image_url"], row["series_slug"])
         if cover_url and not cover_url.startswith("http"):
             cover_url = await storage.create_signed_url("scenes", cover_url, expires_in=3600)
 
