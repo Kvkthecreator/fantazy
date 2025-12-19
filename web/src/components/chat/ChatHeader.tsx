@@ -68,24 +68,18 @@ export function ChatHeader({
             </Button>
           </Link>
 
-          <Link href={`/characters/${character.slug}`} className="relative">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm">
+          <Link href={`/characters/${character.slug}`}>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden">
               {character.avatar_url ? (
                 <img
                   src={character.avatar_url}
                   alt={character.name}
-                  className="w-full h-full rounded-full object-cover"
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 character.name[0]
               )}
             </div>
-            <span
-              className={cn(
-                "absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 rounded-full",
-                hasBackground ? "border-black/30" : "border-background"
-              )}
-            />
           </Link>
 
           <h1
@@ -135,18 +129,6 @@ export function ChatHeader({
             </div>
           )}
 
-          {/* Menu (placeholder for future) */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "h-8 w-8",
-              hasBackground && "text-white hover:bg-white/10"
-            )}
-          >
-            <MoreIcon className="h-4 w-4" />
-            <span className="sr-only">Menu</span>
-          </Button>
         </div>
       </header>
 
@@ -191,19 +173,19 @@ function EpisodePickerOverlay({
   onClose,
 }: EpisodePickerOverlayProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
+    <div className="fixed inset-0 z-50">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0"
         onClick={onClose}
       />
 
-      {/* Picker */}
+      {/* Picker - positioned top-right */}
       <div
         className={cn(
-          "relative w-full max-w-sm mx-4 rounded-2xl shadow-2xl overflow-hidden",
+          "absolute top-16 right-4 w-72 rounded-2xl shadow-2xl overflow-hidden",
           hasBackground
-            ? "bg-black/90 border border-white/10"
+            ? "bg-black/95 backdrop-blur-xl border border-white/20"
             : "bg-card border border-border"
         )}
       >
@@ -364,24 +346,6 @@ function TurnIcon({ className }: { className?: string }) {
   );
 }
 
-function MoreIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="12" cy="5" r="1" />
-      <circle cx="12" cy="19" r="1" />
-    </svg>
-  );
-}
 
 function CheckIcon({ className }: { className?: string }) {
   return (
