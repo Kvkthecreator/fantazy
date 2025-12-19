@@ -39,6 +39,7 @@ async def send_message(
             user_id=user_id,
             character_id=character_id,
             content=data.content,
+            episode_template_id=data.episode_template_id,
         )
         return response
     except RateLimitExceededError as e:
@@ -82,6 +83,7 @@ async def send_message_stream(
                 user_id=user_id,
                 character_id=character_id,
                 content=data.content,
+                episode_template_id=data.episode_template_id,
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"

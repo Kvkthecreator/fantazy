@@ -308,12 +308,15 @@ export const api = {
 
   // Conversation endpoints
   conversation: {
-    send: (character_id: string, content: string) =>
+    send: (character_id: string, content: string, episodeTemplateId?: string) =>
       request<import("@/types").Message>(`/conversation/${character_id}/send`, {
         method: "POST",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({
+          content,
+          episode_template_id: episodeTemplateId || null,
+        }),
       }),
-    sendStream: async function* (character_id: string, content: string) {
+    sendStream: async function* (character_id: string, content: string, episodeTemplateId?: string) {
       const headers = await getAuthHeaders();
 
       const response = await fetch(
@@ -321,7 +324,10 @@ export const api = {
         {
           method: "POST",
           headers,
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({
+            content,
+            episode_template_id: episodeTemplateId || null,
+          }),
         }
       );
 

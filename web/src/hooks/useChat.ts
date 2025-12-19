@@ -27,7 +27,7 @@ interface UseChatReturn {
   episode: Episode | null;
   streamingContent: string;
   suggestScene: boolean;
-  // Director state (for bounded episodes)
+  // Director state (for ALL episodes)
   directorState: StreamDirectorState | null;
   isEpisodeComplete: boolean;
   evaluation: StreamEpisodeCompleteEvent["evaluation"];
@@ -49,7 +49,7 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
   const [streamingContent, setStreamingContent] = useState("");
   const [suggestScene, setSuggestScene] = useState(false);
 
-  // Director state (for bounded episodes)
+  // Director state (for ALL episodes - open + bounded)
   const [directorState, setDirectorState] = useState<StreamDirectorState | null>(null);
   const [isEpisodeComplete, setIsEpisodeComplete] = useState(false);
   const [evaluation, setEvaluation] = useState<StreamEpisodeCompleteEvent["evaluation"]>(null);
@@ -192,7 +192,7 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
       let fullContent = "";
       let messageAdded = false;
 
-      for await (const chunk of api.conversation.sendStream(characterId, content)) {
+      for await (const chunk of api.conversation.sendStream(characterId, content, episodeTemplateId)) {
         const event = chunk as StreamEvent;
 
         if (event.type === "chunk") {
@@ -236,7 +236,7 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
             setSuggestScene(true);
           }
 
-          // Update director state from done event (for bounded episodes)
+          // Update director state from done event (for ALL episodes)
           if (event.director) {
             setDirectorState(event.director);
           }
@@ -275,7 +275,7 @@ export function useChat({ characterId, episodeTemplateId, enabled = true, onErro
       setIsSending(false);
       setStreamingContent("");
     }
-  }, [characterId, episode, isSending]);
+  }, [characterId, episode, isSending, episodeTemplateId]);
 
   // Start new episode
   const startNewEpisode = useCallback(async () => {

@@ -39,19 +39,19 @@ class ConversationService:
         user_id: UUID,
         character_id: UUID,
         content: str,
+        episode_template_id: Optional[UUID] = None,
     ) -> Message:
         """Send a message and get a response.
 
         This orchestrates the full conversation flow:
         1. Check rate limit (abuse prevention)
-        2. Get or create active episode
+        2. Get or create active episode (with episode_template_id if provided)
         3. Build conversation context
         4. Save user message
         5. Generate LLM response
         6. Save assistant message
-        7. Extract memories and hooks (async)
-        8. Run Director for bounded episodes
-        9. Record message for rate limiting
+        7. Run Director for ALL episodes (memory, hooks, turn counting, completion)
+        8. Record message for rate limiting
         """
         # Check rate limit (messages are FREE but rate-limited for abuse prevention)
         subscription_status = await self._get_user_subscription_status(user_id)
@@ -65,8 +65,10 @@ class ConversationService:
                 remaining=rate_check.remaining,
             )
 
-        # Get or create episode
-        episode = await self.get_or_create_episode(user_id, character_id)
+        # Get or create episode (with episode_template_id for proper session scoping)
+        episode = await self.get_or_create_episode(
+            user_id, character_id, episode_template_id=episode_template_id
+        )
 
         # Get episode template if session has one (for Director integration)
         episode_template = await self._get_episode_template(episode.episode_template_id)
@@ -110,33 +112,30 @@ class ConversationService:
         for hook in context.hooks:
             await self._mark_hook_triggered(hook.id)
 
-        # Extract memories and hooks in background (non-blocking)
-        # In production, this would be a background task
+        # Director integration (per DIRECTOR_ARCHITECTURE.md)
+        # Director runs for ALL episodes - handles memory, hooks, turn counting, completion
+        full_messages = context.messages + [{"role": "assistant", "content": llm_response.content}]
         try:
+            # Director is the unified post-exchange processor
+            refreshed_session = await self._get_session(episode.id)
+            if refreshed_session:
+                await self.director_service.process_exchange(
+                    session=refreshed_session,
+                    episode_template=episode_template,  # Can be None for free-form
+                    messages=full_messages,
+                    character_id=character_id,
+                    user_id=user_id,
+                )
+
+            # Also run legacy memory extraction until fully absorbed
             await self._process_exchange(
                 user_id=user_id,
                 character_id=character_id,
                 episode_id=episode.id,
-                messages=context.messages + [{"role": "assistant", "content": llm_response.content}],
+                messages=full_messages,
             )
         except Exception as e:
-            log.error(f"Memory extraction failed: {e}")
-
-        # Director integration (per DIRECTOR_ARCHITECTURE.md)
-        # Run Director for bounded episodes (completion_mode != 'open')
-        if episode_template and episode_template.completion_mode != CompletionMode.OPEN:
-            try:
-                refreshed_session = await self._get_session(episode.id)
-                if refreshed_session:
-                    await self.director_service.process_exchange(
-                        session=refreshed_session,
-                        episode_template=episode_template,
-                        messages=context.messages + [{"role": "assistant", "content": llm_response.content}],
-                        character_id=character_id,
-                        user_id=user_id,
-                    )
-            except Exception as e:
-                log.error(f"Director processing failed: {e}")
+            log.error(f"Director/memory processing failed: {e}")
 
         # Record message for rate limiting (after successful send)
         await self.rate_limiter.record_message(user_id)
@@ -156,11 +155,13 @@ class ConversationService:
         user_id: UUID,
         character_id: UUID,
         content: str,
+        episode_template_id: Optional[UUID] = None,
     ) -> AsyncIterator[str]:
         """Send a message and stream the response.
 
-        Per DIRECTOR_ARCHITECTURE.md, this method integrates DirectorService
-        for bounded episodes (completion_mode != 'open').
+        Per DIRECTOR_ARCHITECTURE.md, Director runs for ALL episodes:
+        - Open episodes: turn counting, memory, hooks, beat tracking
+        - Bounded episodes: all of the above + completion detection + evaluation
         """
         # Check rate limit (messages are FREE but rate-limited for abuse prevention)
         subscription_status = await self._get_user_subscription_status(user_id)
@@ -174,8 +175,10 @@ class ConversationService:
                 remaining=rate_check.remaining,
             )
 
-        # Get or create episode
-        episode = await self.get_or_create_episode(user_id, character_id)
+        # Get or create episode (with episode_template_id for proper session scoping)
+        episode = await self.get_or_create_episode(
+            user_id, character_id, episode_template_id=episode_template_id
+        )
 
         # Get episode template if session has one (for Director integration)
         episode_template = await self._get_episode_template(episode.episode_template_id)
@@ -222,46 +225,46 @@ class ConversationService:
         for hook in context.hooks:
             await self._mark_hook_triggered(hook.id)
 
-        # Process exchange (memory extraction)
+        # Director integration (per DIRECTOR_ARCHITECTURE.md)
+        # Director runs for ALL episodes - handles turn counting, completion detection, evaluation
+        full_messages = context.messages + [{"role": "assistant", "content": response_content}]
+        director_output = None
+        refreshed_session = None
+
         try:
+            # Refresh session to get latest turn_count and director_state
+            refreshed_session = await self._get_session(episode.id)
+            if refreshed_session:
+                # Director processes ALL episodes (open + bounded)
+                director_output = await self.director_service.process_exchange(
+                    session=refreshed_session,
+                    episode_template=episode_template,  # Can be None for free-form
+                    messages=full_messages,
+                    character_id=character_id,
+                    user_id=user_id,
+                )
+
+                # Emit episode_complete event if Director detected completion
+                if director_output.is_complete:
+                    yield json.dumps({
+                        "type": "episode_complete",
+                        "turn_count": director_output.turn_count,
+                        "evaluation": director_output.evaluation,
+                        "next_suggestion": await self.director_service.suggest_next_episode(
+                            session=refreshed_session,
+                            evaluation=director_output.evaluation,
+                        ),
+                    })
+
+            # Also run legacy memory extraction until fully absorbed by Director
             await self._process_exchange(
                 user_id=user_id,
                 character_id=character_id,
                 episode_id=episode.id,
-                messages=context.messages + [{"role": "assistant", "content": response_content}],
+                messages=full_messages,
             )
         except Exception as e:
-            log.error(f"Memory extraction failed: {e}")
-
-        # Director integration (per DIRECTOR_ARCHITECTURE.md)
-        # Run Director for bounded episodes (completion_mode != 'open')
-        director_output = None
-        if episode_template and episode_template.completion_mode != CompletionMode.OPEN:
-            try:
-                # Refresh session to get latest turn_count and director_state
-                refreshed_session = await self._get_session(episode.id)
-                if refreshed_session:
-                    director_output = await self.director_service.process_exchange(
-                        session=refreshed_session,
-                        episode_template=episode_template,
-                        messages=context.messages + [{"role": "assistant", "content": response_content}],
-                        character_id=character_id,
-                        user_id=user_id,
-                    )
-
-                    # Emit episode_complete event if Director detected completion
-                    if director_output.is_complete:
-                        yield json.dumps({
-                            "type": "episode_complete",
-                            "turn_count": director_output.turn_count,
-                            "evaluation": director_output.evaluation,
-                            "next_suggestion": await self.director_service.suggest_next_episode(
-                                session=refreshed_session,
-                                evaluation=director_output.evaluation,
-                            ),
-                        })
-            except Exception as e:
-                log.error(f"Director processing failed: {e}")
+            log.error(f"Director/memory processing failed: {e}")
 
         # Record message for rate limiting (after successful exchange)
         await self.rate_limiter.record_message(user_id)
@@ -271,7 +274,7 @@ class ConversationService:
         message_count = len(context.messages) + 2  # +2 for this exchange
         should_suggest_scene = self._should_suggest_scene(message_count)
 
-        # Build done event with optional Director data
+        # Build done event with Director data for ALL episodes
         done_event = {
             "type": "done",
             "content": response_content,
@@ -279,13 +282,14 @@ class ConversationService:
             "episode_id": str(episode.id),
         }
 
-        # Add Director state to done event for bounded episodes
-        if director_output and not director_output.is_complete:
+        # ALWAYS include Director state for ALL episodes (open + bounded)
+        # This surfaces turn tracking, beat info, etc. for every conversation
+        if director_output:
             turn_budget = episode_template.turn_budget if episode_template else None
             done_event["director"] = {
                 "turn_count": director_output.turn_count,
                 "turns_remaining": max(0, turn_budget - director_output.turn_count) if turn_budget else None,
-                "is_complete": False,
+                "is_complete": director_output.is_complete,
             }
 
         yield json.dumps(done_event)

@@ -1030,16 +1030,6 @@ export interface FlirtArchetypeEvaluation {
   description: string;
 }
 
-/**
- * Flirt archetype enum
- */
-export type FlirtArchetype =
-  | "tension_builder"
-  | "bold_mover"
-  | "playful_tease"
-  | "slow_burn"
-  | "mysterious_allure";
-
 // ============================================================================
 // Stream Event Types (for conversation streaming with Director integration)
 // ============================================================================

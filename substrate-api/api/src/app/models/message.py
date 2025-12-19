@@ -20,6 +20,7 @@ class MessageCreate(BaseModel):
     """Data for creating a message."""
 
     content: str = Field(..., min_length=1, max_length=10000)
+    episode_template_id: Optional[UUID] = None  # For Director session routing
 
 
 class Message(BaseModel):

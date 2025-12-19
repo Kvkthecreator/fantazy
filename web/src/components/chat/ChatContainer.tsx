@@ -303,12 +303,16 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                 hasBackground={hasBackground}
               />
             )}
-            {/* Director turn counter for bounded episodes */}
-            {directorState && directorState.turns_remaining !== null && (
+            {/* Director turn counter for ALL episodes */}
+            {directorState && (
               <ContextChip
                 label="Turns"
-                value={`${directorState.turns_remaining} left`}
-                accent={directorState.turns_remaining <= 2 ? "destructive" : "primary"}
+                value={directorState.turns_remaining !== null
+                  ? `${directorState.turns_remaining} left`
+                  : `${directorState.turn_count}`}
+                accent={directorState.turns_remaining !== null && directorState.turns_remaining <= 2
+                  ? "destructive"
+                  : "primary"}
                 hasBackground={hasBackground}
               />
             )}
