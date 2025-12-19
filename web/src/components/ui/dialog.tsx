@@ -32,17 +32,16 @@ const Dialog = ({ open: controlledOpen, onOpenChange, children }: DialogProps) =
 
   return (
     <DialogContext.Provider value={{ open, setOpen }}>
-      {children}
       {open && (
         <div className="fixed inset-0 z-50">
-          {/* Backdrop */}
+          {/* Backdrop - rendered first so content appears on top */}
           <div
             className="fixed inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setOpen(false)}
           />
-          {/* Content wrapper - actual content is rendered via DialogContent */}
         </div>
       )}
+      {children}
     </DialogContext.Provider>
   )
 }
@@ -89,11 +88,11 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     if (!context?.open) return null
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 pointer-events-none">
         <div
           ref={ref}
           className={cn(
-            "relative z-50 w-full max-w-md rounded-xl bg-card p-6 shadow-xl border border-border",
+            "relative w-full max-w-md rounded-xl bg-card p-6 shadow-xl border border-border pointer-events-auto",
             "animate-in fade-in-0 zoom-in-95",
             className
           )}

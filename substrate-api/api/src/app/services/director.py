@@ -104,7 +104,8 @@ class DirectorService:
         new_turn_count = session.turn_count + 1
 
         # 2. Update director state with structured response signals
-        director_state = dict(session.director_state)
+        # Handle None case for director_state
+        director_state = dict(session.director_state) if session.director_state else {}
         if structured_response:
             # Extract signals from structured response
             tension_shift = structured_response.get("tension_shift", 0)
