@@ -65,6 +65,25 @@ from app.models.usage import (
     UsageEvent,
     UsageEventCreate,
 )
+from app.models.episode_template import (
+    EpisodeTemplate,
+    EpisodeTemplateSummary,
+    EpisodeTemplateCreate,
+    EpisodeTemplateUpdate,
+    CompletionMode,
+    EpisodeType,
+)
+from app.models.evaluation import (
+    SessionEvaluation,
+    SessionEvaluationCreate,
+    SessionEvaluationSummary,
+    ShareableResult,
+    FlirtArchetypeResult,
+    EvaluationType,
+    FlirtArchetype,
+    FLIRT_ARCHETYPES,
+    generate_share_id,
+)
 
 __all__ = [
     # User
@@ -125,4 +144,21 @@ __all__ = [
     "QuotaCheckResult",
     "UsageEvent",
     "UsageEventCreate",
+    # Episode Template
+    "EpisodeTemplate",
+    "EpisodeTemplateSummary",
+    "EpisodeTemplateCreate",
+    "EpisodeTemplateUpdate",
+    "CompletionMode",
+    "EpisodeType",
+    # Session Evaluation
+    "SessionEvaluation",
+    "SessionEvaluationCreate",
+    "SessionEvaluationSummary",
+    "ShareableResult",
+    "FlirtArchetypeResult",
+    "EvaluationType",
+    "FlirtArchetype",
+    "FLIRT_ARCHETYPES",
+    "generate_share_id",
 ]

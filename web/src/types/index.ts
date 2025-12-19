@@ -840,3 +840,165 @@ export interface GalleryStatusResponse {
   gallery: AvatarGalleryItem[];
   can_activate: boolean;
 }
+
+// ============================================================================
+// Director & Completion Types (per DIRECTOR_ARCHITECTURE.md)
+// ============================================================================
+
+/**
+ * Completion mode for bounded episodes
+ */
+export type CompletionMode = "open" | "turn_limited" | "beat_gated" | "objective";
+
+/**
+ * Director state tracked per session
+ */
+export interface DirectorState {
+  current_beat?: string;
+  tension_level?: number;
+  signals?: Record<string, unknown>[];
+  beat_history?: string[];
+}
+
+/**
+ * Extended Session with Director tracking
+ */
+export interface SessionWithDirector extends Session {
+  turn_count: number;
+  director_state: DirectorState;
+  completion_trigger: string | null;
+  series_id: string | null;
+  session_state: "active" | "paused" | "faded" | "complete";
+  resolution_type: string | null;
+}
+
+/**
+ * Extended Episode Template with completion configuration
+ */
+export interface EpisodeTemplateWithCompletion extends EpisodeTemplate {
+  completion_mode: CompletionMode;
+  turn_budget: number | null;
+  completion_criteria: Record<string, unknown>;
+}
+
+// ============================================================================
+// Session Evaluation Types (per FLIRT_TEST_IMPLEMENTATION_PLAN.md)
+// ============================================================================
+
+/**
+ * Evaluation type constants
+ */
+export type EvaluationType =
+  | "flirt_archetype"
+  | "mystery_summary"
+  | "compatibility"
+  | "episode_summary";
+
+/**
+ * Flirt archetype constants
+ */
+export type FlirtArchetype =
+  | "tension_builder"
+  | "bold_mover"
+  | "playful_tease"
+  | "slow_burn"
+  | "mysterious_allure";
+
+/**
+ * Flirt archetype metadata
+ */
+export interface FlirtArchetypeMetadata {
+  title: string;
+  description: string;
+  signals: string[];
+}
+
+/**
+ * Flirt archetype result (returned by evaluation)
+ */
+export interface FlirtArchetypeResult {
+  archetype: FlirtArchetype;
+  confidence: number;
+  primary_signals: string[];
+  title: string;
+  description: string;
+}
+
+/**
+ * Session evaluation - shareable result
+ */
+export interface SessionEvaluation {
+  id: string;
+  session_id: string;
+  evaluation_type: EvaluationType;
+  result: Record<string, unknown>;
+  share_id: string | null;
+  share_count: number;
+  model_used: string | null;
+  created_at: string;
+}
+
+/**
+ * Shareable result - public-facing evaluation for share pages
+ */
+export interface ShareableResult {
+  evaluation_type: EvaluationType;
+  result: Record<string, unknown>;
+  share_id: string;
+  share_count: number;
+  created_at: string;
+  // Optional: character info for "continue with character" CTA
+  character_name?: string;
+  character_id?: string;
+  series_id?: string;
+}
+
+// ============================================================================
+// Games API Types (per FLIRT_TEST_IMPLEMENTATION_PLAN.md)
+// ============================================================================
+
+/**
+ * Game start response
+ */
+export interface GameStartResponse {
+  session_id: string;
+  character_id: string;
+  character_name: string;
+  character_avatar_url: string | null;
+  opening_line: string;
+  turn_budget: number;
+  situation: string;
+}
+
+/**
+ * Game message response - extends standard with Director data
+ */
+export interface GameMessageResponse {
+  message: Message;
+  turn_count: number;
+  turns_remaining: number;
+  is_complete: boolean;
+  director_state: DirectorState;
+}
+
+/**
+ * Game result response - evaluation after completion
+ */
+export interface GameResultResponse {
+  evaluation: SessionEvaluation;
+  share_url: string;
+  character_id: string;
+  character_name: string;
+  series_id: string | null;
+}
+
+/**
+ * Share page data (for /r/[share_id])
+ */
+export interface SharePageData {
+  result: ShareableResult;
+  og_image_url: string;
+  // CTA data
+  game_url: string;
+  continue_url: string | null;  // If character_id present
+}

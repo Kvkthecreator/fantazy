@@ -69,7 +69,9 @@ _process_exchange() → Extract memories, update relationship_dynamic
 Return to user
 ```
 
-### Proposed Flow with Director
+### New Flow with Director (Merged)
+
+**Decision**: Director absorbs `_process_exchange()` — unified post-exchange processing.
 
 ```
 User message
@@ -78,18 +80,21 @@ ConversationService.send_message_stream()
     ↓
 Build ConversationContext
     ↓
-LLM.generate_stream() → Character response
+LLM.generate_stream() → Structured character output (JSON)
     ↓
-_process_exchange() → Memories, beats (existing)
-    ↓
-DirectorService.evaluate() → NEW
-    ├── Update director_state (beat_reached, turn_count, signals)
+DirectorService.process_exchange() → REPLACES _process_exchange()
+    ├── Extract memories, hooks
+    ├── Update relationship dynamic
+    ├── Increment turn count
+    ├── Track beat + user signals
     ├── Check completion conditions
     ├── If complete: generate evaluation, suggest next
-    └── Return director output
+    └── Return DirectorOutput
     ↓
-Return to user (with director signals if relevant)
+Return to user (with director signals)
 ```
+
+**Rationale**: Single LLM call can extract all signals. One service for all post-exchange logic.
 
 ### Implementation: Post-Processing Model
 

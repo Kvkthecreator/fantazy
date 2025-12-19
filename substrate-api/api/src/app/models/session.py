@@ -119,9 +119,14 @@ class Session(BaseModel):
     # Metadata
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
+    # Director tracking (for bounded episodes)
+    turn_count: int = 0
+    director_state: Dict[str, Any] = Field(default_factory=dict)
+    completion_trigger: Optional[str] = None
+
     created_at: datetime
 
-    @field_validator("metadata", "fade_metadata", mode="before")
+    @field_validator("metadata", "fade_metadata", "director_state", mode="before")
     @classmethod
     def ensure_metadata_is_dict(cls, v: Any) -> Dict[str, Any]:
         """Handle metadata as JSON string (from DB)."""
