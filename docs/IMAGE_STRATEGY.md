@@ -279,7 +279,7 @@ Fields like `rendering` may contain environmental terms ("rain on windows") - fi
 
 ---
 
-## 4. Scene Cards (User-Generated Moments)
+## 4. Scene Cards (Director-Triggered or User-Generated Moments)
 
 ### Purpose
 Capture **specific moments** during conversation as visual memories.
@@ -287,7 +287,21 @@ Capture **specific moments** during conversation as visual memories.
 ### Where It Appears
 - Inline in chat message flow
 - User's "Memories" gallery (if saved)
-- Triggered at milestones or user request ("Visualize it")
+- Triggered by Director (auto-scene) or user request ("Visualize it")
+
+### Director V2 Integration (2024-12-19)
+
+The Director now semantically evaluates each exchange and classifies visual opportunities:
+
+| Visual Type | Description | Rendering | Cost |
+|-------------|-------------|-----------|------|
+| `character` | Character in a moment (portrait + setting) | Image gen with Kontext/T2I | Sparks |
+| `object` | Close-up of item (letter, phone, key) | Image gen, no character | Sparks |
+| `atmosphere` | Setting/mood without character | Background image gen | Sparks |
+| `instruction` | Game-like info (codes, hints, choices) | Styled text card | Free |
+| `none` | No visual needed | Nothing | Free |
+
+See [DIRECTOR_ARCHITECTURE.md](DIRECTOR_ARCHITECTURE.md) for full visual type taxonomy and auto-scene modes.
 
 ### Visual Requirements
 | Attribute | Requirement |
@@ -493,5 +507,49 @@ STOLEN_MOMENTS_BACKGROUNDS = {
 
 ---
 
-*Last Updated: 2024-12-17*
-*Status: CANONICAL - Corrected prompt architecture*
+---
+
+## Appendix: Director V2 Auto-Scene System (2024-12-19)
+
+The Director can automatically trigger scene generation based on episode configuration:
+
+### auto_scene_mode Options
+
+| Mode | Behavior | Use Case |
+|------|----------|----------|
+| `off` | No auto-generation; user clicks button | Default, manual control |
+| `peaks` | Generate when Director detects visual moment | Emotional highs, key reveals |
+| `rhythmic` | Generate every N turns (+ peaks) | Comic-book feel, consistent visuals |
+
+### Episode Template Configuration
+
+```python
+# Episode with auto-scene on emotional peaks
+episode = {
+    "auto_scene_mode": "peaks",        # Trigger on visual moments
+    "spark_cost_per_scene": 5,         # 5 sparks per auto-generated scene
+}
+
+# Episode with rhythmic visuals (every 3 turns)
+premium_episode = {
+    "auto_scene_mode": "rhythmic",
+    "scene_interval": 3,               # Scene every 3 turns
+    "spark_cost_per_scene": 5,
+}
+```
+
+### Visual Type Routing
+
+The Director's visual type classification determines which rendering pipeline to use:
+
+| Visual Type | Prompt Focus | Character Reference |
+|-------------|--------------|---------------------|
+| `character` | Character action/expression + setting | Use avatar anchor |
+| `object` | Item close-up, atmospheric lighting | No character |
+| `atmosphere` | Setting/mood, no people | No character |
+| `instruction` | Text content (codes, hints) | N/A (no image gen) |
+
+---
+
+*Last Updated: 2024-12-19*
+*Status: CANONICAL - Updated with Director V2 visual type taxonomy*

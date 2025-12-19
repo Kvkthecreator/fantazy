@@ -76,6 +76,7 @@ User sends message
 │     - Mark triggered hooks as used                           │
 │     - Extract new memories (LLM call)                        │
 │     - Extract new hooks (LLM call)                           │
+│     - Director evaluation (LLM call) → visual/completion     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -90,7 +91,7 @@ User sends message
 | Character | `SELECT * FROM characters WHERE id = :id` | 1 |
 | Engagement | `SELECT * FROM engagements WHERE user_id AND character_id` | 1 |
 | Session | `SELECT episode_template_id, scene, series_id FROM sessions WHERE id = :id` | 1 |
-| Episode Template | `SELECT situation, episode_frame, dramatic_question, beat_guidance FROM episode_templates WHERE id = :id` | 1 |
+| Episode Template | `SELECT situation, episode_frame, dramatic_question, resolution_types, series_id FROM episode_templates WHERE id = :id` | 1 |
 | Messages | `SELECT role, content FROM messages WHERE episode_id ORDER BY created_at DESC` | 20 |
 | Memories | `get_relevant_memories()` - by importance + recency (series-scoped) | 10 |
 | Hooks | `get_active_hooks()` - untriggered, past trigger_after | 5 |
@@ -118,10 +119,13 @@ ConversationContext(
     episode_situation: Optional[str],  # Physical setting/scenario - MOST IMPORTANT
     episode_frame: Optional[str],      # Platform stage direction
     dramatic_question: Optional[str],  # Narrative tension to explore
-    beat_guidance: Dict,               # Soft narrative waypoints
     resolution_types: List[str],       # Valid resolution directions
     series_context: Optional[str],     # Context from previous episodes (serial series)
 )
+
+# Note: beat_guidance was removed in Director V2 (2024-12-19)
+# The Director now uses semantic LLM evaluation instead of predefined beats
+# See DIRECTOR_ARCHITECTURE.md for the new approach
 ```
 
 ---
@@ -174,8 +178,7 @@ The `to_messages()` method builds the final system prompt:
 │  DRAMATIC QUESTION (explore, don't resolve too quickly):    │
 │  [dramatic_question - the tension to explore]               │
 │                                                             │
-│  BEAT GUIDANCE (soft waypoints):                            │
-│  [beat_guidance - establishment, complication, escalation]  │
+│  VALID RESOLUTIONS: [resolution_types]                      │
 │                                                             │
 │  SERIES CONTEXT (for serial series):                        │
 │  [summaries of previous episodes in the series]             │
@@ -293,13 +296,23 @@ Topics to follow up on:
 
 ## LLM Calls Per Message
 
-**Total: 3 LLM calls per user message**
+**Total: 4 LLM calls per user message** (Director V2 adds semantic evaluation)
 
 | Call | Purpose | Model | When |
 |------|---------|-------|------|
 | Main response | Generate chat reply | Default (gemini-2.0-flash) | Every message |
+| Director evaluation | Semantic visual/completion check | Default | After response |
 | Memory extraction | Extract facts/events from exchange | Default | After response |
 | Hook extraction | Identify follow-up topics | Default | After response |
+
+### Director Evaluation (Director V2)
+
+The Director semantically evaluates each exchange to determine:
+- **Visual type**: Should we generate a visual? (character/object/atmosphere/instruction/none)
+- **Status**: Is the episode going, closing, or done?
+- **Actions**: Trigger scene generation, suggest next episode, etc.
+
+See [DIRECTOR_ARCHITECTURE.md](../DIRECTOR_ARCHITECTURE.md) for full details.
 
 ### Memory Extraction
 
