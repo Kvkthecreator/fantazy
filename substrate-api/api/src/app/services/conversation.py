@@ -522,17 +522,19 @@ class ConversationService:
             if series_row:
                 series_id = series_row["id"]
 
-        # Check for existing active session scoped by (user, series, episode_template)
+        # Check for existing session scoped by (user, series, episode_template)
         # This ensures separate conversation histories per episode within a series
+        # IMPORTANT: We look for ANY existing session (active OR inactive) to preserve message history
+        row = None
         if series_id and episode_template_id:
             # Episode mode: find session for this specific episode template
+            # First try active, then any session (to reactivate if needed)
             query = """
                 SELECT * FROM sessions
                 WHERE user_id = :user_id
                 AND series_id = :series_id
                 AND episode_template_id = :episode_template_id
-                AND is_active = TRUE
-                ORDER BY started_at DESC
+                ORDER BY is_active DESC, started_at DESC
                 LIMIT 1
             """
             row = await self.db.fetch_one(query, {
@@ -547,8 +549,7 @@ class ConversationService:
                 WHERE user_id = :user_id
                 AND series_id = :series_id
                 AND episode_template_id IS NULL
-                AND is_active = TRUE
-                ORDER BY started_at DESC
+                ORDER BY is_active DESC, started_at DESC
                 LIMIT 1
             """
             row = await self.db.fetch_one(query, {
@@ -559,14 +560,26 @@ class ConversationService:
             # Legacy fallback: character-only scoping (no series)
             query = """
                 SELECT * FROM sessions
-                WHERE user_id = :user_id AND character_id = :character_id AND is_active = TRUE
-                ORDER BY started_at DESC
+                WHERE user_id = :user_id AND character_id = :character_id
+                ORDER BY is_active DESC, started_at DESC
                 LIMIT 1
             """
             row = await self.db.fetch_one(query, {"user_id": str(user_id), "character_id": str(character_id)})
 
         if row:
-            return Session(**dict(row))
+            session = Session(**dict(row))
+            # Reactivate if inactive (user returning to an existing episode)
+            if not session.is_active:
+                reactivate_query = """
+                    UPDATE sessions
+                    SET is_active = TRUE, session_state = 'active'
+                    WHERE id = :session_id
+                """
+                await self.db.execute(reactivate_query, {"session_id": str(session.id)})
+                session.is_active = True
+                session.session_state = "active"
+                log.info(f"Reactivated existing session {session.id} for episode_template {episode_template_id}")
+            return session
 
         # Ensure user exists in public.users (auto-create if missing)
         # This handles cases where the auth trigger didn't fire
