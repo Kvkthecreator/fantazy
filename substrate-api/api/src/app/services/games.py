@@ -205,13 +205,21 @@ class GamesService:
         turn_budget = episode_template.turn_budget or 7 if episode_template else 7
         turns_remaining = max(0, turn_budget - director_output.turn_count)
 
+        # Generate and save evaluation if game is complete
+        evaluation_result = None
+        if director_output.is_complete:
+            evaluation_result = await self._generate_and_save_evaluation(
+                session=session,
+                messages=context.messages + [{"role": "assistant", "content": display_content}],
+            )
+
         return GameMessageResult(
             message_content=display_content,
             turn_count=director_output.turn_count,
             turns_remaining=turns_remaining,
             is_complete=director_output.is_complete,
             structured_response=structured_response,
-            evaluation=director_output.evaluation,
+            evaluation=evaluation_result,
         )
 
     async def send_message_stream(
@@ -279,10 +287,15 @@ class GamesService:
 
         # Yield completion event
         if director_output.is_complete:
+            # Generate and save evaluation
+            evaluation_result = await self._generate_and_save_evaluation(
+                session=session,
+                messages=context.messages + [{"role": "assistant", "content": display_content}],
+            )
             yield json.dumps({
                 "type": "episode_complete",
                 "turn_count": director_output.turn_count,
-                "evaluation": director_output.evaluation,
+                "evaluation": evaluation_result,
             })
         else:
             yield json.dumps({
@@ -409,3 +422,41 @@ class GamesService:
                 }),
             }
         )
+
+    async def _generate_and_save_evaluation(
+        self,
+        session: Session,
+        messages: List[Dict[str, str]],
+    ) -> Dict[str, Any]:
+        """Generate romantic trope evaluation and save to database.
+
+        Called when a game session completes.
+        """
+        # Get character name
+        char_row = await self.db.fetch_one(
+            "SELECT name FROM characters WHERE id = :character_id",
+            {"character_id": str(session.character_id)}
+        )
+        character_name = char_row["name"] if char_row else "Character"
+
+        # Generate trope evaluation
+        trope_result = await self.director_service.evaluate_romantic_trope(
+            messages=messages,
+            character_name=character_name,
+        )
+
+        # Save evaluation to database
+        evaluation = await self.director_service.create_evaluation(
+            session_id=session.id,
+            evaluation_type="romantic_trope",
+            result=trope_result,
+            generate_share=True,
+        )
+
+        return {
+            "id": evaluation["id"],
+            "evaluation_type": evaluation["evaluation_type"],
+            "result": evaluation["result"],
+            "share_id": evaluation["share_id"],
+            "share_url": f"/r/{evaluation['share_id']}",
+        }
