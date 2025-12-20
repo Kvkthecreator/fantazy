@@ -22,13 +22,13 @@ const DEFAULT_CHARACTERS: Record<"m" | "f", CharacterInfo> = {
   m: {
     id: "jack",
     name: "Jack",
-    description: "Your high school almost-something. You never quite figured out what you were.",
+    description: "The one you can't read. He's already watching you.",
     avatarUrl: null,
   },
   f: {
     id: "emma",
     name: "Emma",
-    description: "The one who got away. She still has that look in her eyes.",
+    description: "The one who sees right through you. Good luck.",
     avatarUrl: null,
   },
 };
@@ -119,25 +119,25 @@ export default function HometownCrushPage() {
         <div className="text-center mb-8 max-w-lg">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
             <Heart className="h-4 w-4" />
-            Romantic Trope Quiz
+            4 turns. 1 trope.
           </div>
           <h1 className="text-3xl md:text-4xl font-bold mb-3">
-            Hometown Crush
+            The Flirt Test
           </h1>
           <p className="text-muted-foreground">
-            You&apos;re back in your hometown. You didn&apos;t expect to see them here.
+            Flirt with an AI. Find out what kind of romantic you really are.
           </p>
         </div>
 
         {/* Situation teaser */}
         <div className="text-center text-muted-foreground text-sm max-w-md mx-auto mb-8 italic">
-          A quick conversation that reveals your romantic trope. Are you a slow burn? All in? Something else?
+          Coffee shop. Stranger. Four exchanges to reveal your trope.
         </div>
 
         {/* Character Selection */}
         <div className="w-full max-w-2xl mb-8">
           <p className="text-center text-muted-foreground text-sm mb-4">
-            Who do you run into at the coffee shop?
+            Who catches your eye?
           </p>
           <div className="grid grid-cols-2 gap-4">
             <CharacterCard

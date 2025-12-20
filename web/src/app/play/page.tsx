@@ -35,11 +35,11 @@ export default function PlayPage() {
 
         {/* Game Cards */}
         <div className="w-full max-w-2xl space-y-4">
-          {/* Hometown Crush - Featured */}
+          {/* The Flirt Test - Featured */}
           <GameCard
-            title="Hometown Crush"
-            tagline="Discover your romantic trope"
-            description="You're back in your hometown. You didn't expect to see them here. A quick conversation reveals if you're a Slow Burn, All In, or something else."
+            title="The Flirt Test"
+            tagline="4 turns. 1 trope. No hiding."
+            description="Flirt with an AI stranger. Find out if you're a Slow Burn, All In, Chaos Agent, or something else entirely."
             featured
             onClick={() => router.push("/play/hometown-crush")}
           />

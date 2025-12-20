@@ -157,7 +157,7 @@ function HometownCrushChatContent() {
           </div>
           <div>
             <h1 className="font-semibold">{gameState.characterName}</h1>
-            <p className="text-xs text-muted-foreground">Hometown Crush</p>
+            <p className="text-xs text-muted-foreground">The Flirt Test</p>
           </div>
         </div>
         {/* Turn counter */}
