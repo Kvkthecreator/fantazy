@@ -324,8 +324,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                   ) : null
                 )}
 
-                {/* Streaming content */}
-                {streamingContent && (
+                {/* Streaming content or typing indicator */}
+                {(isSending || streamingContent) && (
                   <StreamingBubble
                     content={streamingContent}
                     characterName={character.name}
