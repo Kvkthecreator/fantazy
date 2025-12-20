@@ -1090,6 +1090,48 @@ export interface SharedResultResponse {
   series_id: string | null;
 }
 
+// ============================================================================
+// Quiz Mode Types (per QUIZ_MODE_SPEC.md)
+// ============================================================================
+
+/**
+ * Quiz question with answer options
+ */
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  options: QuizOption[];
+}
+
+/**
+ * Quiz answer option
+ */
+export interface QuizOption {
+  text: string;
+  trope: RomanticTrope;
+}
+
+/**
+ * Quiz state tracking
+ */
+export interface QuizState {
+  currentQuestion: number;
+  answers: Record<number, RomanticTrope>;
+  isComplete: boolean;
+  resultTrope: RomanticTrope | null;
+}
+
+/**
+ * Series info for Episode 0 CTA
+ */
+export interface SeriesCTAItem {
+  id: string;
+  title: string;
+  slug: string;
+  tagline: string | null;
+  coverUrl: string | null;
+}
+
 /**
  * Flirt archetype evaluation result
  */
