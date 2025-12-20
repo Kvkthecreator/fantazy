@@ -1108,6 +1108,7 @@ export interface ShareableResult {
  */
 export interface GameStartResponse {
   session_id: string;
+  anonymous_id: string | null;  // For anonymous users - pass in X-Anonymous-Id header
   character_id: string;
   character_name: string;
   character_avatar_url: string | null;

@@ -1,8 +1,8 @@
 # Play Mode Architecture
 
-> **Version**: 1.1.0
+> **Version**: 1.2.0
 > **Status**: Canonical
-> **Updated**: 2024-12-20
+> **Updated**: 2025-12-20
 
 ---
 
@@ -76,7 +76,7 @@ ep-0.com/r/[share_id]                → Public result view
 ## Auth Flow
 
 ```
-/play → Select experience → 7 turns (anonymous) → Result (anonymous) → Share (anonymous)
+/play → Select experience → 4 turns (anonymous) → Result (anonymous) → Share (anonymous)
                                                                      ↓
                                                         "Continue with Jack" → Auth gate
                                                         "Try another series" → Auth gate
@@ -96,13 +96,14 @@ User lands on play page:
 - Situation preview (coffee shop, hometown return)
 - "Start" CTA
 
-### 2. Conversation (7 turns)
+### 2. Conversation (4 turns)
 
 Anonymous session:
 - Director tracks turn count
-- Pre-guidance shapes pacing (establish → develop → escalate → peak → resolve)
+- 4 turns is enough to demo product and assess trope (virality favors speed)
 - Post-evaluation detects signals for trope classification
 - No auth required
+- Target: shareable result in 2-3 minutes
 
 ### 3. Result (`/play/hometown-crush/result`)
 
@@ -134,7 +135,7 @@ Play experiences use the **existing episode architecture**:
 # Episode Template Configuration
 {
     "completion_mode": "turn_limited",
-    "turn_budget": 7,
+    "turn_budget": 4,  # Reduced from 7 - virality favors speed
     "completion_criteria": {
         "evaluation_type": "romantic_trope"  # or "flirt_archetype" for v1
     }
@@ -145,16 +146,33 @@ Play experiences use the **existing episode architecture**:
 
 ### Anonymous Sessions
 
-Sessions are created without `user_id`:
+Anonymous users receive a disposable UUID that doesn't persist beyond the session:
 
 ```python
-# Anonymous session creation
-session = await conversation_service.get_or_create_episode(
-    user_id=None,  # Anonymous
-    character_id=character_id,
-    episode_template_id=template_id,
-)
+# Anonymous session handling in games.py
+async def get_game_user_id(
+    user_id: Optional[UUID] = Depends(get_optional_user_id),
+    x_anonymous_id: Optional[str] = Header(None, alias="X-Anonymous-Id"),
+) -> UUID:
+    """Get user ID for games - authenticated user or anonymous session."""
+    # Prefer authenticated user
+    if user_id:
+        return user_id
+    # Use anonymous ID from header if provided
+    if x_anonymous_id:
+        try:
+            return UUID(x_anonymous_id)
+        except ValueError:
+            pass
+    # Generate new anonymous ID
+    return uuid4()
 ```
+
+**Client Flow**:
+1. `/start` returns `anonymous_id` for anonymous users
+2. Client stores in sessionStorage
+3. Subsequent calls include `X-Anonymous-Id` header
+4. Session is linked to user on auth conversion
 
 **Conversion Flow**:
 1. Anonymous session completes
@@ -293,7 +311,7 @@ Like Flirt Test v1, Hometown Crush offers **two character variants**:
     "slug": "the-reunion",
     "episode_type": "entry",
     "completion_mode": "turn_limited",
-    "turn_budget": 7,
+    "turn_budget": 4,  # Reduced from 7 - virality favors speed
     "situation": "Coffee shop. You're back in your hometown for the first time in years. You didn't expect to see them here.",
     "opening_line": "...",  # Character-specific
     "dramatic_question": "Will old feelings resurface, or have you both changed too much?",
@@ -499,7 +517,7 @@ When user clicks "Continue with [Character]" or "Save to Profile":
 | Event | Trigger | Properties |
 |-------|---------|------------|
 | `play_start` | User starts experience | `series_slug`, `character` |
-| `play_complete` | 7 turns finished | `series_slug`, `trope`, `confidence` |
+| `play_complete` | 4 turns finished | `series_slug`, `trope`, `confidence` |
 | `share_attempt` | Share button clicked | `trope`, `method` |
 | `share_success` | Share completed | `trope`, `method` |
 | `share_click` | Someone clicks share link | `share_id`, `referrer` |
@@ -534,7 +552,7 @@ Total organic multiplier: 1 / (1 - K) ≈ 1.07x
 | Metric | Target | Notes |
 |--------|--------|-------|
 | Play Start Rate | 80% | Of visitors to `/play/hometown-crush` |
-| Completion Rate | 75% | Of those who start (7 turns is short) |
+| Completion Rate | 85% | Of those who start (4 turns is very short) |
 | **Share Rate** | **35%** | **Of completers — the key viral metric** |
 | **Click-through on Shares** | **25%** | **Recipients who visit** |
 | Account Creation | 15% | Of completers (share OR continue) |
@@ -580,4 +598,6 @@ At 35% share and 25% CTR: K-factor ≈ 0.066. Meaningful organic amplification o
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2.0 | 2025-12-20 | Reduced turn_budget from 7 to 4, implemented anonymous sessions via X-Anonymous-Id header, updated opening lines to front-load tension |
+| 1.1.0 | 2024-12-20 | Added share infrastructure details |
 | 1.0.0 | 2024-12-20 | Initial Play Mode architecture |

@@ -15,6 +15,7 @@ interface Message {
 
 interface GameState {
   sessionId: string;
+  anonymousId: string | null;  // For anonymous users
   characterName: string;
   characterAvatarUrl: string | null;
   turnBudget: number;
@@ -30,7 +31,7 @@ function HometownCrushChatContent() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [turnCount, setTurnCount] = useState(0);
-  const [turnsRemaining, setTurnsRemaining] = useState(7);
+  const [turnsRemaining, setTurnsRemaining] = useState(4);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
@@ -83,11 +84,12 @@ function HometownCrushChatContent() {
     setMessages((prev) => [...prev, { id: userMsgId, role: "user", content: userMessage }]);
 
     try {
-      // Send message to API
+      // Send message to API (include anonymousId for anonymous users)
       const response: GameMessageResponse = await api.games.sendMessage(
         "hometown-crush",
         sessionId,
-        userMessage
+        userMessage,
+        gameState?.anonymousId || undefined
       );
 
       // Add assistant message

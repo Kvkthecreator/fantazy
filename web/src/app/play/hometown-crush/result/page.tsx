@@ -60,7 +60,11 @@ function HometownCrushResultContent() {
 
     const fetchResult = async () => {
       try {
-        const response = await api.games.getResult("hometown-crush", sessionId);
+        // Get anonymousId from session storage for anonymous users
+        const storedState = sessionStorage.getItem(`hometown-crush-${sessionId}`);
+        const anonymousId = storedState ? JSON.parse(storedState).anonymousId : undefined;
+
+        const response = await api.games.getResult("hometown-crush", sessionId, anonymousId);
         setResult({
           evaluation: response.result as RomanticTropeResult,
           shareUrl: response.share_url,

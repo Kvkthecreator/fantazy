@@ -20,9 +20,10 @@ export default function HometownCrushPage() {
 
     try {
       const result = await api.games.start("hometown-crush", selectedCharacter);
-      // Store game state for chat page
+      // Store game state for chat page (including anonymous_id for subsequent calls)
       sessionStorage.setItem(`hometown-crush-${result.session_id}`, JSON.stringify({
         sessionId: result.session_id,
+        anonymousId: result.anonymous_id,  // For anonymous users
         characterName: result.character_name,
         characterAvatarUrl: result.character_avatar_url,
         turnBudget: result.turn_budget,
@@ -60,7 +61,7 @@ export default function HometownCrushPage() {
 
         {/* Situation teaser */}
         <div className="text-center text-white/50 text-sm max-w-md mx-auto mb-8 italic">
-          A 7-turn conversation that reveals your romantic trope. Are you a slow burn? All in? Something else?
+          A quick conversation that reveals your romantic trope. Are you a slow burn? All in? Something else?
         </div>
 
         {/* Character Selection */}

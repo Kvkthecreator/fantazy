@@ -727,26 +727,52 @@ export const api = {
   },
 
   // Games endpoints (Flirt Test and other bounded episodes)
+  // Games support anonymous sessions - pass anonymousId for unauthenticated users
   games: {
-    start: (gameSlug: string, characterChoice?: "m" | "f") =>
-      request<import("@/types").GameStartResponse>(`/games/${gameSlug}/start`, {
+    start: async (gameSlug: string, characterChoice?: "m" | "f", anonymousId?: string) => {
+      const headers = await getAuthHeaders();
+      if (anonymousId) {
+        headers["X-Anonymous-Id"] = anonymousId;
+      }
+      const response = await fetch(`${API_BASE_URL}/games/${gameSlug}/start`, {
         method: "POST",
+        headers,
         body: JSON.stringify({ character_choice: characterChoice }),
-      }),
-    sendMessage: (gameSlug: string, sessionId: string, content: string) =>
-      request<import("@/types").GameMessageResponse>(
-        `/games/${gameSlug}/${sessionId}/message`,
-        {
-          method: "POST",
-          body: JSON.stringify({ content }),
-        }
-      ),
+      });
+      if (!response.ok) {
+        let data;
+        try { data = await response.json(); } catch { data = null; }
+        throw new APIError(response.status, response.statusText, data);
+      }
+      return response.json() as Promise<import("@/types").GameStartResponse>;
+    },
+    sendMessage: async (gameSlug: string, sessionId: string, content: string, anonymousId?: string) => {
+      const headers = await getAuthHeaders();
+      if (anonymousId) {
+        headers["X-Anonymous-Id"] = anonymousId;
+      }
+      const response = await fetch(`${API_BASE_URL}/games/${gameSlug}/${sessionId}/message`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ content }),
+      });
+      if (!response.ok) {
+        let data;
+        try { data = await response.json(); } catch { data = null; }
+        throw new APIError(response.status, response.statusText, data);
+      }
+      return response.json() as Promise<import("@/types").GameMessageResponse>;
+    },
     sendMessageStream: async function* (
       gameSlug: string,
       sessionId: string,
-      content: string
+      content: string,
+      anonymousId?: string
     ) {
       const headers = await getAuthHeaders();
+      if (anonymousId) {
+        headers["X-Anonymous-Id"] = anonymousId;
+      }
 
       const response = await fetch(
         `${API_BASE_URL}/games/${gameSlug}/${sessionId}/message/stream`,
@@ -800,10 +826,22 @@ export const api = {
         }
       }
     },
-    getResult: (gameSlug: string, sessionId: string) =>
-      request<import("@/types").GameResultResponse>(
-        `/games/${gameSlug}/${sessionId}/result`
-      ),
+    getResult: async (gameSlug: string, sessionId: string, anonymousId?: string) => {
+      const headers = await getAuthHeaders();
+      if (anonymousId) {
+        headers["X-Anonymous-Id"] = anonymousId;
+      }
+      const response = await fetch(`${API_BASE_URL}/games/${gameSlug}/${sessionId}/result`, {
+        method: "GET",
+        headers,
+      });
+      if (!response.ok) {
+        let data;
+        try { data = await response.json(); } catch { data = null; }
+        throw new APIError(response.status, response.statusText, data);
+      }
+      return response.json() as Promise<import("@/types").GameResultResponse>;
+    },
     getSharedResult: (shareId: string) =>
       request<import("@/types").SharedResultResponse>(`/games/r/${shareId}`),
   },

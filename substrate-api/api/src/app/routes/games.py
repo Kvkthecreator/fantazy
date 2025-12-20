@@ -3,14 +3,19 @@
 Endpoints for game-type episodes like the Flirt Test.
 These are public-facing routes that work with or without authentication.
 
+Play Mode is the acquisition funnel - anonymous users must be able to
+complete the full experience without signup. Anonymous sessions use
+disposable UUIDs passed via X-Anonymous-Id header.
+
 Reference: docs/plans/FLIRT_TEST_IMPLEMENTATION_PLAN.md
 """
 
 import json
+import logging
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -19,7 +24,41 @@ from app.dependencies import get_optional_user_id, get_current_user_id
 from app.services.games import GamesService
 from app.services.director import DirectorService
 
+log = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/games", tags=["Games"])
+
+
+# ============================================================================
+# Anonymous Session Handling
+# ============================================================================
+
+async def get_game_user_id(
+    user_id: Optional[UUID] = Depends(get_optional_user_id),
+    x_anonymous_id: Optional[str] = Header(None, alias="X-Anonymous-Id"),
+) -> UUID:
+    """Get user ID for games - authenticated user or anonymous session.
+
+    Priority:
+    1. Authenticated user (from JWT)
+    2. Anonymous ID from header (for subsequent calls)
+    3. Generate new anonymous ID (for first call)
+
+    Anonymous IDs are disposable - they don't persist beyond the session.
+    """
+    # Prefer authenticated user
+    if user_id:
+        return user_id
+
+    # Use anonymous ID from header if provided
+    if x_anonymous_id:
+        try:
+            return UUID(x_anonymous_id)
+        except ValueError:
+            log.warning(f"Invalid X-Anonymous-Id header: {x_anonymous_id}")
+
+    # Generate new anonymous ID
+    return uuid4()
 
 
 # ============================================================================
@@ -34,6 +73,7 @@ class GameStartRequest(BaseModel):
 class GameStartResponse(BaseModel):
     """Response from starting a game."""
     session_id: str
+    anonymous_id: Optional[str] = None  # For anonymous users to use in subsequent calls
     character_id: str
     character_name: str
     character_avatar_url: Optional[str]
@@ -86,23 +126,33 @@ class ShareableResultResponse(BaseModel):
 async def start_game(
     game_slug: str,
     data: GameStartRequest,
-    user_id: Optional[UUID] = Depends(get_optional_user_id),
+    auth_user_id: Optional[UUID] = Depends(get_optional_user_id),
+    x_anonymous_id: Optional[str] = Header(None, alias="X-Anonymous-Id"),
     db=Depends(get_db),
 ):
     """Start a new game session.
 
     Creates an anonymous session if not authenticated.
     Games work without login to maximize top-of-funnel engagement.
+
+    For anonymous users, returns anonymous_id which must be passed in
+    X-Anonymous-Id header for subsequent calls.
     """
-    # For anonymous users, create a temporary user ID
-    # (In production, would use session tokens)
-    effective_user_id = user_id
-    if not effective_user_id:
-        # TODO: Implement anonymous session handling
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required (anonymous games coming soon)"
-        )
+    # Determine effective user ID
+    is_anonymous = auth_user_id is None
+    if auth_user_id:
+        effective_user_id = auth_user_id
+        anonymous_id = None
+    elif x_anonymous_id:
+        try:
+            effective_user_id = UUID(x_anonymous_id)
+            anonymous_id = x_anonymous_id
+        except ValueError:
+            effective_user_id = uuid4()
+            anonymous_id = str(effective_user_id)
+    else:
+        effective_user_id = uuid4()
+        anonymous_id = str(effective_user_id)
 
     service = GamesService(db)
 
@@ -115,6 +165,7 @@ async def start_game(
 
         return GameStartResponse(
             session_id=str(result.session_id),
+            anonymous_id=anonymous_id,  # Client stores this for subsequent calls
             character_id=str(result.character_id),
             character_name=result.character_name,
             character_avatar_url=result.character_avatar_url,
@@ -134,10 +185,13 @@ async def send_game_message(
     game_slug: str,
     session_id: UUID,
     data: GameMessageRequest,
-    user_id: UUID = Depends(get_current_user_id),
+    user_id: UUID = Depends(get_game_user_id),
     db=Depends(get_db),
 ):
     """Send a message in a game session.
+
+    For anonymous users, include X-Anonymous-Id header with the anonymous_id
+    returned from /start.
 
     Returns the character response and game state.
     When is_complete=True, use GET /games/{game_slug}/{session_id}/result to get evaluation.
@@ -170,10 +224,13 @@ async def send_game_message_stream(
     game_slug: str,
     session_id: UUID,
     data: GameMessageRequest,
-    user_id: UUID = Depends(get_current_user_id),
+    user_id: UUID = Depends(get_game_user_id),
     db=Depends(get_db),
 ):
     """Send a message and stream the response.
+
+    For anonymous users, include X-Anonymous-Id header with the anonymous_id
+    returned from /start.
 
     Returns SSE stream with chunks, then final game state.
     Event types:
@@ -217,10 +274,13 @@ async def send_game_message_stream(
 async def get_game_result(
     game_slug: str,
     session_id: UUID,
-    user_id: UUID = Depends(get_current_user_id),
+    user_id: UUID = Depends(get_game_user_id),
     db=Depends(get_db),
 ):
     """Get the evaluation result for a completed game.
+
+    For anonymous users, include X-Anonymous-Id header with the anonymous_id
+    returned from /start.
 
     Returns the archetype result and share URL.
     """
