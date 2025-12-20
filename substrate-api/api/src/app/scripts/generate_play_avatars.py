@@ -1,10 +1,11 @@
 """Generate anchor avatars for Play Mode characters (Jack & Emma).
 
-This script creates hero avatars for Hometown Crush characters
+This script creates hero avatars for The Flirt Test characters
 using FLUX image generation.
 
 Usage:
     python -m app.scripts.generate_play_avatars
+    python -m app.scripts.generate_play_avatars --force  # Regenerate even if exists
 
 Environment variables required:
     REPLICATE_API_TOKEN - Replicate API key
@@ -52,23 +53,23 @@ ADMIN_USER_ID = "82633300-3cfd-4e32-b141-046d0edd616b"
 
 # =============================================================================
 # Play Mode Character Appearance Descriptions
-# Optimized for romantic tension, relatability, and shareability
+# The Flirt Test - Stranger chemistry, immediate attraction
 # =============================================================================
 
 PLAY_MODE_CHARACTERS = {
     "jack-hometown": {
         "name": "Jack",
-        "appearance": "handsome man in his late 20s, warm brown eyes, slightly messy dark hair, strong jaw, gentle smile, casual flannel shirt over t-shirt, approachable attractive",
-        "setting": "cozy coffee shop, warm morning light through windows, comfortable neighborhood vibe",
-        "pose": "looking up from coffee with surprised recognition, slight hopeful smile forming, eyes holding unspoken history",
-        "mood": "nostalgic warmth, second chance energy, familiar yet changed",
+        "appearance": "handsome man in his late 20s, dark eyes with mischief, slightly tousled dark hair, sharp jawline, confident half-smile, fitted henley shirt, effortlessly attractive",
+        "setting": "moody coffee shop, warm afternoon light, intimate corner table",
+        "pose": "leaning back casually, coffee in hand, looking directly at camera with interested curiosity, one eyebrow slightly raised",
+        "mood": "confident intrigue, playful challenge, I see you energy",
     },
     "emma-hometown": {
         "name": "Emma",
-        "appearance": "beautiful woman in her late 20s, striking green eyes, wavy auburn hair, soft features, natural makeup, cozy sweater, effortlessly stylish",
-        "setting": "cozy coffee shop, warm morning light through windows, comfortable neighborhood vibe",
-        "pose": "looking up with recognition and guarded hope, coffee cup in hands, eyes searching yours",
-        "mood": "vulnerability beneath composure, the one who got away energy, walls softening",
+        "appearance": "beautiful woman in her late 20s, piercing eyes, dark wavy hair, sharp features, bold lip, stylish blazer over simple top, magnetic presence",
+        "setting": "moody coffee shop, warm afternoon light, intimate atmosphere",
+        "pose": "leaning forward slightly, chin resting on hand, direct eye contact, knowing smile playing at lips",
+        "mood": "confident assessment, playful danger, I already know your secrets energy",
     },
 }
 
@@ -100,13 +101,42 @@ def build_play_mode_prompt(char_data: dict) -> tuple[str, str]:
     return full_prompt, negative_prompt
 
 
-async def generate_avatars():
+async def generate_avatars(force: bool = False):
     """Generate anchor avatars for Play Mode characters."""
     db = Database(DATABASE_URL)
     await db.connect()
     storage = StorageService.get_instance()
 
     try:
+        # If force mode, clear existing avatar data first
+        if force:
+            # Get character IDs
+            char_ids = await db.fetch_all("""
+                SELECT id FROM characters
+                WHERE slug IN ('jack-hometown', 'emma-hometown')
+            """)
+            for char_row in char_ids:
+                char_id = str(char_row["id"])
+                # Delete avatar assets linked to this character's kits
+                await db.execute("""
+                    DELETE FROM avatar_assets
+                    WHERE avatar_kit_id IN (
+                        SELECT id FROM avatar_kits WHERE character_id = :char_id
+                    )
+                """, {"char_id": char_id})
+                # Delete avatar kits
+                await db.execute("""
+                    DELETE FROM avatar_kits WHERE character_id = :char_id
+                """, {"char_id": char_id})
+
+            # Clear avatar URLs on characters
+            await db.execute("""
+                UPDATE characters
+                SET avatar_url = NULL, active_avatar_kit_id = NULL
+                WHERE slug IN ('jack-hometown', 'emma-hometown')
+            """)
+            print("Force mode: Cleared existing avatar kits and URLs")
+
         # Get Play Mode characters without avatars
         rows = await db.fetch_all("""
             SELECT id, name, slug
@@ -215,8 +245,8 @@ async def generate_avatars():
                     }
                 )
 
-                # Get public URL and update character
-                image_url = await storage.create_signed_url("avatars", storage_path)
+                # Get permanent public URL and update character
+                image_url = storage.get_public_url("avatars", storage_path)
 
                 # Update kit with primary anchor
                 await db.execute(
@@ -255,4 +285,8 @@ async def generate_avatars():
 
 
 if __name__ == "__main__":
-    asyncio.run(generate_avatars())
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate Play Mode character avatars")
+    parser.add_argument("--force", action="store_true", help="Regenerate even if avatars exist")
+    args = parser.parse_args()
+    asyncio.run(generate_avatars(force=args.force))
