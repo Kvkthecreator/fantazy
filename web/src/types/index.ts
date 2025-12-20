@@ -968,119 +968,30 @@ export type RomanticTrope =
   | "slow_reveal";
 
 /**
- * Cultural reference for a romantic trope
- */
-export interface CulturalReference {
-  title: string;
-  characters: string;
-}
-
-/**
- * Romantic trope metadata
- */
-export interface RomanticTropeMetadata {
-  title: string;
-  tagline: string;
-  description: string;
-  signals: string[];
-  cultural_refs: CulturalReference[];
-}
-
-/**
- * Coaching do's and don'ts for a trope
- */
-export interface TropeCoaching {
-  do: string[];
-  dont: string[];
-}
-
-/**
  * Romantic trope result (returned by evaluation)
- * Enhanced with personalization fields for shareable results
- * UNHINGED EDITION - optimized for shareability
+ * UNHINGED EDITION - maximum virality, MBTI energy
  */
 export interface RomanticTropeResult {
   trope: RomanticTrope;
   confidence: number;
   primary_signals: string[];
-  title: string;
-  tagline: string;
-  description: string;
-  // Unhinged content fields
-  the_read: string;  // Brutal truth paragraph
-  coaching: TropeCoaching;  // Do's and don'ts
-  cultural_roast: string;  // Spicy cultural take
-  // Personalization fields (LLM-generated)
-  evidence: string[];  // 3 specific "receipts"
-  callback_quote: string | null;  // User's most unhinged moment
-  // Static cultural references
-  cultural_refs: CulturalReference[];
+  title: string;  // e.g., "SLOW BURN"
+  tagline: string;  // e.g., "the tension is the whole point and you know it"
+  description: string;  // The viral description paragraph
+  share_text: string;  // Pre-formatted share text
+  callback_quote: string | null;  // Formatted with trope's callback template
+  your_people: string[];  // e.g., ["darcy & elizabeth", "jim & pam"]
 }
 
 /**
- * Static trope data for display (matches ROMANTIC_TROPES in backend)
+ * Trope emoji and color for UI display
  */
-export const ROMANTIC_TROPES: Record<RomanticTrope, RomanticTropeMetadata> = {
-  slow_burn: {
-    title: "The Slow Burn",
-    tagline: "You know the best things take time",
-    description: "Patient and deliberate. You let tension build naturally, savoring each layer of connection before moving forward. Depth over speed, always.",
-    signals: ["comfortable_silence", "deep_questions", "patient_pacing", "layered_revelation"],
-    cultural_refs: [
-      { title: "Pride & Prejudice", characters: "Darcy & Elizabeth" },
-      { title: "The Office", characters: "Jim & Pam" },
-      { title: "Normal People", characters: "Connell & Marianne" },
-      { title: "When Harry Met Sally", characters: "Harry & Sally" },
-    ],
-  },
-  second_chance: {
-    title: "The Second Chance",
-    tagline: "Some stories aren't over just because they paused",
-    description: "You believe in unfinished stories. When something real was interrupted by timing or circumstance, you're willing to see if it can be different now.",
-    signals: ["past_callbacks", "growth_acknowledgment", "timing_awareness", "hopeful_realism"],
-    cultural_refs: [
-      { title: "La La Land", characters: "Mia & Sebastian" },
-      { title: "The Notebook", characters: "Noah & Allie" },
-      { title: "Eternal Sunshine of the Spotless Mind", characters: "Joel & Clementine" },
-      { title: "Before Sunset", characters: "Jesse & Celine" },
-    ],
-  },
-  all_in: {
-    title: "The All In",
-    tagline: "When you know, you know",
-    description: "Direct and decisive. You don't play games when you feel something real. Your clarity is magnetic—you say what you mean and mean what you say.",
-    signals: ["direct_expression", "confident_moves", "emotional_clarity", "bold_honesty"],
-    cultural_refs: [
-      { title: "Crazy Rich Asians", characters: "Rachel & Nick" },
-      { title: "The Proposal", characters: "Margaret & Andrew" },
-      { title: "To All the Boys I've Loved Before", characters: "Lara Jean & Peter" },
-      { title: "Brooklyn Nine-Nine", characters: "Jake & Amy" },
-    ],
-  },
-  push_pull: {
-    title: "The Push & Pull",
-    tagline: "The tension is the point",
-    description: "You thrive in the dance—the advance, the retreat, the electricity of uncertainty. Banter is foreplay, and you never make it too easy.",
-    signals: ["playful_resistance", "witty_deflection", "tension_maintenance", "strategic_vulnerability"],
-    cultural_refs: [
-      { title: "10 Things I Hate About You", characters: "Kat & Patrick" },
-      { title: "New Girl", characters: "Jess & Nick" },
-      { title: "Gilmore Girls", characters: "Lorelai & Luke" },
-      { title: "How to Lose a Guy in 10 Days", characters: "Andie & Ben" },
-    ],
-  },
-  slow_reveal: {
-    title: "The Slow Reveal",
-    tagline: "Mystery is magnetic",
-    description: "Intriguing and deliberate. You reveal yourself in layers, rewarding attention with depth. What you hold back is as powerful as what you share.",
-    signals: ["selective_sharing", "intriguing_deflection", "earned_intimacy", "mysterious_allure"],
-    cultural_refs: [
-      { title: "Jane Eyre", characters: "Jane & Rochester" },
-      { title: "Fleabag", characters: "Fleabag & The Priest" },
-      { title: "Twilight", characters: "Bella & Edward" },
-      { title: "Mr. & Mrs. Smith", characters: "John & Jane" },
-    ],
-  },
+export const TROPE_VISUALS: Record<RomanticTrope, { emoji: string; color: string }> = {
+  slow_burn: { emoji: "🕯️", color: "text-amber-500" },
+  second_chance: { emoji: "🌅", color: "text-rose-500" },
+  all_in: { emoji: "💫", color: "text-yellow-500" },
+  push_pull: { emoji: "⚡", color: "text-purple-500" },
+  slow_reveal: { emoji: "🌙", color: "text-violet-500" },
 };
 
 /**

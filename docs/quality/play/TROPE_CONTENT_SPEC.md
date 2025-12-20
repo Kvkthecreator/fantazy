@@ -1,6 +1,6 @@
 # Romantic Trope Content Specification
 
-> **Version**: 1.0.0
+> **Version**: 2.0.0
 > **Status**: Canonical
 > **Updated**: 2025-12-20
 
@@ -8,213 +8,101 @@
 
 ## Overview
 
-This document defines the content structure and copy for the 5 romantic tropes used in Play Mode. The content is designed for **maximum shareability** with "group chat energy" - the kind of observations that make people screenshot and send to friends.
+This document defines the content for the 5 romantic tropes used in Play Mode. The content is designed for **maximum virality** with MBTI/personality test energy - the kind of result that makes people screenshot and share.
 
-**Design Principle**: Spicy but affectionate. Brutal honesty wrapped in love. Make them feel seen and slightly attacked (in a good way).
-
----
-
-## Content Structure
-
-Each trope result includes:
-
-| Section | Purpose | Tone |
-|---------|---------|------|
-| **Title** | Identity claim | Bold, ownable |
-| **Tagline** | Shareable one-liner | Spicy, quotable |
-| **The Read** | Brutal truth paragraph | "I feel attacked" energy |
-| **Your Receipts** | 3 LLM-generated observations | Specific, too real |
-| **The Moment We Knew** | Their defining quote | Embarrassingly accurate |
-| **Coaching** | Do's and don'ts | Funny, helpful |
-| **You In The Wild** | Cultural references + roast | Relatable, pop culture |
+**Design Principle**: Unhinged but affectionate. Make them feel seen. Make them laugh. Make them share.
 
 ---
 
-## The 5 Romantic Tropes
+## The 5 Romantic Tropes — Unhinged Edition
 
-### 1. The Slow Burn
+### 1. SLOW BURN
 
-**Title**: The Slow Burn
-**Tagline**: "You'll die on this hill and you know it"
+**Tagline**: the tension is the whole point and you know it
 
-**The Read**:
-> You've planned a whole relationship in your head before they even know your last name. You call it 'taking it slow' but really you're just terrified to ruin the fantasy by asking if they're single.
+**Description**:
+You'd rather wait three seasons for a kiss than rush it. You've said "I just think it's better when it builds" at least once this month. Eye contact across a room? That's your whole love language. You're not playing hard to get — you genuinely believe anticipation is the best part. Other people think you're patient. You know you're just savoring it.
 
-**Coaching**:
-- DO: Shoot your shot before they get engaged to someone else
-- DO: Accept that 'we have a vibe' isn't a relationship
-- DO: Remember that rejection is better than 8 months of wondering
-- DON'T: Write another unsent letter
-- DON'T: Start your 47th draft of that 'casual' text
-- DON'T: Stalk their Spotify activity instead of texting them
+**Callback Format**:
+`You told {character}: "{quote}" ...yeah, we clocked you immediately.`
 
-**Cultural Roast**:
-> Elizabeth Bennet walked so you could run... slowly. Very slowly. Dangerously slowly.
+**Your People**:
+darcy & elizabeth • jim & pam • connell & marianne
 
-**Cultural References**:
-- Pride & Prejudice (Darcy & Elizabeth)
-- The Office (Jim & Pam)
-- Normal People (Connell & Marianne)
-- When Harry Met Sally (Harry & Sally)
+**Share Text**:
+`I'm a SLOW BURN — the tension is the whole point. what's yours?`
 
 ---
 
-### 2. The Second Chance
+### 2. SECOND CHANCE
 
-**Title**: The Second Chance
-**Tagline**: "The ex files"
+**Tagline**: you never really closed that chapter, did you
 
-**The Read**:
-> You've texted 'hey' at 1am to someone you swore you were over. Your Notes app has a draft apology from 2022 you never sent. You're not hung up, you're 'hopeful.'
+**Description**:
+You still think about the one that got away. Not in a sad way — in a "the timing was just wrong" way. You believe some people are meant to find their way back to each other. Reunion episodes are your weakness. You've definitely stalked an ex's Instagram "just to see how they're doing." You're not hung up on the past — you just think some stories deserve a second draft.
 
-**Coaching**:
-- DO: Ask yourself if they've actually changed (or if you just miss the idea of them)
-- DO: Accept that some chapters end for a reason
-- DO: Delete the ex's number (for real this time)
-- DON'T: Mistake nostalgia for love
-- DON'T: Check their Instagram at 2am 'just to see'
-- DON'T: Convince yourself Mercury retrograde is a valid reason to reconnect
+**Callback Format**:
+`You told {character}: "{quote}" ...you're already writing the sequel in your head.`
 
-**Cultural Roast**:
-> You have their Spotify wrapped screenshot from 2 years ago saved. Don't lie.
+**Your People**:
+mia & sebastian • noah & allie • jesse & céline
 
-**Cultural References**:
-- La La Land (Mia & Sebastian)
-- The Notebook (Noah & Allie)
-- Eternal Sunshine of the Spotless Mind (Joel & Clementine)
-- Before Sunset (Jesse & Celine)
+**Share Text**:
+`I'm a SECOND CHANCE — some stories deserve a sequel. what's yours?`
 
 ---
 
-### 3. The All In
+### 3. ALL IN
 
-**Title**: The All In
-**Tagline**: "No thoughts, just vibes and commitment"
+**Tagline**: when you know, you know — and you KNEW
 
-**The Read**:
-> You've said 'I love you' first in every relationship. Sometimes on the second date. You call it knowing what you want. Therapists call it something else.
+**Description**:
+You don't do slow. You don't do games. When you feel it, you say it, and honestly? That's terrifying to most people. You've been called "intense" like it's a bad thing. It's not. You'd rather be rejected for being honest than liked for being careful. While everyone else is calculating their next move, you already made yours. Life's too short to pretend you don't care.
 
-**Coaching**:
-- DO: Let them finish their sentence before planning the wedding
-- DO: Verify they're single before falling in love
-- DO: Give them space to miss you occasionally
-- DON'T: Name the kids on date three
-- DON'T: U-Haul it (unless they're also an All In, then godspeed)
-- DON'T: Mistake intensity for compatibility
+**Callback Format**:
+`You told {character}: "{quote}" ...no hesitation. respect.`
 
-**Cultural Roast**:
-> Your friends are tired of hearing 'I just know' about someone you met Tuesday.
+**Your People**:
+rachel & nick • lara jean & peter • jake & amy
 
-**Cultural References**:
-- Crazy Rich Asians (Rachel & Nick)
-- The Proposal (Margaret & Andrew)
-- To All the Boys I've Loved Before (Lara Jean & Peter)
-- Brooklyn Nine-Nine (Jake & Amy)
+**Share Text**:
+`I'm ALL IN — when I know, I know. what's yours?`
 
 ---
 
-### 4. The Push & Pull
+### 4. PUSH & PULL
 
-**Title**: The Push & Pull
-**Tagline**: "Emotionally unavailable? It's called mystery"
+**Tagline**: you want them to work for it (and you'll work for it too)
 
-**The Read**:
-> You left someone on read for 6 hours to seem busy then checked if they were typing. You're not playing games, you're just 'protecting your energy.'
+**Description**:
+Hot then cold. Close then distant. It's not games — it's tension, and you're fluent in it. You flirt by arguing. You show love by teasing. The chase is half the fun and you refuse to apologize for it. People say they want straightforward, but they keep coming back to you. You're exhausting in the best way. Boring could never be your problem.
 
-**Coaching**:
-- DO: Reply within a reasonable time like a normal person
-- DO: Say you like them instead of being 'playfully mean'
-- DO: Recognize that confusion isn't the same as chemistry
-- DON'T: Ghost and come back with 'sorry I was in a tunnel'
-- DON'T: Create chaos because you're bored
-- DON'T: Mistake anxiety for butterflies
+**Callback Format**:
+`You told {character}: "{quote}" ...push, pull, we see you.`
 
-**Cultural Roast**:
-> You've definitely confused someone who was genuinely interested. Multiple times.
+**Your People**:
+kat & patrick • jess & nick • lorelai & luke
 
-**Cultural References**:
-- 10 Things I Hate About You (Kat & Patrick)
-- New Girl (Jess & Nick)
-- Gilmore Girls (Lorelai & Luke)
-- How to Lose a Guy in 10 Days (Andie & Ben)
+**Share Text**:
+`I'm a PUSH & PULL — the chase is half the fun. what's yours?`
 
 ---
 
-### 5. The Slow Reveal
+### 5. SLOW REVEAL
 
-**Title**: The Slow Reveal
-**Tagline**: "Trauma? I call it depth"
+**Tagline**: they have to earn the real you
 
-**The Read**:
-> People think you're mysterious but really you just dissociate mid-conversation. You've been 'almost ready to open up' for 3 years. Your walls have walls.
+**Description**:
+You're not cold — you're careful. There's a version of you that most people get, and then there's the version that only comes out when someone proves they're paying attention. You test people without them knowing. You reward curiosity and punish assumptions. People call you "mysterious" and you let them, because explaining yourself sounds exhausting. The right person will figure it out.
 
-**Coaching**:
-- DO: Share ONE (1) personal thing this month
-- DO: Let someone see you cry (revolutionary, I know)
-- DO: Accept that vulnerability is not the same as weakness
-- DON'T: Deflect with humor when they ask how you're really doing
-- DON'T: Mistake emotional unavailability for being 'low maintenance'
-- DON'T: Disappear when things get real
+**Callback Format**:
+`You told {character}: "{quote}" ...you let that one slip, didn't you.`
 
-**Cultural Roast**:
-> You've said 'I'm fine' so convincingly that even you believed it.
+**Your People**:
+jane & rochester • fleabag & the priest • bella & edward
 
-**Cultural References**:
-- Jane Eyre (Jane & Rochester)
-- Fleabag (Fleabag & The Priest)
-- Twilight (Bella & Edward)
-- Mr. & Mrs. Smith (John & Jane)
-
----
-
-## LLM-Generated Content
-
-The following are generated per-user by the evaluation LLM:
-
-### Your Receipts (Evidence)
-3 specific observations based on their actual conversation:
-- Should be spicy but affectionate
-- Reference specific things they said/did
-- Make them think "WHY IS THIS SO TRUE"
-
-**Prompt guidance**: "Lovingly roast them. Think 'group chat energy.'"
-
-**Example outputs**:
-- "You deflected with humor twice when things got real - classic defense mechanism, bestie"
-- "You said 'I should probably go' but stayed another hour. We noticed."
-- "The way you circled back to that one topic three times? Not subtle."
-
-### The Moment We Knew (Callback Quote)
-Their most revealing/unhinged moment from the conversation:
-- Quote them directly (or paraphrase if too long)
-- Add framing that's slightly roast-y
-- Should feel embarrassingly accurate
-
-**Format**: `When you said "[quote]" — [framing]`
-
-**Examples**:
-- `When you said "I should probably go" — but you stayed. Very slow burn of you.`
-- `When you asked what they've been up to "lately" — you meant since 2019.`
-
----
-
-## Share Content
-
-### Share Button Copy
-Primary CTA: **"Send to the Group Chat"**
-
-### Share Text Template
-```
-I'm [Title] [emoji] - "[Tagline]"
-
-What's your romantic trope?
-[URL]
-```
-
-### OG Metadata
-- **og:title**: `I'm [Title]!`
-- **og:description**: `[Tagline] - What's your romantic trope?`
-- **og:image**: Static per-trope image (1200x630)
+**Share Text**:
+`I'm a SLOW REVEAL — you have to earn the real me. what's yours?`
 
 ---
 
@@ -222,37 +110,53 @@ What's your romantic trope?
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  YOUR ROMANTIC TROPE                                        │
+│                          [emoji]                            │
 │                                                             │
-│  [emoji]                                                    │
-│  [Title]                                                    │
-│  "[Tagline]"                                                │
+│                       SLOW BURN                             │
+│                                                             │
+│        the tension is the whole point and you know it       │
+│                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│  THE READ                                                   │
-│  [Brutal truth paragraph]                                   │
+│  You'd rather wait three seasons for a kiss than rush it.  │
+│  You've said "I just think it's better when it builds"     │
+│  at least once this month...                                │
 ├─────────────────────────────────────────────────────────────┤
-│  YOUR RECEIPTS                                              │
-│  → [Evidence 1]                                             │
-│  → [Evidence 2]                                             │
-│  → [Evidence 3]                                             │
+│  You told Jack: "I like taking my time"                     │
+│  ...yeah, we clocked you immediately.                       │
 ├─────────────────────────────────────────────────────────────┤
-│  THE MOMENT WE KNEW                                         │
-│  [Callback quote]                                           │
+│                      your people                            │
+│        darcy & elizabeth • jim & pam • connell & marianne   │
 ├─────────────────────────────────────────────────────────────┤
-│  FRIENDLY ADVICE                                            │
-│  ✓ [Do 1]          ✗ [Don't 1]                             │
-│  ✓ [Do 2]          ✗ [Don't 2]                             │
-├─────────────────────────────────────────────────────────────┤
-│  YOU IN THE WILD                                            │
-│  [Cultural roast]                                           │
-│  [Ref 1] [Ref 2] [Ref 3]                                   │
-├─────────────────────────────────────────────────────────────┤
-│  Match: [confidence]%                                       │
+│  match ─────────────────────────────────────── 87%          │
 └─────────────────────────────────────────────────────────────┘
 
-[ Send to the Group Chat ]  ← Primary CTA
+                    [ share result ]
 
-[ Try Different Character ] [ More Stories → ]
+                      [ try again ]
+
+                      ep-0.com/play
+```
+
+---
+
+## Share Infrastructure
+
+### Share Text
+Pre-formatted for each trope, ready to copy/paste or share via native share sheet.
+
+### OG Image (1200x630)
+
+```
+┌─────────────────────────────────────┐
+│                                     │
+│         I'm a SLOW BURN             │
+│                                     │
+│   the tension is the whole point    │
+│                                     │
+│      what's your romantic trope?    │
+│           ep-0.com/play             │
+│                                     │
+└─────────────────────────────────────┘
 ```
 
 ---
@@ -261,4 +165,5 @@ What's your romantic trope?
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1.0.0 | 2025-12-20 | Initial unhinged content spec |
+| 2.0.0 | 2025-12-20 | Complete rewrite - maximum virality, MBTI energy |
+| 1.0.0 | 2025-12-20 | Initial spec (deprecated) |

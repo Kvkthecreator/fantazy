@@ -375,38 +375,24 @@ function RomanticTropeResultCard({
             {evaluation.description}
           </p>
 
-          {/* Evidence - "Why This Fits Them" */}
-          {evaluation.evidence && evaluation.evidence.length > 0 && (
-            <div className="mb-6">
-              <p className="text-xs text-white/50 mb-3 uppercase tracking-wider">
-                Why this fits them
+          {/* Callback Quote */}
+          {evaluation.callback_quote && (
+            <div className="mb-6 p-4 bg-white/10 rounded-xl">
+              <p className="text-sm italic text-center text-white/80">
+                {evaluation.callback_quote}
               </p>
-              <ul className="space-y-2">
-                {evaluation.evidence.map((observation, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-white/80">
-                    <span className="text-amber-400 mt-1">•</span>
-                    <span>{observation}</span>
-                  </li>
-                ))}
-              </ul>
             </div>
           )}
 
-          {/* Cultural references - "In The Wild" */}
-          {evaluation.cultural_refs && evaluation.cultural_refs.length > 0 && (
+          {/* Your People */}
+          {evaluation.your_people && evaluation.your_people.length > 0 && (
             <div className="mb-6">
-              <p className="text-xs text-white/50 mb-3 uppercase tracking-wider">
-                {evaluation.title.replace("The ", "")} in the Wild
+              <p className="text-xs text-white/50 mb-2 text-center uppercase tracking-wider">
+                your people
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                {evaluation.cultural_refs.slice(0, 4).map((ref, i) => (
-                  <div key={i} className="text-xs text-white/60">
-                    <span className="text-white/80">{ref.title}</span>
-                    <br />
-                    <span className="text-white/40">({ref.characters})</span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-center text-white/70">
+                {evaluation.your_people.join(" • ")}
+              </p>
             </div>
           )}
 

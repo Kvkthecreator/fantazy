@@ -44,137 +44,52 @@ class RomanticTrope:
 
 
 # Romantic Trope metadata for display and evaluation
-# UNHINGED EDITION - optimized for shareability and "I'm being attacked" energy
+# UNHINGED EDITION - maximum virality, MBTI energy, share-worthy
 ROMANTIC_TROPES = {
     RomanticTrope.SLOW_BURN: {
-        "title": "The Slow Burn",
-        "tagline": "You'll die on this hill and you know it",
-        "description": "You've planned a whole relationship in your head before they even know your last name. You call it 'taking it slow' but really you're just terrified to ruin the fantasy by asking if they're single.",
-        "the_read": "You've mass a whole relationship in your head before they even know your last name. You call it 'taking it slow' but really you're too scared to ruin the fantasy by asking if they're single.",
-        "coaching": {
-            "do": [
-                "Shoot your shot before they get engaged to someone else",
-                "Accept that 'we have a vibe' isn't a relationship",
-                "Remember that rejection is better than 8 months of wondering",
-            ],
-            "dont": [
-                "Write another unsent letter",
-                "Start your 47th draft of that 'casual' text",
-                "Stalk their Spotify activity instead of texting them",
-            ],
-        },
+        "title": "SLOW BURN",
+        "tagline": "the tension is the whole point and you know it",
+        "description": "You'd rather wait three seasons for a kiss than rush it. You've said \"I just think it's better when it builds\" at least once this month. Eye contact across a room? That's your whole love language. You're not playing hard to get — you genuinely believe anticipation is the best part. Other people think you're patient. You know you're just savoring it.",
+        "callback_format": "You told {character}: \"{quote}\" ...yeah, we clocked you immediately.",
+        "share_text": "I'm a SLOW BURN — the tension is the whole point. what's yours?",
         "signals": ["comfortable_silence", "deep_questions", "patient_pacing", "layered_revelation"],
-        "cultural_refs": [
-            ("Pride & Prejudice", "Darcy & Elizabeth"),
-            ("The Office", "Jim & Pam"),
-            ("Normal People", "Connell & Marianne"),
-            ("When Harry Met Sally", "Harry & Sally"),
-        ],
-        "cultural_roast": "Elizabeth Bennet walked so you could run... slowly. Very slowly. Dangerously slowly.",
+        "your_people": ["darcy & elizabeth", "jim & pam", "connell & marianne"],
     },
     RomanticTrope.SECOND_CHANCE: {
-        "title": "The Second Chance",
-        "tagline": "The ex files",
-        "description": "You've texted 'hey' at 1am to someone you swore you were over. Your Notes app has a draft apology from 2022 you never sent. You're not hung up, you're 'hopeful.'",
-        "the_read": "You've texted 'hey' at 1am to someone you swore you were over. Your Notes app has a draft apology from 2022 you never sent. You're not hung up, you're 'hopeful.'",
-        "coaching": {
-            "do": [
-                "Ask yourself if they've actually changed (or if you just miss the idea of them)",
-                "Accept that some chapters end for a reason",
-                "Delete the ex's number (for real this time)",
-            ],
-            "dont": [
-                "Mistake nostalgia for love",
-                "Check their Instagram at 2am 'just to see'",
-                "Convince yourself Mercury retrograde is a valid reason to reconnect",
-            ],
-        },
+        "title": "SECOND CHANCE",
+        "tagline": "you never really closed that chapter, did you",
+        "description": "You still think about the one that got away. Not in a sad way — in a \"the timing was just wrong\" way. You believe some people are meant to find their way back to each other. Reunion episodes are your weakness. You've definitely stalked an ex's Instagram \"just to see how they're doing.\" You're not hung up on the past — you just think some stories deserve a second draft.",
+        "callback_format": "You told {character}: \"{quote}\" ...you're already writing the sequel in your head.",
+        "share_text": "I'm a SECOND CHANCE — some stories deserve a sequel. what's yours?",
         "signals": ["past_callbacks", "growth_acknowledgment", "timing_awareness", "hopeful_realism"],
-        "cultural_refs": [
-            ("La La Land", "Mia & Sebastian"),
-            ("The Notebook", "Noah & Allie"),
-            ("Eternal Sunshine of the Spotless Mind", "Joel & Clementine"),
-            ("Before Sunset", "Jesse & Celine"),
-        ],
-        "cultural_roast": "You have their Spotify wrapped screenshot from 2 years ago saved. Don't lie.",
+        "your_people": ["mia & sebastian", "noah & allie", "jesse & céline"],
     },
     RomanticTrope.ALL_IN: {
-        "title": "The All In",
-        "tagline": "No thoughts, just vibes and commitment",
-        "description": "You've said 'I love you' first in every relationship. Sometimes on the second date. You call it knowing what you want. Therapists call it something else.",
-        "the_read": "You've said 'I love you' first in every relationship. Sometimes on the second date. You call it knowing what you want. Therapists call it something else.",
-        "coaching": {
-            "do": [
-                "Let them finish their sentence before planning the wedding",
-                "Verify they're single before falling in love",
-                "Give them space to miss you occasionally",
-            ],
-            "dont": [
-                "Name the kids on date three",
-                "U-Haul it (unless they're also an All In, then godspeed)",
-                "Mistake intensity for compatibility",
-            ],
-        },
+        "title": "ALL IN",
+        "tagline": "when you know, you know — and you KNEW",
+        "description": "You don't do slow. You don't do games. When you feel it, you say it, and honestly? That's terrifying to most people. You've been called \"intense\" like it's a bad thing. It's not. You'd rather be rejected for being honest than liked for being careful. While everyone else is calculating their next move, you already made yours. Life's too short to pretend you don't care.",
+        "callback_format": "You told {character}: \"{quote}\" ...no hesitation. respect.",
+        "share_text": "I'm ALL IN — when I know, I know. what's yours?",
         "signals": ["direct_expression", "confident_moves", "emotional_clarity", "bold_honesty"],
-        "cultural_refs": [
-            ("Crazy Rich Asians", "Rachel & Nick"),
-            ("The Proposal", "Margaret & Andrew"),
-            ("To All the Boys I've Loved Before", "Lara Jean & Peter"),
-            ("Brooklyn Nine-Nine", "Jake & Amy"),
-        ],
-        "cultural_roast": "Your friends are tired of hearing 'I just know' about someone you met Tuesday.",
+        "your_people": ["rachel & nick", "lara jean & peter", "jake & amy"],
     },
     RomanticTrope.PUSH_PULL: {
-        "title": "The Push & Pull",
-        "tagline": "Emotionally unavailable? It's called mystery",
-        "description": "You left someone on read for 6 hours to seem busy then checked if they were typing. You're not playing games, you're just 'protecting your energy.'",
-        "the_read": "You left someone on read for 6 hours to seem busy then checked if they were typing. You're not playing games, you're just 'protecting your energy.'",
-        "coaching": {
-            "do": [
-                "Reply within a reasonable time like a normal person",
-                "Say you like them instead of being 'playfully mean'",
-                "Recognize that confusion isn't the same as chemistry",
-            ],
-            "dont": [
-                "Ghost and come back with 'sorry I was in a tunnel'",
-                "Create chaos because you're bored",
-                "Mistake anxiety for butterflies",
-            ],
-        },
+        "title": "PUSH & PULL",
+        "tagline": "you want them to work for it (and you'll work for it too)",
+        "description": "Hot then cold. Close then distant. It's not games — it's tension, and you're fluent in it. You flirt by arguing. You show love by teasing. The chase is half the fun and you refuse to apologize for it. People say they want straightforward, but they keep coming back to you. You're exhausting in the best way. Boring could never be your problem.",
+        "callback_format": "You told {character}: \"{quote}\" ...push, pull, we see you.",
+        "share_text": "I'm a PUSH & PULL — the chase is half the fun. what's yours?",
         "signals": ["playful_resistance", "witty_deflection", "tension_maintenance", "strategic_vulnerability"],
-        "cultural_refs": [
-            ("10 Things I Hate About You", "Kat & Patrick"),
-            ("New Girl", "Jess & Nick"),
-            ("Gilmore Girls", "Lorelai & Luke"),
-            ("How to Lose a Guy in 10 Days", "Andie & Ben"),
-        ],
-        "cultural_roast": "You've definitely confused someone who was genuinely interested. Multiple times.",
+        "your_people": ["kat & patrick", "jess & nick", "lorelai & luke"],
     },
     RomanticTrope.SLOW_REVEAL: {
-        "title": "The Slow Reveal",
-        "tagline": "Trauma? I call it depth",
-        "description": "People think you're mysterious but really you just dissociate mid-conversation. You've been 'almost ready to open up' for 3 years. Your walls have walls.",
-        "the_read": "People think you're mysterious but really you just dissociate mid-conversation. You've been 'almost ready to open up' for 3 years. Your walls have walls.",
-        "coaching": {
-            "do": [
-                "Share ONE (1) personal thing this month",
-                "Let someone see you cry (revolutionary, I know)",
-                "Accept that vulnerability is not the same as weakness",
-            ],
-            "dont": [
-                "Deflect with humor when they ask how you're really doing",
-                "Mistake emotional unavailability for being 'low maintenance'",
-                "Disappear when things get real",
-            ],
-        },
+        "title": "SLOW REVEAL",
+        "tagline": "they have to earn the real you",
+        "description": "You're not cold — you're careful. There's a version of you that most people get, and then there's the version that only comes out when someone proves they're paying attention. You test people without them knowing. You reward curiosity and punish assumptions. People call you \"mysterious\" and you let them, because explaining yourself sounds exhausting. The right person will figure it out.",
+        "callback_format": "You told {character}: \"{quote}\" ...you let that one slip, didn't you.",
+        "share_text": "I'm a SLOW REVEAL — you have to earn the real me. what's yours?",
         "signals": ["selective_sharing", "intriguing_deflection", "earned_intimacy", "mysterious_allure"],
-        "cultural_refs": [
-            ("Jane Eyre", "Jane & Rochester"),
-            ("Fleabag", "Fleabag & The Priest"),
-            ("Twilight", "Bella & Edward"),
-            ("Mr. & Mrs. Smith", "John & Jane"),
-        ],
-        "cultural_roast": "You've said 'I'm fine' so convincingly that even you believed it.",
+        "your_people": ["jane & rochester", "fleabag & the priest", "bella & edward"],
     },
 }
 

@@ -837,11 +837,11 @@ If visual is not "none", add: [hint: <description>]"""
 
         Returns data ready for RomanticTropeResult.from_trope()
         """
-        # Format messages for analysis
-        user_messages = [m for m in messages if m.get("role") == "user"]
+        # Format FULL conversation for analysis (need context to understand user behavior)
         formatted = "\n".join(
-            f"USER: {m['content']}"
-            for m in user_messages
+            f"{character_name.upper()}: {m['content']}" if m.get("role") == "assistant"
+            else f"USER: {m['content']}"
+            for m in messages
         )
 
         # Build trope descriptions for LLM
@@ -855,12 +855,12 @@ If visual is not "none", add: [hint: <description>]"""
 THE 5 ROMANTIC TROPES:
 {trope_descriptions}
 
-USER'S MESSAGES IN THE CONVERSATION:
+THE FULL CONVERSATION:
 {formatted}
 
-Your job: Lovingly roast them. Think "group chat energy" - the kind of observations that make friends go "WHY IS THIS SO TRUE."
+Your job: Lovingly roast the USER (not {character_name}). Think "group chat energy" - the kind of observations that make friends go "WHY IS THIS SO TRUE."
 
-Analyze their romantic style. Consider:
+Analyze the USER's romantic style based on their messages. Consider:
 - How they handle silences and pauses (avoiding? savoring? panicking?)
 - Their directness vs. playfulness (bold or hiding behind humor?)
 - References to the past vs. forward focus (living in memories or moving on?)
@@ -878,8 +878,8 @@ EVIDENCE:
 2. [Another spicy observation based on their actual messages. Make it too real. 12-18 words]
 3. [Third observation. This one should make them screenshot it. 12-18 words]
 
-CALLBACK_QUOTE: [Their most unhinged/revealing moment from the conversation - the thing that exposed them. Max 10 words, quote directly or paraphrase if longer]
-CALLBACK_FRAMING: [Why this moment is peak "I feel seen" energy, max 12 words. Be funny/cutting.]"""
+CALLBACK_QUOTE: [The USER's most unhinged/revealing moment - quote something THEY said that exposed them. Max 10 words, quote directly or paraphrase if longer]
+CALLBACK_FRAMING: [Why this moment from the USER is peak "I feel seen" energy, max 12 words. Be funny/cutting.]"""
 
         try:
             response = await self.llm.generate(
@@ -888,7 +888,10 @@ CALLBACK_FRAMING: [Why this moment is peak "I feel seen" energy, max 12 words. B
                 temperature=0.3,
             )
 
-            return self._parse_trope_evaluation(response.content, character_name)
+            log.debug(f"Trope evaluation LLM response:\n{response.content[:1000]}")
+            result = self._parse_trope_evaluation(response.content, character_name)
+            log.debug(f"Parsed trope result: trope={result['trope']}, evidence_count={len(result.get('evidence', []))}, has_callback={result.get('callback_quote') is not None}")
+            return result
 
         except Exception as e:
             log.error(f"Trope evaluation failed: {e}")
@@ -899,9 +902,12 @@ CALLBACK_FRAMING: [Why this moment is peak "I feel seen" energy, max 12 words. B
         """Parse LLM response into structured trope result."""
         import re
 
+        log.debug(f"Parsing trope evaluation response (len={len(response)})")
+
         # Extract trope
         trope_match = re.search(r'TROPE:\s*(\w+)', response, re.IGNORECASE)
         trope = trope_match.group(1).lower() if trope_match else "slow_burn"
+        log.debug(f"Extracted trope: {trope} (match: {trope_match is not None})")
 
         # Validate trope
         valid_tropes = ["slow_burn", "second_chance", "all_in", "push_pull", "slow_reveal"]
@@ -923,23 +929,30 @@ CALLBACK_FRAMING: [Why this moment is peak "I feel seen" energy, max 12 words. B
         evidence = []
         evidence_section = re.search(r'EVIDENCE:\s*([\s\S]*?)(?:CALLBACK|$)', response, re.IGNORECASE)
         if evidence_section:
+            log.debug(f"Evidence section found: {evidence_section.group(1)[:200]}")
             evidence_lines = re.findall(r'\d\.\s*([^\n]+)', evidence_section.group(1))
             evidence = [line.strip() for line in evidence_lines[:3]]
+            log.debug(f"Extracted {len(evidence)} evidence items")
+        else:
+            log.debug("No evidence section found in response")
 
         # Extract callback quote and framing
         callback_quote = None
         quote_match = re.search(r'CALLBACK_QUOTE:\s*([^\n]+)', response, re.IGNORECASE)
         framing_match = re.search(r'CALLBACK_FRAMING:\s*([^\n]+)', response, re.IGNORECASE)
+        log.debug(f"Callback quote match: {quote_match is not None}, framing match: {framing_match is not None}")
 
-        if quote_match and framing_match:
-            quote = quote_match.group(1).strip().strip('"\'')
-            framing = framing_match.group(1).strip()
-            callback_quote = f'When you said "{quote}" — {framing}'
-        elif quote_match:
-            callback_quote = quote_match.group(1).strip()
+        # Get the raw quote
+        raw_quote = quote_match.group(1).strip().strip('"\'') if quote_match else None
 
         # Get trope metadata
         trope_data = ROMANTIC_TROPES.get(trope, ROMANTIC_TROPES["slow_burn"])
+
+        # Format callback using trope's callback_format template
+        callback_quote = None
+        if raw_quote:
+            callback_format = trope_data.get("callback_format", 'You told {character}: "{quote}"')
+            callback_quote = callback_format.format(character=character_name, quote=raw_quote)
 
         return {
             "trope": trope,
@@ -948,15 +961,9 @@ CALLBACK_FRAMING: [Why this moment is peak "I feel seen" energy, max 12 words. B
             "title": trope_data["title"],
             "tagline": trope_data["tagline"],
             "description": trope_data["description"],
-            "the_read": trope_data.get("the_read", trope_data["description"]),
-            "coaching": trope_data.get("coaching", {"do": [], "dont": []}),
-            "cultural_roast": trope_data.get("cultural_roast", ""),
-            "evidence": evidence,
+            "share_text": trope_data.get("share_text", ""),
             "callback_quote": callback_quote,
-            "cultural_refs": [
-                {"title": ref[0], "characters": ref[1]}
-                for ref in trope_data["cultural_refs"]
-            ],
+            "your_people": trope_data.get("your_people", []),
         }
 
     def _default_trope_result(self) -> Dict[str, Any]:
@@ -969,17 +976,7 @@ CALLBACK_FRAMING: [Why this moment is peak "I feel seen" energy, max 12 words. B
             "title": trope_data["title"],
             "tagline": trope_data["tagline"],
             "description": trope_data["description"],
-            "the_read": trope_data.get("the_read", trope_data["description"]),
-            "coaching": trope_data.get("coaching", {"do": [], "dont": []}),
-            "cultural_roast": trope_data.get("cultural_roast", ""),
-            "evidence": [
-                "You took your time, letting moments breathe",
-                "You asked questions that went beneath the surface",
-                "You were comfortable with the pauses",
-            ],
+            "share_text": trope_data.get("share_text", ""),
             "callback_quote": None,
-            "cultural_refs": [
-                {"title": ref[0], "characters": ref[1]}
-                for ref in trope_data["cultural_refs"]
-            ],
+            "your_people": trope_data.get("your_people", []),
         }
