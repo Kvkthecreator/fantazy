@@ -382,7 +382,7 @@ class GamesService:
         session = Session(**session_fields)
 
         episode_template = None
-        if row.get("episode_template_id"):
+        if row["episode_template_id"]:
             template_fields = {k: row[k] for k in EpisodeTemplate.model_fields if k in row.keys()}
             try:
                 episode_template = EpisodeTemplate(**template_fields)
