@@ -8,12 +8,26 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "ep-0 — Interactive Episodes",
-  description: "Step into Episode 0 and continue your story with AI characters who remember every chapter.",
+  title: "episode-0 — Relive fantasies with your favorite characters",
+  description: "Free interactive stories with AI characters who remember. Your choices shape the story.",
+  metadataBase: new URL("https://ep-0.com"),
   icons: {
     icon: "/branding/ep0-icon.png",
     shortcut: "/branding/ep0-icon.png",
     apple: "/branding/ep0-icon.png",
+  },
+  openGraph: {
+    title: "episode-0 — Relive fantasies with your favorite characters",
+    description: "Free interactive stories with AI characters who remember. Your choices shape the story.",
+    url: "https://ep-0.com",
+    siteName: "episode-0",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "episode-0 — Relive fantasies with your favorite characters",
+    description: "Free interactive stories with AI characters who remember. Your choices shape the story.",
   },
 };
 
