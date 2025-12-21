@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { useSparks } from "@/hooks/useSparks"
+import { useSubscription } from "@/hooks/useSubscription"
 import { cn } from "@/lib/utils"
 
 interface UserMenuProps {
@@ -23,6 +24,7 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
   const router = useRouter()
   const supabase = createClient()
   const { sparkBalance, isLow, isEmpty, isLoading } = useSparks()
+  const { isPremium } = useSubscription()
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -41,6 +43,12 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
         <DropdownMenuContent align="center" side="top" className="w-48">
           <div className="px-3 py-2">
             <p className="text-sm font-medium truncate">{displayEmail}</p>
+            <p className={cn(
+              "mt-1 text-xs font-medium",
+              isPremium ? "text-amber-500" : "text-muted-foreground"
+            )}>
+              {isPremium ? "Premium plan" : "Free plan"}
+            </p>
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => router.push("/settings?tab=billing")}>
@@ -48,7 +56,13 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
               "h-4 w-4",
               isEmpty ? "text-red-500" : isLow ? "text-amber-500" : "text-amber-500"
             )} />
-            <span>{sparkBalance} Sparks</span>
+            <span className="flex-1">{sparkBalance} Sparks</span>
+            <span className={cn(
+              "text-[10px] font-semibold uppercase tracking-wide",
+              isPremium ? "text-amber-500" : "text-muted-foreground"
+            )}>
+              {isPremium ? "Premium" : "Free"}
+            </span>
             {(isLow || isEmpty) && (
               <span className="ml-auto text-xs text-muted-foreground">Low</span>
             )}
@@ -94,6 +108,12 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
               )}>
                 {isLoading ? "..." : sparkBalance}
               </span>
+              <span className={cn(
+                "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                isPremium ? "bg-amber-500/15 text-amber-500" : "bg-muted text-muted-foreground"
+              )}>
+                {isPremium ? "Premium" : "Free"}
+              </span>
             </div>
           </div>
           <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -106,6 +126,12 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
             isEmpty ? "text-red-500" : isLow ? "text-amber-500" : "text-amber-500"
           )} />
           <span className="flex-1">{sparkBalance} Sparks</span>
+          <span className={cn(
+            "text-[10px] font-semibold uppercase tracking-wide",
+            isPremium ? "text-amber-500" : "text-muted-foreground"
+          )}>
+            {isPremium ? "Premium" : "Free"}
+          </span>
           <span className="text-xs text-primary hover:underline">Buy</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
