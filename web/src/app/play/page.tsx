@@ -163,25 +163,23 @@ export default function PlayPage() {
 function LandingStage({ onStart }: { onStart: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-73px)] px-4 py-12">
-      <div className="text-center max-w-md">
+      <div className="text-center max-w-lg">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground mb-6">
           <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          takes less than 60 seconds
+          Free • 60 seconds • No signup
         </div>
 
         {/* Title */}
         <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
-          What's Your
+          5 Romance Types.
           <br />
-          <span className="text-primary">Red Flag?</span>
+          <span className="text-primary">Which One Are You?</span>
         </h1>
 
-        {/* Subtitle */}
-        <p className="text-muted-foreground mb-8 text-lg">
-          6 questions. brutal honesty.
-          <br />
-          no judgment <span className="text-xs">(ok maybe a little)</span>
+        {/* Value Proposition */}
+        <p className="text-muted-foreground mb-8 text-base md:text-lg max-w-md mx-auto">
+          Discover your dating personality and get personalized insights on your romantic strengths, challenges, and compatibility.
         </p>
 
         {/* CTA */}
@@ -190,13 +188,24 @@ function LandingStage({ onStart }: { onStart: () => void }) {
           size="lg"
           className="px-12 py-6 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-shadow"
         >
-          Find Out
+          Take the Quiz →
         </Button>
 
-        {/* Social proof hint */}
-        <p className="mt-8 text-xs text-muted-foreground/60">
-          join 10,000+ people who discovered their romantic red flag
-        </p>
+        {/* What you'll learn */}
+        <div className="mt-10 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
+            Your romance type
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+            Relationship strengths
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+            Who you're compatible with
+          </span>
+        </div>
       </div>
     </div>
   );

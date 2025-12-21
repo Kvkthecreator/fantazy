@@ -103,7 +103,7 @@ export function QuizResult({ trope, onPlayAgain }: QuizResultProps) {
 
         {/* Pre-title */}
         <p className="text-muted-foreground text-sm mb-2 uppercase tracking-wider">
-          your red flag is...
+          your romance type is
         </p>
 
         {/* Title */}
@@ -178,7 +178,7 @@ export function QuizResult({ trope, onPlayAgain }: QuizResultProps) {
       {/* Compatibility */}
       <div className="w-full max-w-lg mb-8 text-center">
         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
-          you vibe with
+          Most compatible with
         </p>
         <p className="text-sm font-medium">
           {compatibleNames.join(" & ")}
