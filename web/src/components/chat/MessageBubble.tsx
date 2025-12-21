@@ -43,7 +43,7 @@ export function MessageBubble({
       {/* Message content */}
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-3 transition-colors",
+          "max-w-[92%] sm:max-w-[85%] rounded-2xl px-4 py-3 transition-colors",
           isUser
             ? cn(
                 "rounded-tr-md",
@@ -102,9 +102,9 @@ export function StreamingBubble({
     );
   }
   return (
-    <div className="flex gap-3 mb-4">
-      {/* Avatar */}
-      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium shadow-lg ring-2 ring-white/20">
+      <div className="flex gap-3 mb-4">
+        {/* Avatar */}
+      <div className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium shadow-lg ring-2 ring-white/20">
         {characterAvatar ? (
           <img
             src={characterAvatar}
@@ -146,7 +146,7 @@ export function TypingIndicator({
   return (
     <div className="flex gap-3 mb-4">
       {/* Avatar */}
-      <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium shadow-lg ring-2 ring-white/20">
+      <div className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium shadow-lg ring-2 ring-white/20">
         {characterAvatar ? (
           <img
             src={characterAvatar}

@@ -50,15 +50,15 @@ export function ChatHeader({
 
   return (
     <>
-      <header className="flex items-center justify-between px-4 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-3">
         {/* Left: Back + Avatar + Name */}
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Link href="/dashboard">
             <Button
               variant="ghost"
               size="icon"
               className={cn(
-                "h-8 w-8",
+                "h-7 w-7 sm:h-8 sm:w-8",
                 hasBackground && "text-white hover:bg-white/10"
               )}
             >
@@ -68,7 +68,7 @@ export function ChatHeader({
           </Link>
 
           <Link href={`/characters/${character.slug}`}>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden">
               {character.avatar_url ? (
                 <img
                   src={character.avatar_url}
@@ -83,7 +83,7 @@ export function ChatHeader({
 
           <h1
             className={cn(
-              "font-semibold text-sm",
+              "font-semibold text-sm sm:text-base truncate max-w-[140px] sm:max-w-none",
               hasBackground && "text-white"
             )}
           >
@@ -92,13 +92,13 @@ export function ChatHeader({
         </div>
 
         {/* Right: Series Progress + Turn Counter */}
-        <div className="flex items-center gap-2">
+        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
           {/* Series Progress (tappable for episode picker) */}
           {seriesProgress && seriesProgress.total > 1 && (
             <button
               onClick={() => setShowEpisodePicker(true)}
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors",
+                "flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-colors",
                 hasBackground
                   ? "bg-white/10 text-white/90 hover:bg-white/20"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
@@ -112,7 +112,7 @@ export function ChatHeader({
           {/* Turn Counter - always visible */}
           <div
               className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium",
+                "flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium",
                 hasBackground
                   ? isApproachingEnd
                     ? "bg-amber-500/20 text-amber-300"
@@ -123,7 +123,9 @@ export function ChatHeader({
               )}
             >
               <TurnIcon className="h-3 w-3" />
-              <span>Turn {turnDisplay}</span>
+              <span className="hidden sm:inline">Turn</span>
+              <span className="sm:hidden">T</span>
+              <span>{turnDisplay}</span>
             </div>
         </div>
       </header>
@@ -169,17 +171,18 @@ function EpisodePickerOverlay({
   onClose,
 }: EpisodePickerOverlayProps) {
   return (
-    <div className="fixed inset-0 z-[100]">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-[100]">
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 bg-black/40 sm:bg-transparent"
+          onClick={onClose}
+        />
 
       {/* Picker - positioned top-right */}
       <div
         className={cn(
-          "absolute top-16 right-4 w-72 rounded-2xl shadow-2xl overflow-hidden",
+          "absolute left-3 right-3 bottom-3 top-auto w-auto rounded-2xl shadow-2xl overflow-hidden pb-[env(safe-area-inset-bottom)]",
+          "sm:top-16 sm:right-4 sm:left-auto sm:bottom-auto sm:w-72 sm:pb-0",
           hasBackground
             ? "bg-black/95 backdrop-blur-xl border border-white/20"
             : "bg-card border border-border"
@@ -214,7 +217,7 @@ function EpisodePickerOverlay({
         </div>
 
         {/* Episode List */}
-        <div className="max-h-[50vh] overflow-y-auto p-2 space-y-1">
+        <div className="max-h-[60vh] sm:max-h-[50vh] overflow-y-auto p-2 space-y-1">
           {episodes.map((episode, index) => {
             const isCurrent = index === currentEpisodeIndex;
 

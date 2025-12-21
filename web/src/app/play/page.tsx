@@ -1,18 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { QuizProgress } from "@/components/quiz/QuizProgress";
-import { QuizQuestion } from "@/components/quiz/QuizQuestion";
-import { QuizResult } from "@/components/quiz/QuizResult";
-import { QUIZ_QUESTIONS } from "@/lib/quiz-data";
-import { api } from "@/lib/api/client";
-import type { RomanticTrope, QuizAnswer, QuizEvaluateResponse } from "@/types";
-
-type QuizStage = "landing" | "questions" | "evaluating" | "result";
-
-const STORAGE_KEY = "quiz_state";
 
 function PlayHeader() {
   return (
@@ -45,102 +33,7 @@ function PlayHeader() {
   );
 }
 
-// Store selected answer text for each question
-interface AnswerRecord {
-  trope: RomanticTrope;
-  answerText: string;
-}
-
 export default function PlayPage() {
-  const [stage, setStage] = useState<QuizStage>("landing");
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState<Record<number, AnswerRecord>>({});
-  const [evaluationResult, setEvaluationResult] = useState<QuizEvaluateResponse | null>(null);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  // Restore state from sessionStorage on mount
-  useEffect(() => {
-    try {
-      const saved = sessionStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.stage && parsed.stage !== "evaluating") setStage(parsed.stage);
-        if (typeof parsed.currentQuestion === "number") setCurrentQuestion(parsed.currentQuestion);
-        if (parsed.answers) setAnswers(parsed.answers);
-        if (parsed.evaluationResult) setEvaluationResult(parsed.evaluationResult);
-      }
-    } catch {
-      // Ignore parsing errors
-    }
-    setIsHydrated(true);
-  }, []);
-
-  // Save state to sessionStorage on changes
-  useEffect(() => {
-    if (!isHydrated) return;
-    try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
-        stage,
-        currentQuestion,
-        answers,
-        evaluationResult,
-      }));
-    } catch {
-      // Ignore storage errors
-    }
-  }, [stage, currentQuestion, answers, evaluationResult, isHydrated]);
-
-  const handleStart = () => {
-    setStage("questions");
-  };
-
-  const handleAnswer = async (trope: RomanticTrope, answerText: string) => {
-    const newAnswers = { ...answers, [currentQuestion]: { trope, answerText } };
-    setAnswers(newAnswers);
-
-    if (currentQuestion < QUIZ_QUESTIONS.length - 1) {
-      setCurrentQuestion(currentQuestion + 1);
-    } else {
-      // Quiz complete - call API for LLM evaluation
-      setStage("evaluating");
-
-      try {
-        // Build quiz answers for API
-        const quizAnswers: QuizAnswer[] = Object.entries(newAnswers).map(([qIndex, record]) => {
-          const q = QUIZ_QUESTIONS[parseInt(qIndex)];
-          return {
-            question_id: q.id,
-            question_text: q.question,
-            selected_answer: record.answerText,
-            selected_trope: record.trope,
-          };
-        });
-
-        const result = await api.games.evaluateQuiz("romantic_trope", quizAnswers);
-        setEvaluationResult(result);
-        setStage("result");
-      } catch (error) {
-        console.error("Quiz evaluation failed:", error);
-        // Fallback: show result with basic data
-        setEvaluationResult(null);
-        setStage("result");
-      }
-    }
-  };
-
-  const handlePlayAgain = () => {
-    setStage("landing");
-    setCurrentQuestion(0);
-    setAnswers({});
-    setEvaluationResult(null);
-    // Clear storage when starting over
-    try {
-      sessionStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // Ignore errors
-    }
-  };
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <PlayHeader />
@@ -152,111 +45,73 @@ export default function PlayPage() {
 
       {/* Content */}
       <main className="relative">
-        {stage === "landing" && (
-          <LandingStage onStart={handleStart} />
-        )}
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-73px)] px-4 py-12">
+          <div className="text-center max-w-2xl">
+            {/* Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground mb-6">
+              <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Free • 60 seconds • No signup
+            </div>
 
-        {stage === "questions" && (
-          <div className="flex flex-col items-center min-h-[calc(100vh-73px)] px-4 py-12">
-            <div className="w-full max-w-md">
-              {/* Progress */}
-              <div className="mb-8">
-                <QuizProgress
-                  current={currentQuestion}
-                  total={QUIZ_QUESTIONS.length}
-                />
-                <p className="text-center text-xs text-muted-foreground mt-2">
-                  {currentQuestion + 1} of {QUIZ_QUESTIONS.length}
+            {/* Title */}
+            <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
+              Pick Your Quiz
+            </h1>
+
+            <p className="text-muted-foreground mb-12 text-base md:text-lg max-w-md mx-auto">
+              Discover something about yourself. Share with friends. Compare results.
+            </p>
+
+            {/* Quiz Cards */}
+            <div className="grid md:grid-cols-2 gap-6 max-w-xl mx-auto">
+              {/* Romance Quiz */}
+              <Link
+                href="/play/romance"
+                className="group relative p-6 rounded-2xl border border-border bg-card hover:border-rose-500/50 hover:bg-rose-500/5 transition-all duration-300"
+              >
+                <div className="text-5xl mb-4">💕</div>
+                <h2 className="text-xl font-bold mb-2 group-hover:text-rose-400 transition-colors">
+                  Romance Type
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  What&apos;s your dating personality? Discover your romantic archetype.
                 </p>
-              </div>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <span className="text-xs bg-rose-500/10 text-rose-400 px-2 py-1 rounded-full">slow burn</span>
+                  <span className="text-xs bg-rose-500/10 text-rose-400 px-2 py-1 rounded-full">all in</span>
+                  <span className="text-xs bg-rose-500/10 text-rose-400 px-2 py-1 rounded-full">push-pull</span>
+                </div>
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-rose-500/10 to-amber-500/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+              </Link>
 
-              {/* Question */}
-              <QuizQuestion
-                key={currentQuestion}
-                question={QUIZ_QUESTIONS[currentQuestion]}
-                onAnswer={handleAnswer}
-              />
+              {/* Freak Quiz */}
+              <Link
+                href="/play/freak"
+                className="group relative p-6 rounded-2xl border border-border bg-card hover:border-fuchsia-500/50 hover:bg-fuchsia-500/5 transition-all duration-300"
+              >
+                <div className="text-5xl mb-4">😈</div>
+                <h2 className="text-xl font-bold mb-2 group-hover:text-fuchsia-400 transition-colors">
+                  Freak Level
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  How freaky are you really? Find out your true chaos tier.
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  <span className="text-xs bg-fuchsia-500/10 text-fuchsia-400 px-2 py-1 rounded-full">vanilla</span>
+                  <span className="text-xs bg-fuchsia-500/10 text-fuchsia-400 px-2 py-1 rounded-full">unhinged</span>
+                  <span className="text-xs bg-fuchsia-500/10 text-fuchsia-400 px-2 py-1 rounded-full">menace</span>
+                </div>
+                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-fuchsia-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+              </Link>
             </div>
-          </div>
-        )}
 
-        {stage === "evaluating" && (
-          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-73px)] px-4 py-12">
-            <div className="text-center">
-              <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mb-4" />
-              <p className="text-muted-foreground">analyzing your romantic energy...</p>
-            </div>
+            {/* Footer note */}
+            <p className="mt-12 text-xs text-muted-foreground">
+              Results are AI-generated and meant for entertainment. Share responsibly.
+            </p>
           </div>
-        )}
-
-        {stage === "result" && evaluationResult && (
-          <QuizResult
-            result={evaluationResult}
-            onPlayAgain={handlePlayAgain}
-          />
-        )}
+        </div>
       </main>
-    </div>
-  );
-}
-
-function LandingStage({ onStart }: { onStart: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-73px)] px-4 py-12">
-      <div className="text-center max-w-lg">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground mb-6">
-          <span className="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          Free • 60 seconds • No signup
-        </div>
-
-        {/* Title */}
-        <h1 className="text-4xl md:text-5xl font-black mb-4 tracking-tight">
-          5 Romance Types.
-          <br />
-          <span className="text-primary">Which One Are You?</span>
-        </h1>
-
-        {/* Value Proposition */}
-        <p className="text-muted-foreground mb-8 text-base md:text-lg max-w-md mx-auto">
-          Discover your dating personality and get personalized insights on your romantic strengths, challenges, and compatibility.
-        </p>
-
-        {/* CTA */}
-        <Button
-          onClick={onStart}
-          size="lg"
-          className="px-12 py-6 text-lg font-semibold rounded-full shadow-lg hover:shadow-xl transition-shadow"
-        >
-          Take the Quiz →
-        </Button>
-
-        {/* What you'll learn */}
-        <div className="mt-10 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-pink-500" />
-            Your romance type
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-            Relationship strengths
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-            Who you're compatible with
-          </span>
-        </div>
-
-        {/* Alternative quiz link */}
-        <div className="mt-8">
-          <Link
-            href="/play/freak"
-            className="text-sm text-muted-foreground hover:text-fuchsia-400 transition-colors"
-          >
-            or try: <span className="font-medium">How Freaky Are You?</span>
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }

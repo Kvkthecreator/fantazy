@@ -246,7 +246,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
 
   return (
     <div className={cn(
-      "relative flex flex-col h-[100dvh] w-full overflow-hidden",
+      "relative flex flex-col h-[100dvh] min-h-[100svh] w-full overflow-hidden",
       !hasBackground && "bg-background"
     )}>
       {/* Full-bleed background layer - only when we have an image */}
@@ -268,9 +268,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       <div className="relative z-10 flex flex-col h-full">
         {/* Header - unified info bar */}
         <div className={cn(
-          "transition-colors",
+          "transition-colors pt-[env(safe-area-inset-top)]",
           hasBackground
-            ? "mx-3 mt-3 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/30"
+            ? "mx-3 mt-2 sm:mt-3 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/30"
             : "bg-card border-b border-border"
         )}>
           <ChatHeader
@@ -283,7 +283,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         </div>
 
         {/* Messages area - single focal point for all content */}
-        <div className="flex-1 overflow-y-auto py-6">
+        <div className="flex-1 overflow-y-auto pt-6 pb-10 sm:pb-6">
           <div className="mx-auto max-w-2xl px-4">
             {isLoadingChat ? (
               <MessagesSkeleton />

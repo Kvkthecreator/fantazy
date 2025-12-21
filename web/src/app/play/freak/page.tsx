@@ -67,13 +67,20 @@ export default function FreakQuizPage() {
       const saved = sessionStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.stage && parsed.stage !== "evaluating") setStage(parsed.stage);
-        if (typeof parsed.currentQuestion === "number") setCurrentQuestion(parsed.currentQuestion);
-        if (parsed.answers) setAnswers(parsed.answers);
-        if (parsed.evaluationResult) setEvaluationResult(parsed.evaluationResult);
+        // Only restore to "result" stage if we have valid evaluation result
+        if (parsed.stage === "result" && !parsed.evaluationResult) {
+          // Invalid state - reset to landing
+          sessionStorage.removeItem(STORAGE_KEY);
+        } else {
+          if (parsed.stage && parsed.stage !== "evaluating") setStage(parsed.stage);
+          if (typeof parsed.currentQuestion === "number") setCurrentQuestion(parsed.currentQuestion);
+          if (parsed.answers) setAnswers(parsed.answers);
+          if (parsed.evaluationResult) setEvaluationResult(parsed.evaluationResult);
+        }
       }
     } catch {
-      // Ignore parsing errors
+      // Ignore parsing errors - clear bad state
+      sessionStorage.removeItem(STORAGE_KEY);
     }
     setIsHydrated(true);
   }, []);
@@ -287,6 +294,16 @@ function LandingStage({ onStart }: { onStart: () => void }) {
             <span>😈</span>
             Menace
           </span>
+        </div>
+
+        {/* Back to hub */}
+        <div className="mt-8">
+          <Link
+            href="/play"
+            className="text-sm text-muted-foreground hover:text-fuchsia-400 transition-colors"
+          >
+            ← Back to all quizzes
+          </Link>
         </div>
       </div>
     </div>

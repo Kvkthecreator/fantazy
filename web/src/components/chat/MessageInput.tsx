@@ -72,7 +72,7 @@ export function MessageInput({
   };
 
   return (
-    <div className="px-4 py-3">
+    <div className="px-4 py-2 sm:py-3">
       <div className={cn(
         "flex w-full items-end gap-2 rounded-full px-3 py-2",
         hasBackground
@@ -88,7 +88,7 @@ export function MessageInput({
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "h-10 w-10 rounded-full transition-all",
+                  "h-9 w-9 sm:h-10 sm:w-10 rounded-full transition-all",
                   hasBackground
                     ? "text-white/90 hover:text-white hover:bg-white/20"
                     : "text-primary hover:text-primary bg-primary/10 hover:bg-primary/20",
@@ -192,7 +192,7 @@ export function MessageInput({
           disabled={disabled || !value.trim()}
           size="icon"
           className={cn(
-            "h-10 w-10 flex-shrink-0 rounded-full shadow-lg transition-all",
+            "h-9 w-9 sm:h-10 sm:w-10 flex-shrink-0 rounded-full shadow-lg transition-all",
             hasBackground
               ? "bg-white text-gray-900 hover:bg-white/90"
               : "bg-primary text-primary-foreground hover:opacity-90"

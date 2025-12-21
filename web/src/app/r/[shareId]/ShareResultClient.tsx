@@ -133,7 +133,7 @@ export function ShareResultClient({ shareId }: ShareResultClientProps) {
   const isRomanticTrope = result?.evaluation_type === "romantic_trope";
   const isFreakLevel = result?.evaluation_type === "freak_level";
   const testName = isFreakLevel ? "Freak Test" : isRomanticTrope ? "Romance Quiz" : "Flirt Test";
-  const testUrl = "/play"; // All quizzes now go to /play
+  const testUrl = isFreakLevel ? "/play/freak" : isRomanticTrope ? "/play/romance" : "/play";
 
   const handleTakeTest = () => {
     router.push(testUrl);
