@@ -315,6 +315,8 @@ async def handle_lemonsqueezy_webhook(
     elif event_name == "subscription_payment_success":
         # Renewal successful - update expiry and grant monthly sparks
         renews_at = parse_iso_date(attrs.get("renews_at"))
+        invoice_id = str(payload.get("data", {}).get("id", ""))  # Invoice/payment ID for idempotency
+
         if renews_at:
             await db.execute(
                 """
@@ -325,14 +327,32 @@ async def handle_lemonsqueezy_webhook(
                 {"user_id": user_id, "renews_at": renews_at},
             )
 
-        # Grant monthly subscription sparks on renewal
-        credits_service = CreditsService.get_instance()
-        await credits_service.grant_subscription_sparks(
-            user_id=UUID(user_id),
-            subscription_id=subscription_id,
-            is_premium=True,
-        )
-        log.info(f"Granted monthly sparks to user {user_id} on renewal")
+        # IDEMPOTENCY CHECK: Use invoice_id to prevent duplicate grants from webhook retries
+        # For renewals, we use the invoice ID as reference_id (not subscription_id)
+        if invoice_id:
+            existing_grant = await db.fetch_one(
+                """
+                SELECT id FROM credit_transactions
+                WHERE user_id = :user_id
+                  AND reference_type = 'subscription'
+                  AND reference_id = :invoice_id
+                  AND transaction_type = 'subscription_grant'
+                LIMIT 1
+                """,
+                {"user_id": user_id, "invoice_id": invoice_id},
+            )
+
+            if existing_grant:
+                log.info(f"Sparks already granted for invoice {invoice_id}, skipping duplicate")
+            else:
+                # Grant monthly subscription sparks on renewal
+                credits_service = CreditsService.get_instance()
+                await credits_service.grant_subscription_sparks(
+                    user_id=UUID(user_id),
+                    subscription_id=invoice_id,  # Use invoice_id for idempotency
+                    is_premium=True,
+                )
+                log.info(f"Granted monthly sparks to user {user_id} on renewal (invoice: {invoice_id})")
 
     elif event_name == "order_created":
         # Handle top-up purchases
@@ -376,15 +396,31 @@ async def handle_subscription_created(
     usage_service = UsageService.get_instance()
     await usage_service.reset_on_subscription_change(user_id)
 
-    # Grant initial subscription sparks
-    credits_service = CreditsService.get_instance()
-    await credits_service.grant_subscription_sparks(
-        user_id=UUID(user_id),
-        subscription_id=subscription_id,
-        is_premium=(sub_status == "premium"),
+    # IDEMPOTENCY CHECK: Only grant sparks if not already granted for this subscription
+    # This prevents duplicate grants from webhook retries
+    existing_grant = await db.fetch_one(
+        """
+        SELECT id FROM credit_transactions
+        WHERE user_id = :user_id
+          AND reference_type = 'subscription'
+          AND reference_id = :subscription_id
+          AND transaction_type = 'subscription_grant'
+        LIMIT 1
+        """,
+        {"user_id": user_id, "subscription_id": subscription_id},
     )
 
-    log.info(f"Activated premium subscription for user {user_id} with sparks granted")
+    if existing_grant:
+        log.info(f"Sparks already granted for subscription {subscription_id}, skipping duplicate")
+    else:
+        # Grant initial subscription sparks
+        credits_service = CreditsService.get_instance()
+        await credits_service.grant_subscription_sparks(
+            user_id=UUID(user_id),
+            subscription_id=subscription_id,
+            is_premium=(sub_status == "premium"),
+        )
+        log.info(f"Activated premium subscription for user {user_id} with sparks granted")
 
 
 async def handle_subscription_updated(
@@ -456,15 +492,31 @@ async def handle_subscription_resumed(
     usage_service = UsageService.get_instance()
     await usage_service.reset_on_subscription_change(user_id)
 
-    # Grant subscription sparks on resume
-    credits_service = CreditsService.get_instance()
-    await credits_service.grant_subscription_sparks(
-        user_id=UUID(user_id),
-        subscription_id=subscription_id,
-        is_premium=True,
+    # IDEMPOTENCY CHECK: Use "resumed_{subscription_id}" as reference to prevent duplicates
+    resume_ref = f"resumed_{subscription_id}"
+    existing_grant = await db.fetch_one(
+        """
+        SELECT id FROM credit_transactions
+        WHERE user_id = :user_id
+          AND reference_type = 'subscription'
+          AND reference_id = :resume_ref
+          AND transaction_type = 'subscription_grant'
+        LIMIT 1
+        """,
+        {"user_id": user_id, "resume_ref": resume_ref},
     )
 
-    log.info(f"Resumed subscription for user {user_id} with sparks granted")
+    if existing_grant:
+        log.info(f"Sparks already granted for resumed subscription {subscription_id}, skipping duplicate")
+    else:
+        # Grant subscription sparks on resume
+        credits_service = CreditsService.get_instance()
+        await credits_service.grant_subscription_sparks(
+            user_id=UUID(user_id),
+            subscription_id=resume_ref,
+            is_premium=True,
+        )
+        log.info(f"Resumed subscription for user {user_id} with sparks granted")
 
 
 async def handle_topup_purchase(db, user_id: str, custom_data: dict, attrs: dict):
