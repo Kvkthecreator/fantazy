@@ -3,8 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { MoreVertical, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { ResetRelationshipModal } from "./ResetRelationshipModal";
 import type { Character, EpisodeTemplate, StreamDirectorState } from "@/types";
 
 interface ChatHeaderProps {
@@ -22,6 +30,7 @@ interface ChatHeaderProps {
     }>;
   } | null;
   hasBackground?: boolean;
+  onResetComplete?: () => void;
 }
 
 export function ChatHeader({
@@ -30,10 +39,12 @@ export function ChatHeader({
   directorState,
   seriesProgress,
   hasBackground = false,
+  onResetComplete,
 }: ChatHeaderProps) {
   // episodeTemplate reserved for future use (episode title display, etc.)
   void _episodeTemplate;
   const [showEpisodePicker, setShowEpisodePicker] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const router = useRouter();
 
   // Format turn display - always show turn count (default to 0 if no directorState yet)
@@ -127,6 +138,32 @@ export function ChatHeader({
               <span className="sm:hidden">T</span>
               <span>{turnDisplay}</span>
             </div>
+
+          {/* More Options Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-7 w-7 sm:h-8 sm:w-8",
+                  hasBackground && "text-white hover:bg-white/10"
+                )}
+              >
+                <MoreVertical className="h-4 w-4" />
+                <span className="sr-only">More options</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={() => setShowResetModal(true)}
+                className="text-destructive focus:text-destructive"
+              >
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Reset Relationship
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </header>
 
@@ -144,6 +181,18 @@ export function ChatHeader({
           onClose={() => setShowEpisodePicker(false)}
         />
       )}
+
+      {/* Reset Relationship Modal */}
+      <ResetRelationshipModal
+        open={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        characterId={character.id}
+        characterName={character.name}
+        onResetComplete={() => {
+          onResetComplete?.();
+          router.push("/dashboard");
+        }}
+      />
     </>
   );
 }

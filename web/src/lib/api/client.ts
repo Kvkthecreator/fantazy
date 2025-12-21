@@ -131,6 +131,11 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    reset: (character_id: string) =>
+      request<{ status: string; character_id: string }>(
+        `/engagements/character/${character_id}/reset`,
+        { method: "DELETE" }
+      ),
   },
 
   // Session endpoints (runtime chat sessions - formerly "episodes")

@@ -118,6 +118,83 @@ async def get_engagement_by_character(
     return Engagement(**dict(row))
 
 
+@router.delete("/character/{character_id}/reset", status_code=status.HTTP_200_OK)
+async def reset_relationship(
+    character_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """
+    Reset entire relationship with a character.
+
+    This performs a full purge:
+    - Deletes all sessions (and their messages via CASCADE)
+    - Soft-deletes all memories scoped to this character
+    - Resets engagement stats to initial state
+
+    This action is irreversible.
+    """
+    # Verify engagement exists
+    check_query = """
+        SELECT id FROM engagements
+        WHERE user_id = :user_id AND character_id = :character_id
+    """
+    engagement = await db.fetch_one(
+        check_query, {"user_id": str(user_id), "character_id": str(character_id)}
+    )
+
+    if not engagement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No relationship with this character",
+        )
+
+    # 1. Delete all sessions with this character (messages cascade automatically)
+    delete_sessions_query = """
+        DELETE FROM sessions
+        WHERE user_id = :user_id AND character_id = :character_id
+    """
+    await db.execute(
+        delete_sessions_query, {"user_id": str(user_id), "character_id": str(character_id)}
+    )
+
+    # 2. Soft-delete all memories scoped to this character
+    delete_memories_query = """
+        UPDATE memory_events
+        SET is_active = FALSE
+        WHERE user_id = :user_id AND character_id = :character_id
+    """
+    await db.execute(
+        delete_memories_query, {"user_id": str(user_id), "character_id": str(character_id)}
+    )
+
+    # 3. Reset engagement stats to initial state
+    # Note: DB uses total_episodes/relationship_notes, model aliases as total_sessions/engagement_notes
+    reset_engagement_query = """
+        UPDATE engagements
+        SET
+            total_episodes = 0,
+            total_messages = 0,
+            first_met_at = NOW(),
+            last_interaction_at = NULL,
+            dynamic = '{"tone": "warm", "tension_level": 30, "recent_beats": []}'::jsonb,
+            milestones = '{}',
+            nickname = NULL,
+            inside_jokes = '{}',
+            relationship_notes = NULL,
+            stage = 'acquaintance',
+            stage_progress = 0,
+            updated_at = NOW()
+        WHERE user_id = :user_id AND character_id = :character_id
+        RETURNING id
+    """
+    await db.fetch_one(
+        reset_engagement_query, {"user_id": str(user_id), "character_id": str(character_id)}
+    )
+
+    return {"status": "reset", "character_id": str(character_id)}
+
+
 @router.patch("/{engagement_id}", response_model=Engagement)
 async def update_engagement(
     engagement_id: UUID,
@@ -142,8 +219,9 @@ async def update_engagement(
         values["is_archived"] = data.is_archived
 
     if data.engagement_notes is not None:
-        updates.append("engagement_notes = :engagement_notes")
-        values["engagement_notes"] = data.engagement_notes
+        # DB column is relationship_notes, model field is engagement_notes
+        updates.append("relationship_notes = :relationship_notes")
+        values["relationship_notes"] = data.engagement_notes
 
     if not updates:
         raise HTTPException(
