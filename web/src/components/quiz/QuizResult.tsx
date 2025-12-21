@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -16,21 +15,21 @@ interface QuizResultProps {
   onPlayAgain: () => void;
 }
 
-// Episode 0 series with actual cover images from Supabase storage
+// Episode 0 series - using gradient fallbacks since storage bucket is private
 const EPISODE_0_SERIES = [
   {
     id: "hometown-crush",
     title: "Hometown Crush",
     slug: "hometown-crush",
     tagline: "Back in your hometown for the first time in years...",
-    coverUrl: "https://lfwhdzwbikyzalpbwfnd.supabase.co/storage/v1/object/public/assets/series/hometown-crush/cover.png",
+    gradient: "from-rose-500/40 via-pink-500/30 to-red-500/20",
   },
   {
     id: "coffee-shop-crush",
     title: "Coffee Shop Crush",
     slug: "coffee-shop-crush",
     tagline: "The barista who always remembers your order",
-    coverUrl: "https://lfwhdzwbikyzalpbwfnd.supabase.co/storage/v1/object/public/assets/series/weekend-regular/cover.png",
+    gradient: "from-amber-500/40 via-orange-500/30 to-yellow-500/20",
   },
 ];
 
@@ -42,8 +41,13 @@ export function QuizResult({ trope, onPlayAgain }: QuizResultProps) {
   const handleShare = async () => {
     const shareUrl = `${window.location.origin}/play`;
     const shareText = content.shareText;
+    const fullText = `${shareText}\n${shareUrl}`;
 
-    if (navigator.share) {
+    // Check if we're on mobile (navigator.share works best there)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+    // Only use native share on mobile where it works well
+    if (isMobile && navigator.share) {
       try {
         await navigator.share({
           title: `I'm a ${content.title}!`,
@@ -51,18 +55,39 @@ export function QuizResult({ trope, onPlayAgain }: QuizResultProps) {
           url: shareUrl,
         });
         return;
-      } catch {
-        // User cancelled or share failed, fall through to copy
+      } catch (err) {
+        // User cancelled or share failed - check if it's an abort
+        if (err instanceof Error && err.name === "AbortError") {
+          return; // User cancelled, don't fall through
+        }
+        // Other error, fall through to clipboard
       }
     }
 
-    // Fallback to clipboard
+    // Desktop: use clipboard copy directly
     try {
-      await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+      await navigator.clipboard.writeText(fullText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy:", err);
+    } catch {
+      // Last resort: use a textarea for older browsers
+      const textarea = document.createElement("textarea");
+      textarea.value = fullText;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch {
+        // Copy failed - could show an error message but for now just fail silently
+        console.error("Failed to copy to clipboard");
+      }
+      document.body.removeChild(textarea);
     }
   };
 
@@ -210,22 +235,12 @@ export function QuizResult({ trope, onPlayAgain }: QuizResultProps) {
               className="group"
             >
               <Card className="overflow-hidden border-2 border-transparent hover:border-primary/30 transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
-                {/* Cover image with overlay */}
+                {/* Cover with gradient */}
                 <div className="relative aspect-[16/10] overflow-hidden">
-                  {series.coverUrl ? (
-                    <Image
-                      src={series.coverUrl}
-                      alt={series.title}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-blue-600/40 via-purple-500/30 to-pink-500/20 flex items-center justify-center">
-                      <span className="text-4xl font-bold text-white/30">
-                        {series.title[0]}
-                      </span>
-                    </div>
-                  )}
+                  <div className={cn(
+                    "absolute inset-0 bg-gradient-to-br",
+                    series.gradient
+                  )} />
                   {/* Gradient overlay */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
                   {/* Play icon on hover */}

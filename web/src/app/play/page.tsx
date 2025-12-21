@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { QuizProgress } from "@/components/quiz/QuizProgress";
@@ -10,6 +10,8 @@ import { QUIZ_QUESTIONS, calculateTrope } from "@/lib/quiz-data";
 import type { RomanticTrope } from "@/types";
 
 type QuizStage = "landing" | "questions" | "result";
+
+const STORAGE_KEY = "quiz_state";
 
 function PlayHeader() {
   return (
@@ -47,6 +49,39 @@ export default function PlayPage() {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<number, RomanticTrope>>({});
   const [resultTrope, setResultTrope] = useState<RomanticTrope | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Restore state from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.stage) setStage(parsed.stage);
+        if (typeof parsed.currentQuestion === "number") setCurrentQuestion(parsed.currentQuestion);
+        if (parsed.answers) setAnswers(parsed.answers);
+        if (parsed.resultTrope) setResultTrope(parsed.resultTrope);
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    setIsHydrated(true);
+  }, []);
+
+  // Save state to sessionStorage on changes
+  useEffect(() => {
+    if (!isHydrated) return;
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        stage,
+        currentQuestion,
+        answers,
+        resultTrope,
+      }));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [stage, currentQuestion, answers, resultTrope, isHydrated]);
 
   const handleStart = () => {
     setStage("questions");
@@ -70,6 +105,12 @@ export default function PlayPage() {
     setCurrentQuestion(0);
     setAnswers({});
     setResultTrope(null);
+    // Clear storage when starting over
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // Ignore errors
+    }
   };
 
   return (

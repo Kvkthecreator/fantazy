@@ -99,12 +99,18 @@ export function calculateTrope(answers: Record<number, RomanticTrope>): Romantic
     .filter(([, score]) => score === maxScore)
     .map(([trope]) => trope as RomanticTrope);
 
-  // Tie-breaker: last answered wins
-  if (winners.length > 1 && winners.includes(lastAnswered)) {
+  // Single winner - return it
+  if (winners.length === 1) {
+    return winners[0];
+  }
+
+  // Tie-breaker 1: last answered wins if it's among the winners
+  if (winners.includes(lastAnswered)) {
     return lastAnswered;
   }
 
-  return winners[0];
+  // Tie-breaker 2: random selection among winners (for fairness)
+  return winners[Math.floor(Math.random() * winners.length)];
 }
 
 /**
