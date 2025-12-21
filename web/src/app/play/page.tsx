@@ -1,18 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 
 function PlayHeader() {
   return (
     <header className="border-b bg-background/80 backdrop-blur sticky top-0 z-50">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden">
-            <img
-              src="/branding/ep0-mark.svg"
-              alt="ep-0"
-              className="h-full w-full object-contain p-1"
-            />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden p-1.5">
+            <Logo variant="icon" size="full" />
           </div>
           <div>
             <h1 className="text-xl font-bold leading-tight text-foreground">

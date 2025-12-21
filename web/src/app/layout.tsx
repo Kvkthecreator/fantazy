@@ -11,9 +11,9 @@ export const metadata: Metadata = {
   title: "ep-0 — Interactive Episodes",
   description: "Step into Episode 0 and continue your story with AI characters who remember every chapter.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/branding/ep0-mark.svg",
+    icon: "/branding/ep0-icon.png",
+    shortcut: "/branding/ep0-icon.png",
+    apple: "/branding/ep0-icon.png",
   },
 };
 

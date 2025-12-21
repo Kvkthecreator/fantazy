@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js"
 import { Compass, Heart, Images, LayoutDashboard, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { UserMenu } from "@/components/UserMenu"
+import { Logo } from "@/components/Logo"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
 
@@ -65,12 +66,8 @@ export function Sidebar({ user, variant = "default" }: { user: User; variant?: "
         isCollapsed ? "justify-center px-3" : "justify-between px-6"
       )}>
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden">
-            <img
-              src="/branding/ep0-mark.svg"
-              alt="ep-0"
-              className="h-full w-full object-contain p-1"
-            />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden p-1.5">
+            <Logo variant="icon" size="full" />
           </div>
           {!isCollapsed && (
             <div>

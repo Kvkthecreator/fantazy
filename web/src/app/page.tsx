@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { SectionHeader } from "@/components/ui/section-header";
 import { RotatingHero, SeriesCard } from "@/components/landing";
+import { Logo } from "@/components/Logo";
 
 // Fantasy target words for rotation - expandable for future "packs"
 const FANTASY_TARGETS = ["crush", "K-pop bias", "hometown crush"];
@@ -45,12 +46,8 @@ export default async function Home() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           {/* Logo - matching sidebar style */}
           <Link href="/" className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden">
-              <img
-                src="/branding/ep0-mark.svg"
-                alt="ep-0"
-                className="h-full w-full object-contain p-1"
-              />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-muted/60 shadow-sm shrink-0 overflow-hidden p-1.5">
+              <Logo variant="icon" size="full" />
             </div>
             <div>
               <h1 className="text-xl font-bold leading-tight text-foreground">
@@ -131,11 +128,7 @@ export default async function Home() {
         <div className="mx-auto max-w-6xl px-6 py-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              <img
-                src="/branding/ep0-mark.svg"
-                alt="ep-0"
-                className="h-6 w-6 opacity-60"
-              />
+              <Logo variant="icon" size="sm" className="opacity-60" />
               <span className="text-sm text-muted-foreground">episode-0</span>
             </div>
             <nav className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">

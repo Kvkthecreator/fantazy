@@ -357,9 +357,11 @@ async def evaluate_quiz(
     service = QuizService(db)
 
     try:
+        # Convert Pydantic models to dicts for the service
+        answers_dicts = [answer.model_dump() for answer in data.answers]
         result = await service.evaluate_quiz(
             quiz_type=data.quiz_type,
-            answers=data.answers,
+            answers=answers_dicts,
         )
 
         return QuizEvaluateResponse(

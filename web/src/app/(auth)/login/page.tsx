@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BackgroundBlob } from "@/components/ui/background-blob";
+import { Logo } from "@/components/Logo";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -64,11 +65,7 @@ export default function LoginPage() {
             <CardContent className="p-8">
               <div className="mb-8 text-center space-y-2">
                 <Link href="/" className="inline-flex items-center gap-2">
-                  <img
-                    src="/branding/ep0-mark.svg"
-                    alt="ep-0"
-                    className="h-8 w-8"
-                  />
+                  <Logo variant="icon" size="md" />
                   <span className="text-xl font-semibold">episode-0</span>
                 </Link>
                 <div className="flex items-center justify-center gap-2 text-xs uppercase tracking-[0.12em] text-muted-foreground">
