@@ -104,6 +104,49 @@ async def get_user_chats(
     return UserChatsResponse(items=items)
 
 
+@router.delete("/user/chats/{character_id}/reset", status_code=status.HTTP_200_OK)
+async def reset_free_chat(
+    character_id: UUID,
+    request: Request,
+    db=Depends(get_db),
+):
+    """Reset free chat sessions with a specific character.
+
+    This deletes only free chat sessions (episode_template_id IS NULL)
+    for this character. Episode-based sessions are not affected.
+
+    This action is irreversible.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Delete free chat sessions only (messages cascade automatically)
+    delete_query = """
+        DELETE FROM sessions
+        WHERE user_id = :user_id
+        AND character_id = :character_id
+        AND episode_template_id IS NULL
+    """
+    await db.execute(
+        delete_query, {"user_id": user_id, "character_id": str(character_id)}
+    )
+
+    # Soft-delete memories from free chat sessions (episode_id IS NULL)
+    delete_memories_query = """
+        UPDATE memory_events
+        SET is_active = FALSE
+        WHERE user_id = :user_id
+        AND character_id = :character_id
+        AND episode_id IS NULL
+    """
+    await db.execute(
+        delete_memories_query, {"user_id": user_id, "character_id": str(character_id)}
+    )
+
+    return {"status": "reset", "character_id": str(character_id)}
+
+
 @router.get("", response_model=List[SessionSummary])
 async def list_sessions(
     user_id: UUID = Depends(get_current_user_id),

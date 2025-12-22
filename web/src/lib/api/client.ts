@@ -189,6 +189,11 @@ export const api = {
       request<import("@/types").UserChatsResponse>(
         `/sessions/user/chats${limit ? `?limit=${limit}` : ""}`
       ),
+    resetFreeChat: (characterId: string) =>
+      request<{ status: string; character_id: string }>(
+        `/sessions/user/chats/${characterId}/reset`,
+        { method: "DELETE" }
+      ),
   },
 
   // Episode Template endpoints (pre-defined scenarios)

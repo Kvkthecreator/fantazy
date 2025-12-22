@@ -6,26 +6,44 @@ import { api } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
-import { MessageCircle, Clock, ChevronRight } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MessageCircle, Clock, ChevronRight, MoreVertical, RotateCcw } from "lucide-react";
+import { ResetChatModal } from "@/components/chat/ResetChatModal";
 import type { ChatItem } from "@/types";
 
 export default function MyChatsPage() {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [resetModal, setResetModal] = useState<{
+    open: boolean;
+    characterId: string;
+    characterName: string;
+  }>({ open: false, characterId: "", characterName: "" });
+
+  const loadData = async () => {
+    try {
+      const data = await api.episodes.getUserChats(50);
+      setItems(data.items);
+    } catch (err) {
+      console.error("Failed to load chats:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const data = await api.episodes.getUserChats(50);
-        setItems(data.items);
-      } catch (err) {
-        console.error("Failed to load chats:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
     loadData();
   }, []);
+
+  const handleResetComplete = () => {
+    // Remove the reset chat from the list
+    setItems((prev) => prev.filter((item) => item.character_id !== resetModal.characterId));
+  };
 
   if (isLoading) {
     return (
@@ -79,7 +97,17 @@ export default function MyChatsPage() {
               </h2>
               <div className="space-y-2">
                 {activeChats.map((item) => (
-                  <ChatCard key={item.session_id} item={item} />
+                  <ChatCard
+                    key={item.session_id}
+                    item={item}
+                    onReset={() =>
+                      setResetModal({
+                        open: true,
+                        characterId: item.character_id,
+                        characterName: item.character_name,
+                      })
+                    }
+                  />
                 ))}
               </div>
             </section>
@@ -93,77 +121,129 @@ export default function MyChatsPage() {
               </h2>
               <div className="space-y-2">
                 {recentChats.map((item) => (
-                  <ChatCard key={item.session_id} item={item} />
+                  <ChatCard
+                    key={item.session_id}
+                    item={item}
+                    onReset={() =>
+                      setResetModal({
+                        open: true,
+                        characterId: item.character_id,
+                        characterName: item.character_name,
+                      })
+                    }
+                  />
                 ))}
               </div>
             </section>
           )}
         </div>
       )}
+
+      <ResetChatModal
+        open={resetModal.open}
+        onClose={() => setResetModal({ open: false, characterId: "", characterName: "" })}
+        characterId={resetModal.characterId}
+        characterName={resetModal.characterName}
+        onResetComplete={handleResetComplete}
+      />
     </div>
   );
 }
 
-function ChatCard({ item }: { item: ChatItem }) {
+interface ChatCardProps {
+  item: ChatItem;
+  onReset: () => void;
+}
+
+function ChatCard({ item, onReset }: ChatCardProps) {
   // Free chat goes to /chat/[characterId] without episode param
   const chatUrl = `/chat/${item.character_id}`;
 
   return (
-    <Link href={chatUrl}>
-      <Card className="cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md group overflow-hidden">
-        <CardContent className="p-0">
-          <div className="flex items-center gap-4 p-4">
-            {/* Character Avatar */}
-            <div className="relative shrink-0">
-              {item.character_avatar_url ? (
-                <img
-                  src={item.character_avatar_url}
-                  alt={item.character_name}
-                  className="h-12 w-12 rounded-full object-cover border-2 border-border"
-                />
-              ) : (
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary/50 to-accent/50 flex items-center justify-center text-lg font-semibold text-white">
-                  {item.character_name[0]}
-                </div>
-              )}
-              {/* Active indicator */}
-              {item.is_active && (
-                <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-green-500 border-2 border-background" />
-              )}
-            </div>
-
-            {/* Content */}
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold truncate">{item.character_name}</h3>
-              <p className="text-sm text-muted-foreground truncate capitalize">
-                {item.character_archetype || "Character"}
-              </p>
-
-              <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <MessageCircle className="h-3 w-3" />
-                  {item.message_count} messages
-                </span>
-                {item.last_message_at && (
-                  <>
-                    <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {formatRelativeTime(item.last_message_at)}
-                    </span>
-                  </>
-                )}
+    <Card className="cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md group overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex items-center gap-4 p-4">
+          {/* Character Avatar - clickable */}
+          <Link href={chatUrl} className="relative shrink-0">
+            {item.character_avatar_url ? (
+              <img
+                src={item.character_avatar_url}
+                alt={item.character_name}
+                className="h-12 w-12 rounded-full object-cover border-2 border-border"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary/50 to-accent/50 flex items-center justify-center text-lg font-semibold text-white">
+                {item.character_name[0]}
               </div>
-            </div>
+            )}
+            {/* Active indicator */}
+            {item.is_active && (
+              <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-green-500 border-2 border-background" />
+            )}
+          </Link>
 
-            {/* Arrow */}
-            <div className="shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
-              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          {/* Content - clickable */}
+          <Link href={chatUrl} className="flex-1 min-w-0">
+            <h3 className="font-semibold truncate">{item.character_name}</h3>
+            <p className="text-sm text-muted-foreground truncate capitalize">
+              {item.character_archetype || "Character"}
+            </p>
+
+            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <MessageCircle className="h-3 w-3" />
+                {item.message_count} messages
+              </span>
+              {item.last_message_at && (
+                <>
+                  <span>•</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {formatRelativeTime(item.last_message_at)}
+                  </span>
+                </>
+              )}
             </div>
+          </Link>
+
+          {/* Arrow indicator - clickable */}
+          <Link
+            href={chatUrl}
+            className="shrink-0 opacity-50 group-hover:opacity-100 transition-opacity"
+          >
+            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+          </Link>
+
+          {/* Actions menu */}
+          <div className="shrink-0">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset Chat
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        </CardContent>
-      </Card>
-    </Link>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
