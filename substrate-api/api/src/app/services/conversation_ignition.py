@@ -203,6 +203,42 @@ def get_archetype_rules(archetype: str) -> ArchetypeIgnitionRules:
     return ARCHETYPE_RULES.get(archetype, ARCHETYPE_RULES["comforting"])
 
 
+def _parse_llm_json(content: str) -> Dict[str, Any]:
+    """Parse JSON from LLM output with fallbacks for common issues.
+
+    LLMs sometimes produce malformed JSON (trailing commas, unterminated strings).
+    This function attempts multiple parsing strategies.
+    """
+    # Try direct parse first
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to fix common issues
+    cleaned = content
+
+    # Remove trailing commas before } or ]
+    cleaned = re.sub(r',\s*([}\]])', r'\1', cleaned)
+
+    # Try again after cleanup
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Try to extract JSON object from content (in case of surrounding text)
+    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    # Last resort: raise the original error
+    return json.loads(content)
+
+
 # =============================================================================
 # Quality Validation
 # =============================================================================
@@ -589,7 +625,7 @@ async def generate_opening_beat(
                 content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
 
             try:
-                result = json.loads(content)
+                result = _parse_llm_json(content)
             except json.JSONDecodeError as e:
                 log.warning(f"Failed to parse ignition JSON (attempt {attempt + 1}): {e}")
                 continue
@@ -716,7 +752,8 @@ async def regenerate_opening_beat(
             lines = content.split("\n")
             content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
 
-        result = json.loads(content)
+        # Try to parse JSON, with fallback for common LLM issues
+        result = _parse_llm_json(content)
 
         opening_situation = result.get("opening_situation", "")
         opening_line = result.get("opening_line", "")

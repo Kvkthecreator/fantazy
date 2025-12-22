@@ -374,15 +374,19 @@ export default function CharacterDetailPage() {
 
       setRegenerateFeedback('')
       setShowRegenerateOptions(false)
-      setSaveMessage('Opening beat regenerated! Review and save when ready.')
-      setTimeout(() => setSaveMessage(null), 3000)
 
       if (!result.is_valid && result.validation_errors.length > 0) {
+        // Show warning but don't break the page - still use the generated content
         const errorMsg = result.validation_errors.map(e => e.message).join('; ')
-        setError(`Generated with warnings: ${errorMsg}`)
+        setSaveMessage(`Warning: ${errorMsg}. Review the generated content.`)
+        setTimeout(() => setSaveMessage(null), 5000)
+      } else {
+        setSaveMessage('Opening beat regenerated! Review and save when ready.')
+        setTimeout(() => setSaveMessage(null), 3000)
       }
     } catch (err) {
-      setError(getErrorDetail(err, 'Failed to regenerate opening beat'))
+      // Only use setError for actual failures that should show the error page
+      setSaveMessage(`Error: ${getErrorDetail(err, 'Failed to regenerate opening beat')}`)
     } finally {
       setIsRegenerating(false)
     }
