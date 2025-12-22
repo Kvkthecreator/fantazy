@@ -345,6 +345,33 @@ COMPOSITION_DEFAULTS = {
 
 
 # =============================================================================
+# Style Presets (compact controls for generation UI)
+# =============================================================================
+
+STYLE_PRESETS = {
+    "anime": "anime style, cel shading, vibrant colors, clean linework",
+    "semi_realistic": "semi-realistic digital painting, detailed features, soft rendering",
+    "painterly": "painterly digital art, visible brushstrokes, artistic rendering",
+    "webtoon": "webtoon style, soft shading, Korean manhwa aesthetic",
+}
+
+EXPRESSION_PRESETS = {
+    "warm": "warm gentle smile, kind eyes, inviting expression",
+    "intense": "intense focused gaze, serious expression, magnetic presence",
+    "playful": "playful smirk, bright eyes, mischievous charm",
+    "mysterious": "enigmatic half-smile, deep thoughtful eyes, intriguing",
+    "confident": "confident expression, assured gaze, subtle smile",
+}
+
+POSE_PRESETS = {
+    "portrait": "facing forward, direct eye contact, classic portrait",
+    "casual": "relaxed pose, natural stance, candid feel",
+    "dramatic": "dramatic angle, striking pose, cinematic framing",
+    "candid": "caught mid-moment, natural movement, authentic feel",
+}
+
+
+# =============================================================================
 # Prompt Assembly
 # =============================================================================
 
@@ -365,8 +392,23 @@ def assemble_avatar_prompt(
     boundaries: Optional[Dict[str, Any]] = None,
     content_rating: str = "sfw",
     custom_appearance: Optional[str] = None,
+    style_preset: Optional[str] = None,
+    expression_preset: Optional[str] = None,
+    pose_preset: Optional[str] = None,
 ) -> PromptAssembly:
-    """Assemble complete avatar generation prompt from character data."""
+    """Assemble complete avatar generation prompt from character data.
+
+    Args:
+        name: Character name
+        archetype: Character archetype (used for default mood/expression)
+        role_frame: Optional role frame override for visual styling
+        boundaries: Character boundaries (for intimacy level)
+        content_rating: 'sfw' or 'adult'
+        custom_appearance: Custom appearance description override
+        style_preset: Visual style ('anime', 'semi_realistic', 'painterly', 'webtoon')
+        expression_preset: Expression ('warm', 'intense', 'playful', 'mysterious', 'confident')
+        pose_preset: Pose ('portrait', 'casual', 'dramatic', 'candid')
+    """
     effective_role = role_frame or archetype
     role_visual = ROLE_FRAME_VISUALS.get(effective_role, DEFAULT_ROLE_VISUAL)
     archetype_data = ARCHETYPE_MOOD.get(archetype, DEFAULT_ARCHETYPE_MOOD)
@@ -376,24 +418,40 @@ def assemble_avatar_prompt(
         flirting_level = boundaries.get("flirting_level", "playful")
     intimacy = FLIRTING_LEVEL_MODIFIERS.get(flirting_level, DEFAULT_FLIRTING_MODIFIER)
 
+    # Build appearance - custom appearance or archetype-derived
     appearance_parts = [f"portrait of {name}"]
     if custom_appearance:
         appearance_parts.append(custom_appearance)
     appearance_parts.append(role_visual["wardrobe"])
-    appearance_parts.append(archetype_data["expression"])
-    appearance_parts.append(intimacy["gaze"])
+
+    # Expression: prefer preset, fall back to archetype
+    if expression_preset and expression_preset in EXPRESSION_PRESETS:
+        appearance_parts.append(EXPRESSION_PRESETS[expression_preset])
+    else:
+        appearance_parts.append(archetype_data["expression"])
+        appearance_parts.append(intimacy["gaze"])
+
     appearance_prompt = ", ".join(filter(None, appearance_parts))
 
-    composition_parts = [
-        COMPOSITION_DEFAULTS["framing"],
-        role_visual["pose"],
-        role_visual["setting"],
-        intimacy["body_language"],
-        COMPOSITION_DEFAULTS["lighting"],
-    ]
+    # Build composition - pose preset or archetype-derived
+    composition_parts = [COMPOSITION_DEFAULTS["framing"]]
+
+    if pose_preset and pose_preset in POSE_PRESETS:
+        composition_parts.append(POSE_PRESETS[pose_preset])
+    else:
+        composition_parts.append(role_visual["pose"])
+        composition_parts.append(intimacy["body_language"])
+
+    composition_parts.append(role_visual["setting"])
+    composition_parts.append(COMPOSITION_DEFAULTS["lighting"])
     composition_prompt = ", ".join(filter(None, composition_parts))
 
-    style_prompt = FANTAZY_STYLE_LOCK
+    # Style: prefer preset, fall back to default fantazy style
+    if style_preset and style_preset in STYLE_PRESETS:
+        style_prompt = f"{STYLE_PRESETS[style_preset]}, {FANTAZY_STYLE_LOCK}"
+    else:
+        style_prompt = FANTAZY_STYLE_LOCK
+
     negative_prompt = FANTAZY_NEGATIVE_PROMPT
     if content_rating == "sfw":
         negative_prompt += ", nsfw, nude, explicit, revealing, suggestive"
@@ -463,11 +521,19 @@ class AvatarGenerationService:
         appearance_description: Optional[str] = None,
         label: Optional[str] = None,
         content_rating: str = "sfw",
+        style_preset: Optional[str] = None,
+        expression_preset: Optional[str] = None,
+        pose_preset: Optional[str] = None,
     ) -> AvatarGenerationResult:
         """Generate a portrait for a character's avatar gallery.
 
         Creates avatar kit if none exists, generates image via FLUX,
         and adds it to the gallery. First portrait becomes primary.
+
+        Args:
+            style_preset: Visual style ('anime', 'semi_realistic', 'painterly', 'webtoon')
+            expression_preset: Expression ('warm', 'intense', 'playful', 'mysterious', 'confident')
+            pose_preset: Pose ('portrait', 'casual', 'dramatic', 'candid')
         """
         try:
             # 1. Get character data
@@ -487,7 +553,7 @@ class AvatarGenerationService:
             if isinstance(boundaries, str):
                 boundaries = json.loads(boundaries)
 
-            # 2. Assemble prompt
+            # 2. Assemble prompt with optional presets
             actual_rating = char_dict.get("content_rating", content_rating)
             prompt_assembly = assemble_avatar_prompt(
                 name=char_dict["name"],
@@ -496,6 +562,9 @@ class AvatarGenerationService:
                 boundaries=boundaries,
                 content_rating=actual_rating,
                 custom_appearance=appearance_description,
+                style_preset=style_preset,
+                expression_preset=expression_preset,
+                pose_preset=pose_preset,
             )
 
             # 3. Ensure avatar kit exists

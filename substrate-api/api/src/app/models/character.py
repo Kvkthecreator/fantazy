@@ -366,6 +366,7 @@ class CharacterUpdateInput(BaseModel):
     # Core (usually set at creation, but editable)
     name: Optional[str] = Field(None, min_length=1, max_length=50)
     archetype: Optional[str] = None
+    genre: Optional[str] = None
     avatar_url: Optional[str] = None
 
     # Personality & boundaries

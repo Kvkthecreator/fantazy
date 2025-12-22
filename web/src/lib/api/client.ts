@@ -637,12 +637,27 @@ export const api = {
         `/studio/archetype-rules/${archetype}`
       ),
     // Avatar Gallery (simplified model)
-    generateAvatar: (characterId: string, appearanceDescription?: string, label?: string) =>
+    generateAvatar: (
+      characterId: string,
+      options?: {
+        appearanceDescription?: string
+        label?: string
+        stylePreset?: string
+        expressionPreset?: string
+        posePreset?: string
+      }
+    ) =>
       request<import("@/types").AvatarGenerationResponse>(
         `/studio/characters/${characterId}/generate-avatar`,
         {
           method: "POST",
-          body: JSON.stringify({ appearance_description: appearanceDescription, label }),
+          body: JSON.stringify({
+            appearance_description: options?.appearanceDescription,
+            label: options?.label,
+            style_preset: options?.stylePreset,
+            expression_preset: options?.expressionPreset,
+            pose_preset: options?.posePreset,
+          }),
         }
       ),
     getGalleryStatus: (characterId: string) =>

@@ -278,9 +278,13 @@ async def get_my_character(
     Note: Ownership check removed for admin/creator workflow.
     All authenticated users can view any character in studio.
     """
+    # Join with avatar_kits to get primary anchor path for fresh signed URL
     query = """
-        SELECT * FROM characters
-        WHERE id = :character_id
+        SELECT c.*, aa.storage_path as anchor_path
+        FROM characters c
+        LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
+        LEFT JOIN avatar_assets aa ON aa.id = ak.primary_anchor_id AND aa.is_active = TRUE
+        WHERE c.id = :character_id
     """
     row = await db.fetch_one(query, {
         "character_id": str(character_id),
@@ -292,7 +296,15 @@ async def get_my_character(
             detail="Character not found",
         )
 
-    return Character(**dict(row))
+    data = dict(row)
+    anchor_path = data.pop("anchor_path", None)
+
+    # Generate fresh signed URL if avatar exists
+    if anchor_path:
+        storage = StorageService.get_instance()
+        data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
+
+    return Character(**data)
 
 
 @router.patch("/characters/{character_id}", response_model=Character)
@@ -771,6 +783,19 @@ class GeneratePortraitRequest(BaseModel):
         max_length=50,
         description="Optional label for this portrait (e.g., 'Casual', 'Office')"
     )
+    # Style controls (compact presets)
+    style_preset: Optional[str] = Field(
+        None,
+        description="Visual style: 'anime', 'semi_realistic', 'painterly', 'webtoon'"
+    )
+    expression_preset: Optional[str] = Field(
+        None,
+        description="Expression: 'warm', 'intense', 'playful', 'mysterious', 'confident'"
+    )
+    pose_preset: Optional[str] = Field(
+        None,
+        description="Pose: 'portrait', 'casual', 'dramatic', 'candid'"
+    )
 
 
 class PortraitGenerationResponse(BaseModel):
@@ -821,6 +846,9 @@ async def generate_portrait(
         db=db,
         appearance_description=data.appearance_description,
         label=data.label,
+        style_preset=data.style_preset,
+        expression_preset=data.expression_preset,
+        pose_preset=data.pose_preset,
     )
 
     return PortraitGenerationResponse(

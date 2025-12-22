@@ -10,12 +10,67 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api, APIError } from '@/lib/api/client'
 import type { Character, GalleryStatusResponse, AvatarGalleryItem } from '@/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
 
 // =============================================================================
-// Types
+// Types & Constants
 // =============================================================================
 
 type EditTab = 'overview' | 'avatars' | 'backstory' | 'opening' | 'conversation' | 'advanced'
+
+const ARCHETYPES = [
+  'comforting',
+  'flirty',
+  'mysterious',
+  'cheerful',
+  'brooding',
+  'nurturing',
+  'adventurous',
+  'intellectual',
+  'idol_leader',
+  'neighbor',
+  'handler',
+  'wounded_star',
+]
+
+const GENRES = [
+  'romantic_tension',
+  'psychological_thriller',
+  'slice_of_life',
+]
+
+// Avatar generation presets
+const STYLE_PRESETS = [
+  { value: '', label: 'Default (Fantazy Style)' },
+  { value: 'anime', label: 'Anime' },
+  { value: 'semi_realistic', label: 'Semi-Realistic' },
+  { value: 'painterly', label: 'Painterly' },
+  { value: 'webtoon', label: 'Webtoon' },
+]
+
+const EXPRESSION_PRESETS = [
+  { value: '', label: 'Auto (from archetype)' },
+  { value: 'warm', label: 'Warm' },
+  { value: 'intense', label: 'Intense' },
+  { value: 'playful', label: 'Playful' },
+  { value: 'mysterious', label: 'Mysterious' },
+  { value: 'confident', label: 'Confident' },
+]
+
+const POSE_PRESETS = [
+  { value: '', label: 'Auto (from archetype)' },
+  { value: 'portrait', label: 'Portrait' },
+  { value: 'casual', label: 'Casual' },
+  { value: 'dramatic', label: 'Dramatic' },
+  { value: 'candid', label: 'Candid' },
+]
 
 // Helper to extract error detail from APIError
 function getErrorDetail(err: unknown, fallback: string): string {
@@ -56,6 +111,10 @@ export default function CharacterDetailPage() {
   const [avatarError, setAvatarError] = useState<string | null>(null)
   const [settingPrimary, setSettingPrimary] = useState<string | null>(null)
   const [deletingItem, setDeletingItem] = useState<string | null>(null)
+  // Avatar generation presets
+  const [stylePreset, setStylePreset] = useState('')
+  const [expressionPreset, setExpressionPreset] = useState('')
+  const [posePreset, setPosePreset] = useState('')
 
   // Editable fields
   const [editForm, setEditForm] = useState({
@@ -68,6 +127,16 @@ export default function CharacterDetailPage() {
     opening_line: '',
     starter_prompts: [] as string[],
   })
+
+  // Overview tab editable fields
+  const [overviewForm, setOverviewForm] = useState({
+    name: '',
+    archetype: '',
+    genre: '',
+    baseline_personality: '',
+    boundaries: '',
+  })
+  const [overviewDirty, setOverviewDirty] = useState(false)
 
   useEffect(() => {
     fetchCharacter()
@@ -89,11 +158,16 @@ export default function CharacterDetailPage() {
     setAvatarError(null)
 
     try {
-      const result = await api.studio.generateAvatar(
-        characterId,
-        appearanceDescription || undefined,
-        newAvatarLabel || undefined
-      )
+      // Filter out placeholder values (starting with _)
+      const cleanPreset = (v: string) => (v && !v.startsWith('_') ? v : undefined)
+
+      const result = await api.studio.generateAvatar(characterId, {
+        appearanceDescription: appearanceDescription || undefined,
+        label: newAvatarLabel || undefined,
+        stylePreset: cleanPreset(stylePreset),
+        expressionPreset: cleanPreset(expressionPreset),
+        posePreset: cleanPreset(posePreset),
+      })
 
       if (!result.success) {
         setAvatarError(result.error || 'Failed to generate avatar')
@@ -173,6 +247,15 @@ export default function CharacterDetailPage() {
         opening_line: openingLine,
         starter_prompts: data.starter_prompts || [],
       })
+      // Populate overview form
+      setOverviewForm({
+        name: data.name || '',
+        archetype: data.archetype || '',
+        genre: data.genre || 'romantic_tension',
+        baseline_personality: JSON.stringify(data.baseline_personality || {}, null, 2),
+        boundaries: JSON.stringify(data.boundaries || {}, null, 2),
+      })
+      setOverviewDirty(false)
     } catch (err) {
       setError(getErrorDetail(err, 'Failed to load character'))
     } finally {
@@ -194,6 +277,55 @@ export default function CharacterDetailPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const saveOverviewChanges = async () => {
+    setSaving(true)
+    setSaveMessage(null)
+    setError(null)
+
+    try {
+      // Parse JSON fields
+      let personality = {}
+      let boundaries = {}
+
+      try {
+        personality = JSON.parse(overviewForm.baseline_personality)
+      } catch {
+        setError('Invalid JSON in Personality field')
+        setSaving(false)
+        return
+      }
+
+      try {
+        boundaries = JSON.parse(overviewForm.boundaries)
+      } catch {
+        setError('Invalid JSON in Boundaries field')
+        setSaving(false)
+        return
+      }
+
+      const updated = await api.studio.updateCharacter(characterId, {
+        name: overviewForm.name,
+        archetype: overviewForm.archetype,
+        genre: overviewForm.genre,
+        baseline_personality: personality,
+        boundaries: boundaries,
+      })
+      setCharacter(updated)
+      setOverviewDirty(false)
+      setSaveMessage('Character updated successfully')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      setError(getErrorDetail(err, 'Failed to save'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleOverviewChange = (field: string, value: string) => {
+    setOverviewForm((prev) => ({ ...prev, [field]: value }))
+    setOverviewDirty(true)
   }
 
   const activateCharacter = async () => {
@@ -363,78 +495,134 @@ export default function CharacterDetailPage() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <div className="grid gap-6 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Character Info</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <p className="text-xs text-muted-foreground">Name</p>
-                <p className="font-medium">{character.name}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Archetype</p>
-                <p className="font-medium capitalize">{character.archetype}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Genre</p>
-                <p className="font-medium capitalize">{character.genre?.replace('_', ' ') || 'romantic tension'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Slug</p>
-                <p className="font-mono text-sm">{character.slug}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Created</p>
-                <p className="text-sm">{new Date(character.created_at).toLocaleDateString()}</p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Character Info</CardTitle>
+                <CardDescription>Core identity fields</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs">Name</Label>
+                  <Input
+                    value={overviewForm.name}
+                    onChange={(e) => handleOverviewChange('name', e.target.value)}
+                    placeholder="Character name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Archetype</Label>
+                  <Select
+                    value={overviewForm.archetype}
+                    onValueChange={(v) => handleOverviewChange('archetype', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select archetype" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ARCHETYPES.map((arch) => (
+                        <SelectItem key={arch} value={arch}>
+                          {arch.replace('_', ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs">Genre</Label>
+                  <Select
+                    value={overviewForm.genre}
+                    onValueChange={(v) => handleOverviewChange('genre', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select genre" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GENRES.map((genre) => (
+                        <SelectItem key={genre} value={genre}>
+                          {genre.replace('_', ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="pt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground">Slug</p>
+                  <p className="font-mono text-sm text-muted-foreground">{character.slug}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">Created</p>
+                  <p className="text-sm text-muted-foreground">{new Date(character.created_at).toLocaleDateString()}</p>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Opening Beat</CardTitle>
-              <CardDescription>How the first conversation starts (from Episode 0)</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {editForm.opening_situation ? (
-                <>
-                  <p className="text-sm italic text-muted-foreground">{editForm.opening_situation}</p>
-                  <div className="flex gap-2">
-                    <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
-                      {character.name[0]}
+            <Card>
+              <CardHeader>
+                <CardTitle>Opening Beat</CardTitle>
+                <CardDescription>How the first conversation starts (from Episode 0)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {editForm.opening_situation ? (
+                  <>
+                    <p className="text-sm italic text-muted-foreground">{editForm.opening_situation}</p>
+                    <div className="flex gap-2">
+                      <div className="h-6 w-6 rounded-full bg-primary/20 flex items-center justify-center text-xs">
+                        {character.name[0]}
+                      </div>
+                      <p className="text-sm">{editForm.opening_line}</p>
                     </div>
-                    <p className="text-sm">{editForm.opening_line}</p>
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">No opening beat configured</p>
-              )}
-            </CardContent>
-          </Card>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No opening beat configured</p>
+                )}
+                <p className="text-xs text-muted-foreground pt-2">
+                  Edit opening beat in the &quot;Opening Beat&quot; tab
+                </p>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Personality</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-xs overflow-auto max-h-40 bg-muted p-2 rounded">
-                {JSON.stringify(character.baseline_personality, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Personality</CardTitle>
+                <CardDescription>Character traits and behavior (JSON)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={overviewForm.baseline_personality}
+                  onChange={(e) => handleOverviewChange('baseline_personality', e.target.value)}
+                  className="font-mono text-xs min-h-[160px]"
+                  placeholder='{"traits": ["warm", "playful"], ...}'
+                />
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Boundaries</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <pre className="text-xs overflow-auto max-h-40 bg-muted p-2 rounded">
-                {JSON.stringify(character.boundaries, null, 2)}
-              </pre>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Boundaries</CardTitle>
+                <CardDescription>Content and interaction limits (JSON)</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Textarea
+                  value={overviewForm.boundaries}
+                  onChange={(e) => handleOverviewChange('boundaries', e.target.value)}
+                  className="font-mono text-xs min-h-[160px]"
+                  placeholder='{"flirting_level": "playful", ...}'
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Save Button */}
+          <div className="flex justify-end">
+            <Button
+              onClick={saveOverviewChanges}
+              disabled={saving || !overviewDirty}
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -541,30 +729,76 @@ export default function CharacterDetailPage() {
               {/* Generate New Avatar */}
               <div className="rounded-lg border border-dashed border-border p-4 space-y-4">
                 <p className="font-medium text-sm">Generate New Avatar</p>
+
+                {/* Row 1: Appearance + Label */}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label className="text-sm">Appearance Description (optional)</Label>
+                    <Label className="text-sm">Appearance (optional)</Label>
                     <Input
-                      placeholder="e.g., Silver hair, bright blue eyes, cozy sweater..."
+                      placeholder="e.g., Silver hair, blue eyes..."
                       value={appearanceDescription}
                       onChange={(e) => setAppearanceDescription(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Leave empty to auto-derive from archetype and personality.
-                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label className="text-sm">Label (optional)</Label>
                     <Input
-                      placeholder="e.g., Casual, Office, Evening..."
+                      placeholder="e.g., Casual, Office..."
                       value={newAvatarLabel}
                       onChange={(e) => setNewAvatarLabel(e.target.value)}
                     />
-                    <p className="text-xs text-muted-foreground">
-                      A short description to identify this avatar.
-                    </p>
                   </div>
                 </div>
+
+                {/* Row 2: Style Presets (compact) */}
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-sm">Style</Label>
+                    <Select value={stylePreset} onValueChange={setStylePreset}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Default" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {STYLE_PRESETS.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value || '_default'}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Expression</Label>
+                    <Select value={expressionPreset} onValueChange={setExpressionPreset}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Auto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EXPRESSION_PRESETS.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value || '_auto'}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm">Pose</Label>
+                    <Select value={posePreset} onValueChange={setPosePreset}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Auto" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POSE_PRESETS.map((preset) => (
+                          <SelectItem key={preset.value} value={preset.value || '_auto'}>
+                            {preset.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <Button
                   onClick={handleGenerateAvatar}
                   disabled={isGeneratingAvatar}
