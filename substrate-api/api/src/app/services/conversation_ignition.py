@@ -212,8 +212,8 @@ def _parse_llm_json(content: str) -> Dict[str, Any]:
     # Try direct parse first
     try:
         return json.loads(content)
-    except json.JSONDecodeError:
-        pass
+    except json.JSONDecodeError as e:
+        log.debug(f"Direct JSON parse failed: {e}")
 
     # Try to fix common issues
     cleaned = content
@@ -227,6 +227,39 @@ def _parse_llm_json(content: str) -> Dict[str, Any]:
     except json.JSONDecodeError:
         pass
 
+    # Try to fix truncated/unterminated strings by closing them
+    # This handles cases where LLM output was cut off mid-string
+    fixed = content.rstrip()
+
+    # Count unmatched quotes and brackets
+    in_string = False
+    escape_next = False
+    for char in fixed:
+        if escape_next:
+            escape_next = False
+            continue
+        if char == '\\':
+            escape_next = True
+            continue
+        if char == '"':
+            in_string = not in_string
+
+    # If we ended inside a string, close it
+    if in_string:
+        fixed = fixed + '"'
+
+    # Try to close unclosed braces/brackets
+    open_braces = fixed.count('{') - fixed.count('}')
+    open_brackets = fixed.count('[') - fixed.count(']')
+
+    # Add closing brackets and braces
+    fixed = fixed + ']' * max(0, open_brackets) + '}' * max(0, open_braces)
+
+    try:
+        return json.loads(fixed)
+    except json.JSONDecodeError:
+        pass
+
     # Try to extract JSON object from content (in case of surrounding text)
     json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', content, re.DOTALL)
     if json_match:
@@ -235,7 +268,8 @@ def _parse_llm_json(content: str) -> Dict[str, Any]:
         except json.JSONDecodeError:
             pass
 
-    # Last resort: raise the original error
+    # Last resort: raise the original error with logging
+    log.error(f"Failed to parse LLM JSON after all attempts. Content: {content[:500]}...")
     return json.loads(content)
 
 

@@ -227,16 +227,23 @@ export default function CharacterDetailPage() {
     try {
       const data = await api.studio.getCharacter(characterId)
       setCharacter(data)
+
       // Fetch default episode template for opening beat (EP-01 Episode-First Pivot)
-      const summaries = await api.studio.listEpisodeTemplates(characterId, true)
-      const defaultSummary = summaries.find(s => s.is_default)
       let openingSituation = ''
       let openingLine = ''
-      if (defaultSummary) {
-        const defaultTemplate = await api.studio.getEpisodeTemplate(defaultSummary.id)
-        openingSituation = defaultTemplate.situation || ''
-        openingLine = defaultTemplate.opening_line || ''
+      try {
+        const summaries = await api.studio.listEpisodeTemplates(characterId, true)
+        const defaultSummary = summaries.find(s => s.is_default)
+        if (defaultSummary) {
+          const defaultTemplate = await api.studio.getEpisodeTemplate(defaultSummary.id)
+          openingSituation = defaultTemplate.situation || ''
+          openingLine = defaultTemplate.opening_line || ''
+        }
+      } catch (templateErr) {
+        // Episode templates might not exist yet - that's okay, user can generate
+        console.log('No episode templates found:', templateErr)
       }
+
       setEditForm({
         short_backstory: data.short_backstory || '',
         full_backstory: data.full_backstory || '',
