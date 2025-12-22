@@ -742,24 +742,24 @@ If visual is not "none", add: [hint: <description>]"""
             return None
 
         # Parse result if it's a JSON string
-        result = row.get("result")
-        if isinstance(result, str):
+        result_data = row["result"]
+        if isinstance(result_data, str):
             try:
-                result = json.loads(result)
+                result_data = json.loads(result_data)
             except (json.JSONDecodeError, TypeError):
-                result = {}
+                result_data = {}
 
         return {
-            "id": str(row.get("id")),
-            "session_id": str(row.get("session_id")) if row.get("session_id") else None,
-            "evaluation_type": row.get("evaluation_type"),
-            "result": result,
-            "share_id": row.get("share_id"),
-            "share_count": row.get("share_count") or 0,
-            "created_at": row.get("created_at"),
-            "character_id": str(row.get("character_id")) if row.get("character_id") else None,
-            "character_name": row.get("character_name"),
-            "series_id": str(row.get("series_id")) if row.get("series_id") else None,
+            "id": str(row["id"]),
+            "session_id": str(row["session_id"]) if row["session_id"] else None,
+            "evaluation_type": row["evaluation_type"],
+            "result": result_data,
+            "share_id": row["share_id"],
+            "share_count": row["share_count"] or 0,
+            "created_at": row["created_at"],
+            "character_id": str(row["character_id"]) if row["character_id"] else None,
+            "character_name": row["character_name"],
+            "series_id": str(row["series_id"]) if row["series_id"] else None,
         }
 
     async def increment_share_count(self, share_id: str) -> bool:
