@@ -341,20 +341,24 @@ async def update_series(
 
     if data.genre_settings is not None:
         # Merge with existing genre_settings (partial update)
-        # First get current settings
-        current_query = "SELECT genre_settings FROM series WHERE id = :id"
-        current_row = await db.fetch_one(current_query, {"id": str(series_id)})
-        if current_row:
-            current_settings = current_row["genre_settings"] or {}
-            if isinstance(current_settings, str):
-                current_settings = json.loads(current_settings)
-            # Merge new settings on top of existing
-            merged_settings = {**current_settings, **data.genre_settings}
-            updates.append("genre_settings = :genre_settings")
-            values["genre_settings"] = json.dumps(merged_settings)
-        else:
-            updates.append("genre_settings = :genre_settings")
-            values["genre_settings"] = json.dumps(data.genre_settings)
+        # First get current settings - handle case where column doesn't exist
+        try:
+            current_query = "SELECT genre_settings FROM series WHERE id = :id"
+            current_row = await db.fetch_one(current_query, {"id": str(series_id)})
+            if current_row:
+                current_settings = current_row.get("genre_settings") or {}
+                if isinstance(current_settings, str):
+                    current_settings = json.loads(current_settings)
+                # Merge new settings on top of existing
+                merged_settings = {**current_settings, **data.genre_settings}
+                updates.append("genre_settings = :genre_settings")
+                values["genre_settings"] = json.dumps(merged_settings)
+            else:
+                updates.append("genre_settings = :genre_settings")
+                values["genre_settings"] = json.dumps(data.genre_settings)
+        except Exception:
+            # Column doesn't exist yet - skip this update
+            pass
 
     if data.featured_characters is not None:
         updates.append("featured_characters = :featured_characters")
@@ -1031,14 +1035,20 @@ async def get_series_genre_settings(
     Returns the merged settings (preset defaults + custom overrides)
     and the formatted prompt section that would be injected into LLM context.
     """
-    query = "SELECT genre, genre_settings FROM series WHERE id = :id"
-    row = await db.fetch_one(query, {"id": str(series_id)})
+    # Check if genre_settings column exists (migration may not be applied yet)
+    try:
+        query = "SELECT genre, genre_settings FROM series WHERE id = :id"
+        row = await db.fetch_one(query, {"id": str(series_id)})
+    except Exception:
+        # Column doesn't exist yet - fall back to just genre
+        query = "SELECT genre FROM series WHERE id = :id"
+        row = await db.fetch_one(query, {"id": str(series_id)})
 
     if not row:
         raise HTTPException(status_code=404, detail="Series not found")
 
     genre = row["genre"] or "romantic_tension"
-    genre_settings_raw = row["genre_settings"] or {}
+    genre_settings_raw = row.get("genre_settings") or {}
 
     if isinstance(genre_settings_raw, str):
         genre_settings_raw = json.loads(genre_settings_raw)
@@ -1080,18 +1090,31 @@ async def apply_genre_preset(
 
     preset = GENRE_SETTING_PRESETS[preset_name]
 
-    query = """
-        UPDATE series
-        SET genre = :genre, genre_settings = :genre_settings, updated_at = NOW()
-        WHERE id = :id
-        RETURNING *
-    """
-
-    row = await db.fetch_one(query, {
-        "id": str(series_id),
-        "genre": preset_name,
-        "genre_settings": json.dumps(preset),
-    })
+    # Try with genre_settings column first, fall back to just genre if column doesn't exist
+    try:
+        query = """
+            UPDATE series
+            SET genre = :genre, genre_settings = :genre_settings, updated_at = NOW()
+            WHERE id = :id
+            RETURNING *
+        """
+        row = await db.fetch_one(query, {
+            "id": str(series_id),
+            "genre": preset_name,
+            "genre_settings": json.dumps(preset),
+        })
+    except Exception:
+        # Column doesn't exist yet - just update genre
+        query = """
+            UPDATE series
+            SET genre = :genre, updated_at = NOW()
+            WHERE id = :id
+            RETURNING *
+        """
+        row = await db.fetch_one(query, {
+            "id": str(series_id),
+            "genre": preset_name,
+        })
 
     if not row:
         raise HTTPException(status_code=404, detail="Series not found")

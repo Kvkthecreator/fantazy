@@ -405,12 +405,19 @@ class ConversationService:
                 series_id = session_row["series_id"]
 
                 # Fetch series genre_settings and format as prompt section
-                series_query = "SELECT genre, genre_settings FROM series WHERE id = :series_id"
-                series_row = await self.db.fetch_one(series_query, {"series_id": str(series_id)})
+                # Handle case where genre_settings column doesn't exist (migration pending)
+                try:
+                    series_query = "SELECT genre, genre_settings FROM series WHERE id = :series_id"
+                    series_row = await self.db.fetch_one(series_query, {"series_id": str(series_id)})
+                except Exception:
+                    # Column doesn't exist - fall back to just genre
+                    series_query = "SELECT genre FROM series WHERE id = :series_id"
+                    series_row = await self.db.fetch_one(series_query, {"series_id": str(series_id)})
+
                 if series_row:
                     genre_prompt = await self._format_genre_settings(
                         series_row["genre"],
-                        series_row["genre_settings"]
+                        series_row.get("genre_settings")  # Use .get() for safety
                     )
                     if genre_prompt:
                         series_genre_prompt = genre_prompt
