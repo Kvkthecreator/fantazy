@@ -578,6 +578,10 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    regenerateSystemPrompt: (id: string) =>
+      request<import("@/types").Character>(`/studio/characters/${id}/regenerate-system-prompt`, {
+        method: "POST",
+      }),
     activateCharacter: (id: string) =>
       request<import("@/types").Character>(`/studio/characters/${id}/activate`, {
         method: "POST",

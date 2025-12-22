@@ -387,6 +387,133 @@ async def update_character(
     """
 
     row = await db.fetch_one(query, values)
+
+    # Check if we need to regenerate system_prompt (core fields changed)
+    prompt_affecting_fields = {"name", "archetype", "baseline_personality", "boundaries",
+                               "tone_style", "speech_patterns", "full_backstory",
+                               "short_backstory", "current_stressor", "likes", "dislikes", "genre"}
+    if prompt_affecting_fields & set(update_data.keys()):
+        # Regenerate system prompt with updated character data
+        char_dict = dict(row)
+        personality = char_dict.get("baseline_personality") or {}
+        if isinstance(personality, str):
+            personality = json.loads(personality)
+        boundaries = char_dict.get("boundaries") or {}
+        if isinstance(boundaries, str):
+            boundaries = json.loads(boundaries)
+        tone_style = char_dict.get("tone_style")
+        if isinstance(tone_style, str):
+            tone_style = json.loads(tone_style)
+        speech_patterns = char_dict.get("speech_patterns")
+        if isinstance(speech_patterns, str):
+            speech_patterns = json.loads(speech_patterns)
+
+        # Get opening situation from default episode template
+        ep_row = await db.fetch_one(
+            """SELECT situation FROM episode_templates
+               WHERE character_id = :character_id AND is_default = TRUE""",
+            {"character_id": str(character_id)}
+        )
+        opening_situation = ep_row["situation"] if ep_row else ""
+
+        new_system_prompt = generate_system_prompt(
+            name=char_dict["name"],
+            archetype=char_dict["archetype"],
+            personality=personality,
+            boundaries=boundaries,
+            opening_situation=opening_situation,
+            tone_style=tone_style,
+            speech_patterns=speech_patterns,
+            backstory=char_dict.get("full_backstory") or char_dict.get("short_backstory"),
+            current_stressor=char_dict.get("current_stressor"),
+            likes=char_dict.get("likes"),
+            dislikes=char_dict.get("dislikes"),
+            genre=char_dict.get("genre") or "romantic_tension",
+        )
+
+        # Update the system prompt
+        row = await db.fetch_one(
+            """UPDATE characters SET system_prompt = :system_prompt, updated_at = NOW()
+               WHERE id = :id RETURNING *""",
+            {"id": str(character_id), "system_prompt": new_system_prompt}
+        )
+
+    return Character(**dict(row))
+
+
+@router.post("/characters/{character_id}/regenerate-system-prompt", response_model=Character)
+async def regenerate_system_prompt_endpoint(
+    character_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Manually regenerate the system prompt from current character data.
+
+    This rebuilds the system prompt using the latest character fields:
+    - name, archetype, personality, boundaries
+    - tone_style, speech_patterns
+    - backstory (full or short), current_stressor
+    - likes, dislikes, genre
+    - opening_situation from default episode template
+    """
+    # Get character
+    existing = await db.fetch_one(
+        "SELECT * FROM characters WHERE id = :id",
+        {"id": str(character_id)}
+    )
+
+    if not existing:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Character not found",
+        )
+
+    char_dict = dict(existing)
+
+    # Parse JSONB fields
+    personality = char_dict.get("baseline_personality") or {}
+    if isinstance(personality, str):
+        personality = json.loads(personality)
+    boundaries = char_dict.get("boundaries") or {}
+    if isinstance(boundaries, str):
+        boundaries = json.loads(boundaries)
+    tone_style = char_dict.get("tone_style")
+    if isinstance(tone_style, str):
+        tone_style = json.loads(tone_style)
+    speech_patterns = char_dict.get("speech_patterns")
+    if isinstance(speech_patterns, str):
+        speech_patterns = json.loads(speech_patterns)
+
+    # Get opening situation from default episode template
+    ep_row = await db.fetch_one(
+        """SELECT situation FROM episode_templates
+           WHERE character_id = :character_id AND is_default = TRUE""",
+        {"character_id": str(character_id)}
+    )
+    opening_situation = ep_row["situation"] if ep_row else ""
+
+    new_system_prompt = generate_system_prompt(
+        name=char_dict["name"],
+        archetype=char_dict["archetype"],
+        personality=personality,
+        boundaries=boundaries,
+        opening_situation=opening_situation,
+        tone_style=tone_style,
+        speech_patterns=speech_patterns,
+        backstory=char_dict.get("full_backstory") or char_dict.get("short_backstory"),
+        current_stressor=char_dict.get("current_stressor"),
+        likes=char_dict.get("likes"),
+        dislikes=char_dict.get("dislikes"),
+        genre=char_dict.get("genre") or "romantic_tension",
+    )
+
+    # Update the system prompt
+    row = await db.fetch_one(
+        """UPDATE characters SET system_prompt = :system_prompt, updated_at = NOW()
+           WHERE id = :id RETURNING *""",
+        {"id": str(character_id), "system_prompt": new_system_prompt}
+    )
+
     return Character(**dict(row))
 
 

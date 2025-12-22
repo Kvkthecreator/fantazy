@@ -1104,12 +1104,39 @@ export default function CharacterDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>System Prompt</CardTitle>
-              <CardDescription>Auto-generated from character config. Read-only for now.</CardDescription>
+              <CardDescription>
+                The AI instructions generated from your character config. Updates automatically when you save changes
+                to Overview, Backstory, or Opening Beat. You can also manually regenerate it.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <pre className="text-xs overflow-auto max-h-80 bg-muted p-3 rounded whitespace-pre-wrap">
-                {character.system_prompt}
+                {character.system_prompt || '(No system prompt generated yet)'}
               </pre>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="outline"
+                  onClick={async () => {
+                    setSaving(true)
+                    try {
+                      const updated = await api.studio.regenerateSystemPrompt(characterId)
+                      setCharacter(updated)
+                      setSaveMessage('System prompt regenerated!')
+                      setTimeout(() => setSaveMessage(null), 3000)
+                    } catch (err) {
+                      setError(getErrorDetail(err, 'Failed to regenerate system prompt'))
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                  disabled={saving}
+                >
+                  {saving ? 'Regenerating...' : 'Regenerate System Prompt'}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Last updated: {character.updated_at ? new Date(character.updated_at).toLocaleString() : 'Never'}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
