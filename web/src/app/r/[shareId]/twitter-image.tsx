@@ -1,3 +1,2 @@
 // Twitter uses the same OG image as OpenGraph
-// Re-export with twitter-specific naming for Next.js convention
 export { default, runtime, alt, size, contentType } from "./opengraph-image";

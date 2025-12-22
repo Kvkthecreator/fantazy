@@ -1,27 +1,28 @@
 import { Metadata } from "next";
 import { ShareResultClient } from "./ShareResultClient";
+import { BRAND, QUIZ_META, type QuizType } from "@/lib/og";
 
 interface Props {
   params: Promise<{ shareId: string }>;
 }
 
 // Generate metadata for OG tags
+// Note: OG images are generated dynamically via opengraph-image.tsx
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { shareId } = await params;
 
   // Default metadata
   const defaultMeta: Metadata = {
-    title: "Flirt Test Result | ep-0",
-    description: "Discover your flirt archetype with the Flirt Test on ep-0.com",
+    title: `Quiz Result | ${BRAND.shortName}`,
+    description: `Discover your type with quizzes on ${BRAND.shortName}.com`,
     openGraph: {
-      title: "Flirt Test Result",
-      description: "Discover your flirt archetype with the Flirt Test",
-      images: ["/branding/og-flirt-test.png"],
+      title: "Quiz Result",
+      description: `Take a quiz on ${BRAND.shortName}`,
     },
     twitter: {
       card: "summary_large_image",
-      title: "Flirt Test Result",
-      description: "Discover your flirt archetype with the Flirt Test",
+      title: "Quiz Result",
+      description: `Take a quiz on ${BRAND.shortName}`,
     },
   };
 
@@ -37,22 +38,27 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     }
 
     const data = await response.json();
-    const result = data.result;
-    const title = result?.title || "Flirt Test Result";
-    const archetype = result?.archetype?.replace(/_/g, " ") || "";
+    const result = data.result || {};
+    const evalType = data.evaluation_type as QuizType;
+    const resultTitle = result.title || "Quiz Result";
+
+    // Get quiz-specific metadata
+    const quizMeta = QUIZ_META[evalType] || QUIZ_META.flirt_archetype;
+    const title = `${resultTitle} | ${quizMeta.name}`;
+    const description = `I'm ${resultTitle}! ${quizMeta.shareQuestion} Take the ${quizMeta.name} on ${BRAND.shortName}.com`;
 
     return {
-      title: `${title} | Flirt Test`,
-      description: `I'm ${title}! What's your flirt style? Take the Flirt Test on ep-0.com`,
+      title,
+      description,
       openGraph: {
-        title: `${title} - Flirt Test`,
-        description: `I'm ${title} (${archetype})! What's your flirt style?`,
-        images: ["/branding/og-flirt-test.png"],
+        title,
+        description,
+        url: `${BRAND.url}/r/${shareId}`,
       },
       twitter: {
         card: "summary_large_image",
-        title: `${title} - Flirt Test`,
-        description: `I'm ${title}! What's your flirt style?`,
+        title,
+        description,
       },
     };
   } catch (err) {

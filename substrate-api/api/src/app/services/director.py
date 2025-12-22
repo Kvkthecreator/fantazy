@@ -712,6 +712,10 @@ If visual is not "none", add: [hint: <description>]"""
 
         Returns the evaluation with character context for share pages.
         Used by the public /r/{share_id} endpoint.
+
+        Supports both:
+        - Game evaluations (have session_id with character/series context)
+        - Quiz evaluations (no session_id, standalone results from /play)
         """
         row = await self.db.fetch_one(
             """
@@ -727,7 +731,7 @@ If visual is not "none", add: [hint: <description>]"""
                 c.name as character_name,
                 s.series_id
             FROM session_evaluations se
-            JOIN sessions s ON s.id = se.session_id
+            LEFT JOIN sessions s ON s.id = se.session_id
             LEFT JOIN characters c ON c.id = s.character_id
             WHERE se.share_id = :share_id
             """,
@@ -738,7 +742,7 @@ If visual is not "none", add: [hint: <description>]"""
             return None
 
         # Parse result if it's a JSON string
-        result = row["result"]
+        result = row.get("result")
         if isinstance(result, str):
             try:
                 result = json.loads(result)
@@ -746,16 +750,16 @@ If visual is not "none", add: [hint: <description>]"""
                 result = {}
 
         return {
-            "id": str(row["id"]),
-            "session_id": str(row["session_id"]),
-            "evaluation_type": row["evaluation_type"],
+            "id": str(row.get("id")),
+            "session_id": str(row.get("session_id")) if row.get("session_id") else None,
+            "evaluation_type": row.get("evaluation_type"),
             "result": result,
-            "share_id": row["share_id"],
-            "share_count": row["share_count"] or 0,
-            "created_at": row["created_at"],
-            "character_id": str(row["character_id"]) if row["character_id"] else None,
-            "character_name": row["character_name"],
-            "series_id": str(row["series_id"]) if row["series_id"] else None,
+            "share_id": row.get("share_id"),
+            "share_count": row.get("share_count") or 0,
+            "created_at": row.get("created_at"),
+            "character_id": str(row.get("character_id")) if row.get("character_id") else None,
+            "character_name": row.get("character_name"),
+            "series_id": str(row.get("series_id")) if row.get("series_id") else None,
         }
 
     async def increment_share_count(self, share_id: str) -> bool:

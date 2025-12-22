@@ -1,15 +1,14 @@
 import { ImageResponse } from "next/og";
+import { BRAND, OG_SIZE, OG_THEMES, getGradientBackground } from "@/lib/og";
 
 export const runtime = "edge";
-
-export const alt = "episode-0 — Interactive Episodes";
-export const size = {
-  width: 1200,
-  height: 630,
-};
+export const alt = `${BRAND.name} — ${BRAND.tagline}`;
+export const size = OG_SIZE;
 export const contentType = "image/png";
 
 export default async function Image() {
+  const theme = OG_THEMES.default;
+
   return new ImageResponse(
     (
       <div
@@ -20,12 +19,11 @@ export default async function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "#09090b",
-          backgroundImage:
-            "radial-gradient(circle at 25% 25%, #1e1b4b 0%, transparent 50%), radial-gradient(circle at 75% 75%, #4c1d95 0%, transparent 50%)",
+          backgroundColor: theme.background,
+          backgroundImage: getGradientBackground("default"),
         }}
       >
-        {/* Logo/Brand Mark */}
+        {/* Logo Badge */}
         <div
           style={{
             display: "flex",
@@ -48,7 +46,7 @@ export default async function Image() {
               color: "#09090b",
             }}
           >
-            ep-0
+            {BRAND.shortName}
           </div>
         </div>
 
@@ -65,26 +63,26 @@ export default async function Image() {
             style={{
               fontSize: 72,
               fontWeight: 900,
-              color: "#ffffff",
+              color: theme.text,
               margin: 0,
               letterSpacing: "-0.02em",
             }}
           >
-            episode-0
+            {BRAND.name}
           </h1>
           <p
             style={{
               fontSize: 32,
-              color: "#a1a1aa",
+              color: theme.muted,
               margin: 0,
               marginTop: 16,
             }}
           >
-            Relive fantasies with your favorite characters
+            {BRAND.tagline}
           </p>
         </div>
 
-        {/* Tagline */}
+        {/* Features */}
         <div
           style={{
             display: "flex",
@@ -102,21 +100,19 @@ export default async function Image() {
             }}
           />
           <span style={{ color: "#71717a", fontSize: 20 }}>
-            Free interactive stories
+            {BRAND.features[0]}
           </span>
           <span style={{ color: "#3f3f46", fontSize: 20 }}>•</span>
           <span style={{ color: "#71717a", fontSize: 20 }}>
-            AI characters who remember
+            {BRAND.features[1]}
           </span>
           <span style={{ color: "#3f3f46", fontSize: 20 }}>•</span>
           <span style={{ color: "#71717a", fontSize: 20 }}>
-            Your choices matter
+            {BRAND.features[2]}
           </span>
         </div>
       </div>
     ),
-    {
-      ...size,
-    }
+    { ...size }
   );
 }

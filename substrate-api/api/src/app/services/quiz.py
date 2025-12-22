@@ -416,13 +416,13 @@ VIBE_CHECK: [One absolutely unhinged sentence summarizing their energy. Maximum 
         evaluation_type: str,
         result: Dict[str, Any],
     ) -> str:
-        """Save evaluation to database and return share_id."""
+        """Save evaluation to database and return share_id.
+
+        Quiz evaluations don't have sessions - they're standalone results
+        from the static quiz flow in /play. session_id is NULL for these.
+        """
         evaluation_id = uuid4()
         share_id = generate_share_id()
-
-        # Create a dummy session_id for quiz evaluations
-        # (quizzes don't have sessions, but we need the FK)
-        dummy_session_id = uuid4()
 
         try:
             await self.db.execute(
@@ -430,12 +430,11 @@ VIBE_CHECK: [One absolutely unhinged sentence summarizing their energy. Maximum 
                 INSERT INTO session_evaluations (
                     id, session_id, evaluation_type, result, share_id, created_at
                 ) VALUES (
-                    :id, :session_id, :evaluation_type, :result, :share_id, NOW()
+                    :id, NULL, :evaluation_type, :result, :share_id, NOW()
                 )
                 """,
                 {
                     "id": str(evaluation_id),
-                    "session_id": str(dummy_session_id),
                     "evaluation_type": evaluation_type,
                     "result": json.dumps(result),
                     "share_id": share_id,
