@@ -185,6 +185,10 @@ export const api = {
       request<import("@/types").Episode>(`/sessions/${id}/end`, {
         method: "POST",
       }),
+    getUserChats: (limit?: number) =>
+      request<import("@/types").UserChatsResponse>(
+        `/sessions/user/chats${limit ? `?limit=${limit}` : ""}`
+      ),
   },
 
   // Episode Template endpoints (pre-defined scenarios)

@@ -3,13 +3,105 @@ from datetime import datetime
 from typing import List, Optional, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel
 
 from app.deps import get_db
 from app.dependencies import get_current_user_id
 from app.models.session import Session, SessionCreate, SessionSummary, SessionUpdate
 
 router = APIRouter(prefix="/sessions", tags=["Sessions"])
+
+
+# =============================================================================
+# User Chats (Sessions grouped by character with character info)
+# =============================================================================
+
+class ChatItem(BaseModel):
+    """A chat session with character info for My Chats page."""
+    session_id: str
+    character_id: str
+    character_name: str
+    character_avatar_url: Optional[str] = None
+    character_archetype: Optional[str] = None
+    is_free_chat: bool  # True if episode_template_id is NULL
+    episode_number: Optional[int] = None
+    episode_title: Optional[str] = None
+    series_id: Optional[str] = None
+    series_title: Optional[str] = None
+    message_count: int
+    last_message_at: Optional[str] = None
+    session_state: str
+    is_active: bool
+
+
+class UserChatsResponse(BaseModel):
+    """Response for user's chat sessions."""
+    items: List[ChatItem]
+
+
+@router.get("/user/chats", response_model=UserChatsResponse)
+async def get_user_chats(
+    request: Request,
+    limit: int = Query(50, ge=1, le=100),
+    db=Depends(get_db),
+):
+    """Get user's chat sessions with character info.
+
+    Returns sessions grouped by most recent activity, with character details.
+    Includes both free chats (no episode) and episode-based chats.
+    """
+    user_id = getattr(request.state, "user_id", None)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    query = """
+        SELECT
+            s.id as session_id,
+            s.character_id,
+            c.name as character_name,
+            c.avatar_url as character_avatar_url,
+            c.archetype as character_archetype,
+            s.episode_template_id IS NULL as is_free_chat,
+            s.episode_number,
+            et.title as episode_title,
+            s.series_id,
+            ser.title as series_title,
+            s.message_count,
+            s.started_at as last_message_at,
+            COALESCE(s.session_state, 'active') as session_state,
+            s.is_active
+        FROM sessions s
+        JOIN characters c ON c.id = s.character_id
+        LEFT JOIN episode_templates et ON et.id = s.episode_template_id
+        LEFT JOIN series ser ON ser.id = s.series_id
+        WHERE s.user_id = :user_id
+        ORDER BY s.started_at DESC
+        LIMIT :limit
+    """
+
+    rows = await db.fetch_all(query, {"user_id": user_id, "limit": limit})
+
+    items = []
+    for row in rows:
+        items.append(ChatItem(
+            session_id=str(row["session_id"]),
+            character_id=str(row["character_id"]),
+            character_name=row["character_name"],
+            character_avatar_url=row["character_avatar_url"],
+            character_archetype=row["character_archetype"],
+            is_free_chat=row["is_free_chat"],
+            episode_number=row["episode_number"],
+            episode_title=row["episode_title"],
+            series_id=str(row["series_id"]) if row["series_id"] else None,
+            series_title=row["series_title"],
+            message_count=row["message_count"] or 0,
+            last_message_at=row["last_message_at"].isoformat() if row["last_message_at"] else None,
+            session_state=row["session_state"],
+            is_active=row["is_active"],
+        ))
+
+    return UserChatsResponse(items=items)
 
 
 @router.get("", response_model=List[SessionSummary])

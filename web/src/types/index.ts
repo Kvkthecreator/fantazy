@@ -493,6 +493,33 @@ export interface ContinueWatchingResponse {
 }
 
 /**
+ * Chat item - a session with character info for My Chats page
+ */
+export interface ChatItem {
+  session_id: string;
+  character_id: string;
+  character_name: string;
+  character_avatar_url: string | null;
+  character_archetype: string | null;
+  is_free_chat: boolean;
+  episode_number: number | null;
+  episode_title: string | null;
+  series_id: string | null;
+  series_title: string | null;
+  message_count: number;
+  last_message_at: string | null;
+  session_state: string;
+  is_active: boolean;
+}
+
+/**
+ * User chats response
+ */
+export interface UserChatsResponse {
+  items: ChatItem[];
+}
+
+/**
  * User engagement stats with a series
  */
 export interface SeriesEngagementStats {
