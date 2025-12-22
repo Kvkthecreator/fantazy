@@ -164,12 +164,9 @@ export default function SeriesPage({ params }: PageProps) {
     return !p || p.status !== "completed";
   });
 
-  // Calculate progress from the progress Map (same source as episode badges)
-  const completedCount = Array.from(progress.values()).filter(p => p.status === "completed").length;
-  const inProgressCount = Array.from(progress.values()).filter(p => p.status === "in_progress").length;
   const totalEpisodes = series.episodes.length;
-  const progressPercent = totalEpisodes > 0 ? Math.round((completedCount / totalEpisodes) * 100) : 0;
-  const hasStarted = completedCount > 0 || inProgressCount > 0;
+  // User has started if they have a current episode from userContext
+  const hasStarted = !!userContext?.current_episode;
 
   return (
     <div className="space-y-8 pb-8">
@@ -272,19 +269,23 @@ export default function SeriesPage({ params }: PageProps) {
                 <div className="flex-1 p-5">
                   <h4 className="text-sm font-medium text-muted-foreground mb-3">Your Stats</h4>
 
-                  {/* Progress bar */}
-                  <div className="mb-4">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>{completedCount} of {totalEpisodes} episodes</span>
-                      <span className="text-muted-foreground">{progressPercent}%</span>
+                  {/* Progress bar - shows current episode position */}
+                  {userContext.current_episode && (
+                    <div className="mb-4">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span>Episode {userContext.current_episode.episode_number} of {totalEpisodes}</span>
+                        <span className="text-muted-foreground">
+                          {Math.round((userContext.current_episode.episode_number / totalEpisodes) * 100)}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${Math.round((userContext.current_episode.episode_number / totalEpisodes) * 100)}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="h-2 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-                  </div>
+                  )}
 
                   <div className="flex items-center gap-6 text-sm">
                     <div className="flex items-center gap-2">
