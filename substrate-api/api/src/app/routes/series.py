@@ -636,11 +636,12 @@ async def get_series_user_context(
     total_sessions = len(session_rows)
     total_messages = sum(row["message_count"] for row in session_rows)
 
-    # Track episode statuses
+    # Track episode statuses and find most recent episode session
     episode_statuses: dict = {}
     character_id = None
     first_played_at = None
     last_played_at = None
+    most_recent_episode_id = None  # Track the most recently played episode
 
     for row in session_rows:
         ep_id = str(row["episode_template_id"]) if row["episode_template_id"] else None
@@ -656,6 +657,10 @@ async def get_series_user_context(
             first_played_at = started
 
         if ep_id:
+            # Track most recent episode (first one we see since ordered by started_at DESC)
+            if most_recent_episode_id is None:
+                most_recent_episode_id = ep_id
+
             # Map session_state to progress status
             if state in ("complete", "faded"):
                 status = "completed"
@@ -680,31 +685,32 @@ async def get_series_user_context(
     """
     episode_rows = await db.fetch_all(episodes_query, {"series_id": series_id_str})
 
-    # Find current episode (first non-completed, or last if all done)
+    # Find current episode - use most recently played episode if available
     current_episode = None
-    for row in episode_rows:
-        ep_id = str(row["id"])
-        ep_status = episode_statuses.get(ep_id, "not_started")
 
-        if ep_status != "completed":
-            current_episode = CurrentEpisodeInfo(
-                episode_id=ep_id,
-                episode_number=row["episode_number"],
-                title=row["title"],
-                situation=row["situation"],
-                status=ep_status,
-            )
-            break
+    # First try: use the most recently played episode
+    if most_recent_episode_id:
+        for row in episode_rows:
+            if str(row["id"]) == most_recent_episode_id:
+                ep_status = episode_statuses.get(most_recent_episode_id, "in_progress")
+                current_episode = CurrentEpisodeInfo(
+                    episode_id=most_recent_episode_id,
+                    episode_number=row["episode_number"],
+                    title=row["title"],
+                    situation=row["situation"],
+                    status=ep_status,
+                )
+                break
 
-    # If all completed, show the last episode
+    # Fallback: first episode if user hasn't started any
     if not current_episode and episode_rows:
-        last_ep = episode_rows[-1]
+        first_ep = episode_rows[0]
         current_episode = CurrentEpisodeInfo(
-            episode_id=str(last_ep["id"]),
-            episode_number=last_ep["episode_number"],
-            title=last_ep["title"],
-            situation=last_ep["situation"],
-            status="completed",
+            episode_id=str(first_ep["id"]),
+            episode_number=first_ep["episode_number"],
+            title=first_ep["title"],
+            situation=first_ep["situation"],
+            status="not_started",
         )
 
     return SeriesUserContextResponse(

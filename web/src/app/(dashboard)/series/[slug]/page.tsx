@@ -286,7 +286,7 @@ export default function SeriesPage({ params }: PageProps) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="flex items-center gap-6 text-sm">
                     <div className="flex items-center gap-2">
                       <MessageSquare className="h-4 w-4 text-muted-foreground" />
                       <div>
@@ -294,15 +294,8 @@ export default function SeriesPage({ params }: PageProps) {
                         <div className="text-xs text-muted-foreground">Messages</div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <BookOpen className="h-4 w-4 text-muted-foreground" />
-                      <div>
-                        <div className="font-medium">{userContext.engagement.total_sessions}</div>
-                        <div className="text-xs text-muted-foreground">Sessions</div>
-                      </div>
-                    </div>
                     {userContext.engagement.last_played_at && (
-                      <div className="flex items-center gap-2 col-span-2">
+                      <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <div>
                           <div className="font-medium">
