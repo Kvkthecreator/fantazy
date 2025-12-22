@@ -292,22 +292,63 @@ When creating content in Studio, these concepts matter:
 4. Author **Episode Templates** with beat_guidance from genre
 5. Genre tag saved on Series for discovery/organization
 
-### 4.2 Runtime Layer (User Engagement)
+### 4.2 Genre Settings (Series-Level Tone & Pacing)
 
-When user is chatting, genre is **invisible**. Everything is pre-baked:
+**NEW (2024-12-22):** Series now have configurable **Genre Settings** that control how genre doctrine is applied at runtime.
+
+| Setting | Options | Description |
+|---------|---------|-------------|
+| `tension_style` | subtle, playful, moderate, direct | How tension is expressed |
+| `vulnerability_timing` | early, middle, late, earned | When character shows vulnerability |
+| `pacing_curve` | slow_burn, steady, fast_escalate | Narrative pacing pattern |
+| `resolution_mode` | open, closed, cliffhanger | How episodes can resolve |
+| `genre_notes` | free text | Custom guidance for this series |
+
+**API Endpoints:**
+- `GET /series/meta/genre-options` — Get available options and presets
+- `GET /series/{id}/genre-settings` — Get resolved settings with prompt preview
+- `POST /series/{id}/apply-genre-preset` — Apply a preset (romantic_tension, psychological_thriller, slice_of_life)
+- `PATCH /series/{id}` — Update genre_settings (partial update supported)
+
+**How It Works:**
+1. Studio UI shows "Tone & Pacing" card in Series Overview
+2. Settings are stored in `series.genre_settings` JSONB column
+3. At conversation time, settings are formatted and injected into character system prompt
+4. Presets provide sensible defaults; custom overrides allow fine-tuning
+
+### 4.3 Character Dynamics (Character-Level Boundaries)
+
+**NEW (2024-12-22):** Characters have structured **Dynamics** settings that replace raw JSON boundaries.
+
+| Setting | Options | Description |
+|---------|---------|-------------|
+| `availability` | always_there, sometimes_busy, hard_to_reach | How available the character is |
+| `vulnerability_pacing` | fast_opener, gradual_reveal, hard_to_read | When they reveal emotional depth |
+| `desire_expression` | subtle_hints, flirty_restrained, openly_interested | How they show attraction |
+| `physical_comfort` | reserved, moderate, comfortable | Comfort with intimate content |
+| `dynamics_notes` | free text | Custom guidance for this character |
+
+**Storage:** These are stored in the existing `characters.boundaries` JSONB column.
+
+**UI:** Studio shows "Character Dynamics" card with dropdowns + custom notes field, plus an advanced collapsible panel for raw JSON editing.
+
+### 4.4 Runtime Layer (User Engagement)
+
+When user is chatting, genre settings are **injected dynamically**:
 
 | What LLM Receives | Source | Genre Involvement |
 |-------------------|--------|-------------------|
 | `system_prompt` | Character | Doctrine already embedded |
+| `series_genre_prompt` | Series | **Genre settings injected at runtime** |
 | `episode_frame` | Episode Template | Scene context |
 | `beat_guidance` | Episode Template | Narrative waypoints |
 | `dramatic_question` | Episode Template | Tension to explore |
 | `visual_style` | World | For scene generation |
 | `memories` | Runtime | User-specific |
 
-**Runtime has no genre lookup.** The LLM just executes what was authored.
+**Runtime flow:** When building conversation context, the system fetches `series.genre_settings` and formats it as a prompt section that gets injected into the character's system prompt.
 
-### 4.3 Why This Matters
+### 4.5 Why This Matters
 
 - **Studio** needs genre as organizational concept — helps content team think clearly
 - **Runtime** needs everything pre-baked — no genre inference, just execution
@@ -670,6 +711,7 @@ CREATE TABLE series (
     description TEXT,
     world_id UUID REFERENCES worlds(id),
     genre VARCHAR(50),                              -- Studio metadata: romantic_tension, psychological_thriller, etc.
+    genre_settings JSONB DEFAULT '{}',              -- NEW: Configurable tone & pacing settings
     series_type VARCHAR(20) DEFAULT 'standalone',  -- standalone, serial, anthology, crossover
     featured_characters JSONB DEFAULT '[]',         -- Array of character IDs
     episode_order JSONB DEFAULT '[]',               -- Ordered array of episode template IDs
@@ -771,15 +813,19 @@ The Fantazy Content Architecture establishes:
 1. **Two-Layer Architecture**: Studio (creation) vs Runtime (engagement) with clear separation
 2. **World = Setting**: Worlds define WHERE (K-World, Real Life), not WHAT (genre)
 3. **Genre = Studio Metadata**: Genre lives on Series for organization; doctrine baked into system_prompt
-4. **Flexible taxonomy**: World → Series → Episode Template → Character with optional relationships
-5. **User Identity Model**: Users connect as themselves (Genesis Stage), protagonist mode deferred
-6. **Marvel-style guidelines**: Rules that guide, not constrain
-7. **Genesis Stage focus**: All content platform-produced, future extensibility designed but not built
-8. **Netflix + TikTok hybrid**: Series depth with moment-based discovery
+4. **Three-Tier Studio Controls** (NEW 2024-12-22):
+   - **Series Genre Settings**: Tone & pacing (tension_style, vulnerability_timing, pacing_curve, resolution_mode)
+   - **Character Dynamics**: How character expresses tension (availability, desire_expression, vulnerability_pacing)
+   - **Episode Beat Guidance**: Existing beat_guidance, dramatic_question, situation fields
+5. **Flexible taxonomy**: World → Series → Episode Template → Character with optional relationships
+6. **User Identity Model**: Users connect as themselves (Genesis Stage), protagonist mode deferred
+7. **Marvel-style guidelines**: Rules that guide, not constrain
+8. **Genesis Stage focus**: All content platform-produced, future extensibility designed but not built
+9. **Netflix + TikTok hybrid**: Series depth with moment-based discovery
 
 **Key Distinction:**
-- **Studio** uses genre as organizational concept (World Taxonomy, doctrine selection)
-- **Runtime** has no genre lookup — everything pre-baked into character system_prompt
+- **Studio** uses genre as organizational concept + configurable settings (World Taxonomy, Genre Settings, Character Dynamics)
+- **Runtime** dynamically injects genre settings into system prompt; settings are applied, not interpreted
 
 **For runtime episode mechanics** (session lifecycle, progression, stakes, monetization), see `docs/EPISODE_DYNAMICS_CANON.md`.
 

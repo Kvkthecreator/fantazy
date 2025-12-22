@@ -19,6 +19,12 @@ from app.models.series import (
     SeriesCreate,
     SeriesUpdate,
     SeriesType,
+    GenreSettings,
+    GENRE_SETTING_PRESETS,
+    TENSION_STYLES,
+    PACING_CURVES,
+    RESOLUTION_MODES,
+    VULNERABILITY_TIMINGS,
 )
 from app.services.storage import StorageService
 
@@ -328,6 +334,27 @@ async def update_series(
     if data.series_type is not None:
         updates.append("series_type = :series_type")
         values["series_type"] = data.series_type
+
+    if data.genre is not None:
+        updates.append("genre = :genre")
+        values["genre"] = data.genre
+
+    if data.genre_settings is not None:
+        # Merge with existing genre_settings (partial update)
+        # First get current settings
+        current_query = "SELECT genre_settings FROM series WHERE id = :id"
+        current_row = await db.fetch_one(current_query, {"id": str(series_id)})
+        if current_row:
+            current_settings = current_row["genre_settings"] or {}
+            if isinstance(current_settings, str):
+                current_settings = json.loads(current_settings)
+            # Merge new settings on top of existing
+            merged_settings = {**current_settings, **data.genre_settings}
+            updates.append("genre_settings = :genre_settings")
+            values["genre_settings"] = json.dumps(merged_settings)
+        else:
+            updates.append("genre_settings = :genre_settings")
+            values["genre_settings"] = json.dumps(data.genre_settings)
 
     if data.featured_characters is not None:
         updates.append("featured_characters = :featured_characters")
@@ -958,6 +985,118 @@ async def get_continue_watching(
         ))
 
     return ContinueWatchingResponse(items=items)
+
+
+# =============================================================================
+# Genre Settings Management
+# =============================================================================
+
+class GenreSettingsOptions(BaseModel):
+    """Available options for genre settings fields."""
+    tension_styles: List[str] = TENSION_STYLES
+    pacing_curves: List[str] = PACING_CURVES
+    resolution_modes: List[str] = RESOLUTION_MODES
+    vulnerability_timings: List[str] = VULNERABILITY_TIMINGS
+    presets: dict = Field(default_factory=lambda: GENRE_SETTING_PRESETS)
+
+
+class ApplyGenrePresetRequest(BaseModel):
+    """Request to apply a genre preset."""
+    preset: str = Field(..., description="Preset name: romantic_tension, psychological_thriller, slice_of_life")
+
+
+class GenreSettingsResponse(BaseModel):
+    """Genre settings with resolved values."""
+    genre: Optional[str] = None
+    settings: dict = Field(default_factory=dict)
+    prompt_section: str = ""
+
+
+@router.get("/meta/genre-options", response_model=GenreSettingsOptions)
+async def get_genre_options():
+    """Get available genre settings options and presets.
+
+    Use this to populate UI dropdowns for genre settings.
+    """
+    return GenreSettingsOptions()
+
+
+@router.get("/{series_id}/genre-settings", response_model=GenreSettingsResponse)
+async def get_series_genre_settings(
+    series_id: UUID,
+    db=Depends(get_db),
+):
+    """Get resolved genre settings for a series.
+
+    Returns the merged settings (preset defaults + custom overrides)
+    and the formatted prompt section that would be injected into LLM context.
+    """
+    query = "SELECT genre, genre_settings FROM series WHERE id = :id"
+    row = await db.fetch_one(query, {"id": str(series_id)})
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    genre = row["genre"] or "romantic_tension"
+    genre_settings_raw = row["genre_settings"] or {}
+
+    if isinstance(genre_settings_raw, str):
+        genre_settings_raw = json.loads(genre_settings_raw)
+
+    # Get preset defaults
+    preset = GENRE_SETTING_PRESETS.get(genre, GENRE_SETTING_PRESETS["romantic_tension"])
+
+    # Merge with custom settings
+    merged = {**preset, **genre_settings_raw}
+
+    # Create GenreSettings object and format prompt
+    settings_obj = GenreSettings(**merged)
+    prompt_section = settings_obj.to_prompt_section()
+
+    return GenreSettingsResponse(
+        genre=genre,
+        settings=merged,
+        prompt_section=prompt_section,
+    )
+
+
+@router.post("/{series_id}/apply-genre-preset", response_model=Series)
+async def apply_genre_preset(
+    series_id: UUID,
+    data: ApplyGenrePresetRequest,
+    db=Depends(get_db),
+):
+    """Apply a genre preset to a series.
+
+    This sets the genre and applies the preset's default settings.
+    Custom overrides can be added via PATCH /series/{id} with genre_settings.
+    """
+    preset_name = data.preset
+    if preset_name not in GENRE_SETTING_PRESETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown preset: {preset_name}. Available: {list(GENRE_SETTING_PRESETS.keys())}"
+        )
+
+    preset = GENRE_SETTING_PRESETS[preset_name]
+
+    query = """
+        UPDATE series
+        SET genre = :genre, genre_settings = :genre_settings, updated_at = NOW()
+        WHERE id = :id
+        RETURNING *
+    """
+
+    row = await db.fetch_one(query, {
+        "id": str(series_id),
+        "genre": preset_name,
+        "genre_settings": json.dumps(preset),
+    })
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Series not found")
+
+    return Series(**dict(row))
 
 
 @router.delete("/{series_id}/reset", status_code=status.HTTP_200_OK)

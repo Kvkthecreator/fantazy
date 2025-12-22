@@ -116,6 +116,9 @@ class ConversationContext(BaseModel):
     # Director Guidance (per DIRECTOR_PROTOCOL.md v2.0)
     director_guidance: Optional[str] = None  # Pre-formatted guidance section from Director
 
+    # Series Genre Settings (per GENRE_SETTINGS_ARCHITECTURE)
+    series_genre_prompt: Optional[str] = None  # Pre-formatted genre settings section from Series
+
     # Stage labels for display (data only, no behavioral guidance)
     STAGE_LABELS: ClassVar[Dict[str, str]] = {
         "acquaintance": "Just met",
@@ -379,6 +382,18 @@ Respond in this exact moment. Lead with a micro-action or sensory beat, then spe
 Advance tension by one step, not a leap.
 
 LENGTH: 2-4 sentences total. One action line, one or two dialogue lines. Leave space for their reply.
+"""
+
+        # Series Genre Settings (per GENRE_SETTINGS_ARCHITECTURE)
+        # This provides series-level tone and pacing guidance
+        if self.series_genre_prompt:
+            enhanced_context += f"""
+
+═══════════════════════════════════════════════════════════════
+SERIES GENRE SETTINGS
+═══════════════════════════════════════════════════════════════
+
+{self.series_genre_prompt}
 """
 
         # Director Guidance (per DIRECTOR_PROTOCOL.md v2.0)

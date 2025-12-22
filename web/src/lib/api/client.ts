@@ -312,6 +312,21 @@ export const api = {
         `/series/${seriesId}/generate-cover${force ? '?force=true' : ''}`,
         { method: "POST" }
       ),
+    // Genre Settings
+    getGenreOptions: () =>
+      request<import("@/types").GenreSettingsOptions>("/series/meta/genre-options"),
+    getGenreSettings: (seriesId: string) =>
+      request<import("@/types").GenreSettingsResponse>(`/series/${seriesId}/genre-settings`),
+    applyGenrePreset: (seriesId: string, preset: string) =>
+      request<import("@/types").Series>(`/series/${seriesId}/apply-genre-preset`, {
+        method: "POST",
+        body: JSON.stringify({ preset }),
+      }),
+    updateGenreSettings: (seriesId: string, settings: Record<string, unknown>) =>
+      request<import("@/types").Series>(`/series/${seriesId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ genre_settings: settings }),
+      }),
   },
 
   // Message endpoints

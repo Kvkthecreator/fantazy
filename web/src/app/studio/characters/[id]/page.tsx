@@ -46,6 +46,31 @@ const GENRES = [
   'slice_of_life',
 ]
 
+// Character Dynamics (Phase 2 - structured boundaries replacement)
+const AVAILABILITY_OPTIONS = [
+  { value: 'always_there', label: 'Always There', description: 'Responds quickly, very available' },
+  { value: 'sometimes_busy', label: 'Sometimes Busy', description: 'Has their own life, occasional delays' },
+  { value: 'hard_to_reach', label: 'Hard to Reach', description: 'Mysterious, unpredictable availability' },
+]
+
+const VULNERABILITY_PACING_OPTIONS = [
+  { value: 'fast_opener', label: 'Fast Opener', description: 'Opens up emotionally quickly' },
+  { value: 'gradual_reveal', label: 'Gradual Reveal', description: 'Slowly shares deeper layers' },
+  { value: 'hard_to_read', label: 'Hard to Read', description: 'Guards vulnerability carefully' },
+]
+
+const DESIRE_EXPRESSION_OPTIONS = [
+  { value: 'subtle_hints', label: 'Subtle Hints', description: 'Interest shown through implications' },
+  { value: 'flirty_restrained', label: 'Flirty but Restrained', description: 'Playful but maintains boundaries' },
+  { value: 'openly_interested', label: 'Openly Interested', description: 'Bold about their attraction' },
+]
+
+const PHYSICAL_COMFORT_OPTIONS = [
+  { value: 'reserved', label: 'Reserved', description: 'Minimal physical/intimate content' },
+  { value: 'moderate', label: 'Moderate', description: 'Comfortable with tasteful intimacy' },
+  { value: 'comfortable', label: 'Comfortable', description: 'Open to intimate scenarios' },
+]
+
 // Avatar generation presets
 const STYLE_PRESETS = [
   { value: '', label: 'Default (Fantazy Style)' },
@@ -138,6 +163,16 @@ export default function CharacterDetailPage() {
     boundaries: '',
   })
   const [overviewDirty, setOverviewDirty] = useState(false)
+
+  // Character Dynamics (Phase 2 - structured boundaries)
+  const [dynamicsForm, setDynamicsForm] = useState({
+    availability: 'sometimes_busy',
+    vulnerability_pacing: 'gradual_reveal',
+    desire_expression: 'flirty_restrained',
+    physical_comfort: 'moderate',
+    dynamics_notes: '',
+  })
+  const [dynamicsDirty, setDynamicsDirty] = useState(false)
 
   useEffect(() => {
     fetchCharacter()
@@ -265,6 +300,17 @@ export default function CharacterDetailPage() {
         boundaries: JSON.stringify(data.boundaries || {}, null, 2),
       })
       setOverviewDirty(false)
+
+      // Populate dynamics form from boundaries
+      const boundaries = data.boundaries || {}
+      setDynamicsForm({
+        availability: boundaries.availability || 'sometimes_busy',
+        vulnerability_pacing: boundaries.vulnerability_pacing || 'gradual_reveal',
+        desire_expression: boundaries.desire_expression || 'flirty_restrained',
+        physical_comfort: boundaries.physical_comfort || 'moderate',
+        dynamics_notes: boundaries.dynamics_notes || '',
+      })
+      setDynamicsDirty(false)
     } catch (err) {
       setError(getErrorDetail(err, 'Failed to load character'))
     } finally {
@@ -335,6 +381,47 @@ export default function CharacterDetailPage() {
   const handleOverviewChange = (field: string, value: string) => {
     setOverviewForm((prev) => ({ ...prev, [field]: value }))
     setOverviewDirty(true)
+  }
+
+  const handleDynamicsChange = (field: string, value: string) => {
+    setDynamicsForm((prev) => ({ ...prev, [field]: value }))
+    setDynamicsDirty(true)
+  }
+
+  const saveDynamicsChanges = async () => {
+    setSaving(true)
+    setSaveMessage(null)
+    setError(null)
+
+    try {
+      // Merge dynamics into boundaries
+      const currentBoundaries = character?.boundaries || {}
+      const newBoundaries = {
+        ...currentBoundaries,
+        availability: dynamicsForm.availability,
+        vulnerability_pacing: dynamicsForm.vulnerability_pacing,
+        desire_expression: dynamicsForm.desire_expression,
+        physical_comfort: dynamicsForm.physical_comfort,
+        dynamics_notes: dynamicsForm.dynamics_notes,
+      }
+
+      const updated = await api.studio.updateCharacter(characterId, {
+        boundaries: newBoundaries,
+      })
+      setCharacter(updated)
+      setDynamicsDirty(false)
+      // Also update the raw JSON display
+      setOverviewForm(prev => ({
+        ...prev,
+        boundaries: JSON.stringify(newBoundaries, null, 2),
+      }))
+      setSaveMessage('Character dynamics saved!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      setError(getErrorDetail(err, 'Failed to save dynamics'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const activateCharacter = async () => {
@@ -610,24 +697,9 @@ export default function CharacterDetailPage() {
                 />
               </CardContent>
             </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Boundaries</CardTitle>
-                <CardDescription>Content and interaction limits (JSON)</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Textarea
-                  value={overviewForm.boundaries}
-                  onChange={(e) => handleOverviewChange('boundaries', e.target.value)}
-                  className="font-mono text-xs min-h-[160px]"
-                  placeholder='{"flirting_level": "playful", ...}'
-                />
-              </CardContent>
-            </Card>
           </div>
 
-          {/* Save Button */}
+          {/* Save Button for Overview */}
           <div className="flex justify-end">
             <Button
               onClick={saveOverviewChanges}
@@ -636,6 +708,152 @@ export default function CharacterDetailPage() {
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </div>
+
+          {/* Character Dynamics Card (Phase 2) */}
+          <Card className="border-primary/30">
+            <CardHeader>
+              <CardTitle>Character Dynamics</CardTitle>
+              <CardDescription>
+                How this character expresses romantic tension and emotional availability
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Availability */}
+                <div className="space-y-2">
+                  <Label>Availability</Label>
+                  <Select
+                    value={dynamicsForm.availability}
+                    onValueChange={(v) => handleDynamicsChange('availability', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {AVAILABILITY_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {AVAILABILITY_OPTIONS.find(o => o.value === dynamicsForm.availability)?.description}
+                  </p>
+                </div>
+
+                {/* Vulnerability Pacing */}
+                <div className="space-y-2">
+                  <Label>Vulnerability Pacing</Label>
+                  <Select
+                    value={dynamicsForm.vulnerability_pacing}
+                    onValueChange={(v) => handleDynamicsChange('vulnerability_pacing', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VULNERABILITY_PACING_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {VULNERABILITY_PACING_OPTIONS.find(o => o.value === dynamicsForm.vulnerability_pacing)?.description}
+                  </p>
+                </div>
+
+                {/* Desire Expression */}
+                <div className="space-y-2">
+                  <Label>Desire Expression</Label>
+                  <Select
+                    value={dynamicsForm.desire_expression}
+                    onValueChange={(v) => handleDynamicsChange('desire_expression', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DESIRE_EXPRESSION_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {DESIRE_EXPRESSION_OPTIONS.find(o => o.value === dynamicsForm.desire_expression)?.description}
+                  </p>
+                </div>
+
+                {/* Physical Comfort */}
+                <div className="space-y-2">
+                  <Label>Physical Comfort</Label>
+                  <Select
+                    value={dynamicsForm.physical_comfort}
+                    onValueChange={(v) => handleDynamicsChange('physical_comfort', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PHYSICAL_COMFORT_OPTIONS.map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    {PHYSICAL_COMFORT_OPTIONS.find(o => o.value === dynamicsForm.physical_comfort)?.description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Custom Notes */}
+              <div className="space-y-2">
+                <Label>Custom Dynamics Notes</Label>
+                <Textarea
+                  value={dynamicsForm.dynamics_notes}
+                  onChange={(e) => handleDynamicsChange('dynamics_notes', e.target.value)}
+                  placeholder="Add specific guidance for this character's romantic dynamics... (e.g., 'Uses humor to deflect when getting too close')"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Free-text guidance for fine-tuning behavior
+                </p>
+              </div>
+
+              {dynamicsDirty && (
+                <Button onClick={saveDynamicsChanges} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Character Dynamics'}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Raw Boundaries (Advanced - Collapsible) */}
+          <details className="group">
+            <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground flex items-center gap-2">
+              <span className="group-open:rotate-90 transition-transform">▶</span>
+              Advanced: Raw Boundaries JSON
+            </summary>
+            <Card className="mt-2">
+              <CardContent className="pt-4">
+                <Textarea
+                  value={overviewForm.boundaries}
+                  onChange={(e) => handleOverviewChange('boundaries', e.target.value)}
+                  className="font-mono text-xs min-h-[160px]"
+                  placeholder='{"flirting_level": "playful", ...}'
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Direct JSON editing. Changes here override the structured fields above.
+                </p>
+              </CardContent>
+            </Card>
+          </details>
         </div>
       )}
 

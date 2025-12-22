@@ -391,6 +391,34 @@ export interface World {
  */
 export type SeriesType = "standalone" | "serial" | "anthology" | "crossover" | "play";
 
+// Genre settings types for series-level doctrine customization
+export type TensionStyle = "subtle" | "playful" | "moderate" | "direct";
+export type PacingCurve = "slow_burn" | "steady" | "fast_escalate";
+export type ResolutionMode = "open" | "closed" | "cliffhanger";
+export type VulnerabilityTiming = "early" | "middle" | "late" | "earned";
+
+export interface GenreSettings {
+  tension_style: TensionStyle;
+  pacing_curve: PacingCurve;
+  resolution_mode: ResolutionMode;
+  vulnerability_timing: VulnerabilityTiming;
+  genre_notes: string;
+}
+
+export interface GenreSettingsOptions {
+  tension_styles: TensionStyle[];
+  pacing_curves: PacingCurve[];
+  resolution_modes: ResolutionMode[];
+  vulnerability_timings: VulnerabilityTiming[];
+  presets: Record<string, GenreSettings>;
+}
+
+export interface GenreSettingsResponse {
+  genre: string | null;
+  settings: GenreSettings;
+  prompt_section: string;
+}
+
 /**
  * Series Summary - for lists and cards
  */

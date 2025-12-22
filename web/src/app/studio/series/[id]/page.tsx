@@ -11,7 +11,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api/client'
-import type { Series, CharacterSummary, World } from '@/types'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { Series, CharacterSummary, World, GenreSettings, GenreSettingsOptions } from '@/types'
 
 interface PageProps {
   params: Promise<{ id: string }>
@@ -63,6 +70,13 @@ export default function SeriesDetailPage({ params }: PageProps) {
   const [generatingBackground, setGeneratingBackground] = useState<string | null>(null)
   const [expandedImage, setExpandedImage] = useState<{ url: string; title: string } | null>(null)
   const [generatingCover, setGeneratingCover] = useState(false)
+
+  // Genre settings state
+  const [genreOptions, setGenreOptions] = useState<GenreSettingsOptions | null>(null)
+  const [genreSettings, setGenreSettings] = useState<GenreSettings | null>(null)
+  const [genrePromptPreview, setGenrePromptPreview] = useState<string>('')
+  const [genreSettingsHasChanges, setGenreSettingsHasChanges] = useState(false)
+  const [savingGenreSettings, setSavingGenreSettings] = useState(false)
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -119,6 +133,20 @@ export default function SeriesDetailPage({ params }: PageProps) {
         setWorlds(worldsData)
       } catch {
         setWorlds([])
+      }
+
+      // Fetch genre settings options and current settings
+      try {
+        const [options, currentSettings] = await Promise.all([
+          api.series.getGenreOptions(),
+          api.series.getGenreSettings(id),
+        ])
+        setGenreOptions(options)
+        setGenreSettings(currentSettings.settings)
+        setGenrePromptPreview(currentSettings.prompt_section)
+      } catch (err) {
+        console.error('Failed to fetch genre settings:', err)
+        // Don't fail the whole page if genre settings fail
       }
     } catch (err) {
       console.error('Failed to fetch series:', err)
@@ -241,6 +269,54 @@ export default function SeriesDetailPage({ params }: PageProps) {
   const updateForm = (field: keyof typeof editForm, value: string | null) => {
     setEditForm(prev => ({ ...prev, [field]: value }))
     setHasChanges(true)
+  }
+
+  const updateGenreSetting = (field: keyof GenreSettings, value: string) => {
+    if (!genreSettings) return
+    setGenreSettings(prev => prev ? { ...prev, [field]: value } : null)
+    setGenreSettingsHasChanges(true)
+  }
+
+  const handleSaveGenreSettings = async () => {
+    if (!series || !genreSettings) return
+    setSavingGenreSettings(true)
+    setError(null)
+    try {
+      await api.series.updateGenreSettings(id, genreSettings)
+      // Refresh to get updated prompt preview
+      const currentSettings = await api.series.getGenreSettings(id)
+      setGenreSettings(currentSettings.settings)
+      setGenrePromptPreview(currentSettings.prompt_section)
+      setGenreSettingsHasChanges(false)
+      setSaveMessage('Genre settings saved!')
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      console.error('Failed to save genre settings:', err)
+      setError('Failed to save genre settings')
+    } finally {
+      setSavingGenreSettings(false)
+    }
+  }
+
+  const handleApplyGenrePreset = async (presetName: string) => {
+    if (!series || !genreOptions) return
+    setSavingGenreSettings(true)
+    setError(null)
+    try {
+      await api.series.applyGenrePreset(id, presetName)
+      // Refresh to get updated settings and prompt preview
+      const currentSettings = await api.series.getGenreSettings(id)
+      setGenreSettings(currentSettings.settings)
+      setGenrePromptPreview(currentSettings.prompt_section)
+      setGenreSettingsHasChanges(false)
+      setSaveMessage(`Applied "${presetName}" preset!`)
+      setTimeout(() => setSaveMessage(null), 2000)
+    } catch (err) {
+      console.error('Failed to apply genre preset:', err)
+      setError('Failed to apply genre preset')
+    } finally {
+      setSavingGenreSettings(false)
+    }
   }
 
   const handleGenerateCover = async () => {
@@ -519,6 +595,176 @@ export default function SeriesDetailPage({ params }: PageProps) {
               </CardContent>
             </Card>
           </div>
+
+          {/* Genre Settings Card - Tone & Pacing */}
+          {genreOptions && genreSettings && (
+            <Card className="border-primary/30">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Tone & Pacing</CardTitle>
+                    <CardDescription>
+                      Genre doctrine settings that shape conversation dynamics across all episodes
+                    </CardDescription>
+                  </div>
+                  {/* Quick Apply Preset */}
+                  <Select
+                    onValueChange={handleApplyGenrePreset}
+                    disabled={savingGenreSettings}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Apply preset..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.keys(genreOptions.presets).map(preset => (
+                        <SelectItem key={preset} value={preset}>
+                          {preset.replace(/_/g, ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 md:grid-cols-2">
+                  {/* Tension Style */}
+                  <div className="space-y-2">
+                    <Label>Tension Style</Label>
+                    <Select
+                      value={genreSettings.tension_style}
+                      onValueChange={(v) => updateGenreSetting('tension_style', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {genreOptions.tension_styles.map(style => (
+                          <SelectItem key={style} value={style}>
+                            {style.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {genreSettings.tension_style === 'subtle' && 'Express tension through implication and unspoken desire'}
+                      {genreSettings.tension_style === 'playful' && 'Use teasing, banter, and push-pull energy'}
+                      {genreSettings.tension_style === 'moderate' && 'Balance clear attraction with restraint'}
+                      {genreSettings.tension_style === 'direct' && 'Be bold while maintaining some mystery'}
+                    </p>
+                  </div>
+
+                  {/* Vulnerability Timing */}
+                  <div className="space-y-2">
+                    <Label>Vulnerability Timing</Label>
+                    <Select
+                      value={genreSettings.vulnerability_timing}
+                      onValueChange={(v) => updateGenreSetting('vulnerability_timing', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {genreOptions.vulnerability_timings.map(timing => (
+                          <SelectItem key={timing} value={timing}>
+                            {timing.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {genreSettings.vulnerability_timing === 'early' && 'Show vulnerability early to build connection'}
+                      {genreSettings.vulnerability_timing === 'middle' && 'Reveal vulnerability as trust develops'}
+                      {genreSettings.vulnerability_timing === 'late' && 'Hold vulnerability until critical moments'}
+                      {genreSettings.vulnerability_timing === 'earned' && 'Only show vulnerability when user has earned it'}
+                    </p>
+                  </div>
+
+                  {/* Pacing Curve */}
+                  <div className="space-y-2">
+                    <Label>Pacing Curve</Label>
+                    <Select
+                      value={genreSettings.pacing_curve}
+                      onValueChange={(v) => updateGenreSetting('pacing_curve', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {genreOptions.pacing_curves.map(curve => (
+                          <SelectItem key={curve} value={curve}>
+                            {curve.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {genreSettings.pacing_curve === 'slow_burn' && 'Build tension gradually - patience creates anticipation'}
+                      {genreSettings.pacing_curve === 'steady' && 'Maintain consistent escalation with regular beats'}
+                      {genreSettings.pacing_curve === 'fast_escalate' && 'Move quickly through tension beats - high intensity'}
+                    </p>
+                  </div>
+
+                  {/* Resolution Mode */}
+                  <div className="space-y-2">
+                    <Label>Resolution Mode</Label>
+                    <Select
+                      value={genreSettings.resolution_mode}
+                      onValueChange={(v) => updateGenreSetting('resolution_mode', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {genreOptions.resolution_modes.map(mode => (
+                          <SelectItem key={mode} value={mode}>
+                            {mode.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {genreSettings.resolution_mode === 'open' && 'Leave tension unresolved, inviting continuation'}
+                      {genreSettings.resolution_mode === 'closed' && 'Provide clear emotional resolution per episode'}
+                      {genreSettings.resolution_mode === 'cliffhanger' && 'End on heightened tension, create urgency'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Genre Notes */}
+                <div className="space-y-2">
+                  <Label>Genre Notes (Custom)</Label>
+                  <Textarea
+                    value={genreSettings.genre_notes}
+                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateGenreSetting('genre_notes', e.target.value)}
+                    placeholder="Add specific guidance for this series... (e.g., 'Focus on intellectual sparring over physical tension')"
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Free-text guidance injected into character prompts for fine-tuning
+                  </p>
+                </div>
+
+                {/* Prompt Preview */}
+                {genrePromptPreview && (
+                  <div className="space-y-2">
+                    <Label>Prompt Preview</Label>
+                    <div className="bg-muted/50 rounded-lg p-3 text-xs font-mono whitespace-pre-wrap text-muted-foreground">
+                      {genrePromptPreview}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This is injected into the character's system prompt during conversations
+                    </p>
+                  </div>
+                )}
+
+                {genreSettingsHasChanges && (
+                  <Button onClick={handleSaveGenreSettings} disabled={savingGenreSettings}>
+                    {savingGenreSettings ? 'Saving...' : 'Save Genre Settings'}
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Quick Stats */}
           <div className="grid gap-4 sm:grid-cols-4">

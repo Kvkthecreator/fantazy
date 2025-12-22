@@ -397,11 +397,23 @@ class ConversationService:
 
         # Get series_id from session for series-scoped memory retrieval
         series_id = None
+        series_genre_prompt = None  # Will hold formatted genre settings
         if episode_id:
             session_query = "SELECT series_id FROM sessions WHERE id = :episode_id"
             session_row = await self.db.fetch_one(session_query, {"episode_id": str(episode_id)})
             if session_row and session_row["series_id"]:
                 series_id = session_row["series_id"]
+
+                # Fetch series genre_settings and format as prompt section
+                series_query = "SELECT genre, genre_settings FROM series WHERE id = :series_id"
+                series_row = await self.db.fetch_one(series_query, {"series_id": str(series_id)})
+                if series_row:
+                    genre_prompt = await self._format_genre_settings(
+                        series_row["genre"],
+                        series_row["genre_settings"]
+                    )
+                    if genre_prompt:
+                        series_genre_prompt = genre_prompt
 
         # Get recent messages from episode
         messages = []
@@ -545,6 +557,8 @@ class ConversationService:
             dramatic_question=dramatic_question,
             resolution_types=resolution_types,
             series_context=series_context,
+            # Series genre settings (per GENRE_SETTINGS_ARCHITECTURE)
+            series_genre_prompt=series_genre_prompt,
         )
 
     async def get_or_create_episode(
@@ -1145,3 +1159,41 @@ class ConversationService:
             return None
 
         return Session(**dict(row))
+
+    async def _format_genre_settings(
+        self,
+        genre: Optional[str],
+        genre_settings: Optional[dict],
+    ) -> Optional[str]:
+        """Format genre settings as a prompt section.
+
+        Merges preset defaults with custom settings and formats for LLM injection.
+        """
+        from app.models.series import GENRE_SETTING_PRESETS, GenreSettings
+
+        if not genre and not genre_settings:
+            return None
+
+        # Get preset defaults
+        genre_name = genre or "romantic_tension"
+        preset = GENRE_SETTING_PRESETS.get(genre_name, GENRE_SETTING_PRESETS.get("romantic_tension", {}))
+
+        # Parse genre_settings if it's a string (from DB JSON)
+        settings_dict = genre_settings or {}
+        if isinstance(settings_dict, str):
+            try:
+                settings_dict = json.loads(settings_dict)
+            except (json.JSONDecodeError, TypeError):
+                settings_dict = {}
+
+        # Merge preset with custom settings
+        merged = {**preset, **settings_dict}
+
+        # Create GenreSettings object and format
+        try:
+            settings_obj = GenreSettings(**merged)
+            prompt_section = settings_obj.to_prompt_section()
+            return prompt_section if prompt_section else None
+        except Exception as e:
+            log.warning(f"Failed to format genre settings: {e}")
+            return None
