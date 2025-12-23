@@ -905,6 +905,7 @@ export interface GalleryStatusResponse {
   primary_url?: string;
   gallery: AvatarGalleryItem[];
   can_activate: boolean;
+  missing_requirements: string[];
 }
 
 // ============================================================================

@@ -517,8 +517,9 @@ export default function CharacterDetailPage() {
             <Button
               onClick={activateCharacter}
               disabled={!galleryStatus?.can_activate}
+              title={!galleryStatus?.can_activate ? galleryStatus?.missing_requirements?.join(', ') : undefined}
             >
-              {galleryStatus?.can_activate ? 'Activate' : 'Generate Avatar First'}
+              {galleryStatus?.can_activate ? 'Activate' : `Not Ready (${galleryStatus?.missing_requirements?.length || 0} issues)`}
             </Button>
           ) : (
             <Button variant="outline" onClick={deactivateCharacter}>
@@ -924,11 +925,20 @@ export default function CharacterDetailPage() {
                     <p className="font-medium">
                       {galleryStatus?.can_activate ? 'Ready for Activation' : 'Not Ready for Activation'}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {galleryStatus?.can_activate
-                        ? 'Your character has an avatar and can be activated.'
-                        : 'Generate an avatar to enable activation.'}
-                    </p>
+                    {galleryStatus?.can_activate ? (
+                      <p className="text-sm text-muted-foreground">
+                        Your character is ready and can be activated.
+                      </p>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        <p>Missing requirements:</p>
+                        <ul className="list-disc list-inside mt-1">
+                          {galleryStatus?.missing_requirements?.map((req, i) => (
+                            <li key={i}>{req}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 </div>
                 {galleryStatus?.can_activate && character.status === 'draft' && (

@@ -954,6 +954,7 @@ class GalleryStatusResponse(BaseModel):
     primary_url: Optional[str] = None
     gallery: List[GalleryItemResponse] = Field(default_factory=list)
     can_activate: bool = False
+    missing_requirements: List[str] = Field(default_factory=list)
 
 
 @router.post("/characters/{character_id}/generate-avatar", response_model=PortraitGenerationResponse)
@@ -1025,6 +1026,7 @@ async def get_gallery_status(
             for item in status_result.gallery
         ],
         can_activate=status_result.can_activate,
+        missing_requirements=status_result.missing_requirements,
     )
 
 

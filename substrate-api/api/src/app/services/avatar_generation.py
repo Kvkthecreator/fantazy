@@ -506,6 +506,7 @@ class GalleryStatus:
     primary_url: Optional[str] = None
     gallery: List[GalleryItem] = field(default_factory=list)
     can_activate: bool = False
+    missing_requirements: List[str] = field(default_factory=list)
 
 
 # =============================================================================
@@ -792,22 +793,37 @@ class AvatarGenerationService:
     ) -> GalleryStatus:
         """Get avatar gallery status for a character.
 
+        Uses validate_chat_ready for can_activate to ensure single source of truth
+        for activation requirements across UI and API.
+
         Note: Ownership check removed for admin/creator workflow.
         """
-        kit_data = await db.fetch_one(
-            """SELECT ak.id as kit_id, ak.primary_anchor_id
+        from app.models.character import validate_chat_ready
+
+        # Fetch full character data for validation
+        character_data = await db.fetch_one(
+            """SELECT c.*, ak.id as kit_id, ak.primary_anchor_id
                FROM characters c
                LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
                WHERE c.id = :id""",
             {"id": str(character_id)}
         )
 
-        if not kit_data or not kit_data["kit_id"]:
+        if not character_data:
             return GalleryStatus(has_gallery=False)
 
-        kit_dict = dict(kit_data)
-        kit_id = kit_dict["kit_id"]
-        primary_id = kit_dict.get("primary_anchor_id")
+        char_dict = dict(character_data)
+        kit_id = char_dict.get("kit_id")
+        primary_id = char_dict.get("primary_anchor_id")
+
+        # No gallery if no kit
+        if not kit_id:
+            # Still validate to show what's missing
+            errors = validate_chat_ready(char_dict)
+            return GalleryStatus(
+                has_gallery=False,
+                missing_requirements=[str(e) for e in errors],
+            )
 
         # Get all gallery items
         assets = await db.fetch_all(
@@ -836,12 +852,16 @@ class AvatarGenerationService:
                 is_primary=is_primary,
             ))
 
+        # Use canonical validation for activation check
+        errors = validate_chat_ready(char_dict)
+
         return GalleryStatus(
             has_gallery=True,
             kit_id=kit_id,
             primary_url=primary_url,
             gallery=gallery,
-            can_activate=len(gallery) > 0,
+            can_activate=len(errors) == 0,
+            missing_requirements=[str(e) for e in errors],
         )
 
 
