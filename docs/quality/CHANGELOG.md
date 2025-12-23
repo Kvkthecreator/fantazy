@@ -14,6 +14,32 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 
 ---
 
+## 2024-12-24
+
+### Changed
+- **[DIRECTOR_PROTOCOL.md]** v2.3.0 - Memory & Hook Extraction Ownership
+  - Director now owns all post-exchange processing (memory, hooks, beats)
+  - Removed dual ownership (ConversationService._process_exchange deleted)
+  - Clarified memory scoping: series-level (preferred), character-level (fallback)
+  - Clarified hook scoping: character-level only (cross-series by design)
+  - Director orchestrates extraction; MemoryService handles storage/retrieval
+  - Added "Director vs MemoryService Ownership" table
+  - Updated data flow diagram for v2.3
+
+- **[CONTEXT_LAYERS.md]** v1.3.0 - Memory/Hook Scoping Architecture
+  - Added explicit scoping architecture for memories (series > character)
+  - Documented hooks as character-scoped (intentional cross-series behavior)
+  - Updated Layer 4 ownership: MemoryService + Director collaboration
+  - Added extraction ownership flow diagram
+  - Design decision: Callbacks are personal, not narrative-bounded
+
+### Removed
+- **[ConversationService]**: `_process_exchange()` method (55 lines)
+  - Legacy memory/hook extraction consolidated into Director
+  - Duplicate extraction calls removed from send_message() and send_message_stream()
+
+---
+
 ## 2024-12-23
 
 ### Changed

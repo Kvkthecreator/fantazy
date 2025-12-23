@@ -237,7 +237,11 @@ class DirectorActions:
 
 @dataclass
 class DirectorOutput:
-    """Output from Director processing."""
+    """Output from Director processing.
+
+    Director Protocol v2.3: Director owns post-exchange processing.
+    Extracted memories, hooks, and beat data are now populated by Director.
+    """
     # Core state
     turn_count: int
     is_complete: bool
@@ -249,10 +253,12 @@ class DirectorOutput:
     # Deterministic actions
     actions: Optional[DirectorActions] = None
 
-    # Legacy compatibility (will be removed)
-    extracted_memories: List[Dict[str, Any]] = field(default_factory=list)
+    # Memory/Hook extraction (Director Protocol v2.3)
+    extracted_memories: List[Any] = field(default_factory=list)  # List[ExtractedMemory]
     beat_data: Optional[Dict[str, Any]] = None
-    extracted_hooks: List[Dict[str, Any]] = field(default_factory=list)
+    extracted_hooks: List[Any] = field(default_factory=list)  # List[ExtractedHook]
+
+    # Legacy compatibility
     structured_response: Optional[Dict[str, Any]] = None
 
 
@@ -281,6 +287,9 @@ class DirectorService:
     def __init__(self, db):
         self.db = db
         self.llm = LLMService.get_instance()
+        # Director owns memory/hook extraction (Director Protocol v2.3)
+        from app.services.memory import MemoryService
+        self.memory_service = MemoryService(db)
 
     # =========================================================================
     # PHASE 1: PRE-GUIDANCE (before character response)
@@ -626,13 +635,75 @@ If visual is not "none", add: [hint: <description>]"""
             completion_trigger=completion_trigger,
         )
 
-        # 8. Build output
+        # 8. Memory & Hook Extraction (Director Protocol v2.3)
+        # Director now owns all post-exchange processing
+        extracted_memories = []
+        extracted_hooks = []
+        beat_data = None
+
+        try:
+            # Get existing memories for deduplication (series-scoped)
+            existing_memories = await self.memory_service.get_relevant_memories(
+                user_id, character_id, limit=20,
+                series_id=session.series_id  # Series-aware retrieval
+            )
+
+            # Extract memories and beat classification (single LLM call)
+            extracted_memories, beat_data = await self.memory_service.extract_memories(
+                user_id=user_id,
+                character_id=character_id,
+                episode_id=session.id,
+                messages=messages,
+                existing_memories=existing_memories,
+            )
+
+            # Save memories with explicit series_id (series-scoped storage)
+            if extracted_memories:
+                await self.memory_service.save_memories(
+                    user_id=user_id,
+                    character_id=character_id,
+                    episode_id=session.id,
+                    memories=extracted_memories,
+                    series_id=session.series_id,  # Explicit series scoping
+                )
+                log.info(f"Director saved {len(extracted_memories)} memories (series_id={session.series_id})")
+
+            # Extract and save hooks (character-scoped, cross-series by design)
+            extracted_hooks = await self.memory_service.extract_hooks(messages)
+            if extracted_hooks:
+                await self.memory_service.save_hooks(
+                    user_id=user_id,
+                    character_id=character_id,
+                    episode_id=session.id,
+                    hooks=extracted_hooks,
+                )
+                log.info(f"Director saved {len(extracted_hooks)} hooks")
+
+            # Update relationship dynamic with beat classification
+            if beat_data:
+                await self.memory_service.update_relationship_dynamic(
+                    user_id=user_id,
+                    character_id=character_id,
+                    beat_type=beat_data.get("type", "neutral"),
+                    tension_change=int(beat_data.get("tension_change", 0)),
+                    milestone=beat_data.get("milestone"),
+                )
+                log.info(f"Director updated dynamic: beat={beat_data.get('type')}")
+
+        except Exception as e:
+            log.error(f"Director memory/hook extraction failed: {e}")
+            # Don't fail the entire exchange if memory extraction fails
+
+        # 9. Build output
         return DirectorOutput(
             turn_count=new_turn_count,
             is_complete=is_complete,
             completion_trigger=completion_trigger,
             evaluation=evaluation,
             actions=actions,
+            extracted_memories=extracted_memories,
+            extracted_hooks=extracted_hooks,
+            beat_data=beat_data,
         )
 
     async def _get_character(self, character_id: UUID) -> Optional[Dict[str, Any]]:

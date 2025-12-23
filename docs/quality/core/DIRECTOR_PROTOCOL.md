@@ -1,8 +1,8 @@
 # Director Protocol
 
-> **Version**: 2.2.0
+> **Version**: 2.3.0
 > **Status**: Active
-> **Updated**: 2024-12-23
+> **Updated**: 2024-12-24
 
 ---
 
@@ -125,9 +125,11 @@ Pacing is **deterministic** based on turn count and optional turn budget.
 
 ---
 
-## Phase 2: Post-Response Evaluation (Unchanged)
+## Phase 2: Post-Exchange Processing (v2.3 - Expanded)
 
-After the character responds, Director evaluates:
+After the character responds, Director orchestrates all post-exchange processing:
+
+### Semantic Evaluation
 
 ```python
 DirectorEvaluation(
@@ -136,6 +138,61 @@ DirectorEvaluation(
     status: str,           # "going" | "closing" | "done"
 )
 ```
+
+### Memory & Hook Extraction (NEW in v2.3)
+
+Director now owns memory/hook extraction and beat tracking:
+
+**Memories**: Facts, preferences, events, goals, relationships, emotions
+- Extracted via `MemoryService.extract_memories()` (LLM call)
+- Saved with `series_id` for **series-scoped isolation**
+- Fallback to `character_id` for free chat mode
+
+**Hooks**: Reminders, follow-ups, scheduled callbacks
+- Extracted via `MemoryService.extract_hooks()` (LLM call)
+- Saved with `character_id` only (**cross-series by design**)
+- Rationale: Callbacks like "job interview Thursday" should trigger everywhere
+
+**Beat Classification**: Narrative beats for tension tracking
+- Type: playful, flirty, tense, vulnerable, charged, longing, neutral
+- Tension change: -15 to +15 (positive = increase tension)
+- Milestone: first_spark, almost_moment, jealousy_triggered, etc.
+- Updates `engagement.dynamic` JSONB (tone, tension_level, recent_beats)
+
+### Data Flow (v2.3)
+
+```
+Character LLM responds
+    ↓
+DirectorService.process_exchange()
+    ↓
+1. Semantic evaluation (visual_type, status)
+2. Memory extraction (MemoryService.extract_memories)
+3. Hook extraction (MemoryService.extract_hooks)
+4. Beat classification → engagement.dynamic
+    ↓
+MemoryService.save_memories(series_id=session.series_id)  ← Series-scoped
+MemoryService.save_hooks()  ← Character-scoped
+MemoryService.update_relationship_dynamic()
+    ↓
+DirectorOutput(
+    extracted_memories, extracted_hooks, beat_data
+)
+```
+
+### Director vs MemoryService Ownership
+
+**Director orchestrates; MemoryService executes.**
+
+| Responsibility | Owner | Role |
+|----------------|-------|------|
+| **Extraction decision** | Director | When to extract, coordination |
+| **LLM prompting** | MemoryService | Memory extraction prompts |
+| **Storage** | MemoryService | Database writes |
+| **Retrieval** | MemoryService | Query memories/hooks |
+| **Scoping logic** | MemoryService | Series vs character scoping |
+
+Director calls MemoryService methods but doesn't reimplement extraction logic.
 
 ---
 

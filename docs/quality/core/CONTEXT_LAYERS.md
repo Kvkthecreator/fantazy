@@ -1,8 +1,8 @@
 # Context Layers
 
-> **Version**: 1.2.0
-> **Status**: Draft
-> **Updated**: 2024-12-23
+> **Version**: 1.3.0
+> **Status**: Active
+> **Updated**: 2024-12-24
 
 ---
 
@@ -200,18 +200,42 @@ RELATIONSHIP CONTEXT:
 
 **Source**: `memory_events`, `hooks` tables
 **Refresh**: Per session (retrieved)
-**Scope**: Series-level (not character-level)
+**Owner**: MemoryService (storage/retrieval), Director (extraction)
 
-### Memory Retrieval
+### Memory Scoping Architecture (v1.3)
+
+Memories are **series-scoped** (preferred) or **character-scoped** (fallback):
+
+#### 1. Series-Scoped Memories (Episodic Narratives)
 
 ```sql
--- Top 10 memories, max 3 per type
+-- Preferred: Series-scoped retrieval
 SELECT * FROM memory_events
 WHERE user_id = ? AND series_id = ?
   AND is_active = TRUE
 ORDER BY importance_score DESC, created_at DESC
 LIMIT 10
 ```
+
+**Use case**: Episodic narratives where memories belong to "your story with this series"
+- Example: "Hometown Crush" series memories don't leak into "Office Romance"
+- Same character, different stories, different memory contexts
+
+#### 2. Character-Scoped Memories (Free Chat Fallback)
+
+```sql
+-- Fallback: Character-scoped retrieval (when no series_id)
+SELECT * FROM memory_events
+WHERE user_id = ? AND character_id = ?
+  AND is_active = TRUE
+ORDER BY importance_score DESC, created_at DESC
+LIMIT 10
+```
+
+**Use case**: Open-ended conversations not bound to a series
+- Memories shared across all non-series chats with that character
+
+### Memory Types
 
 | Type | Example | Prompt Section |
 |------|---------|----------------|
@@ -222,9 +246,12 @@ LIMIT 10
 | `goal` | "Wants to travel to Japan" | "Goals/aspirations:" |
 | `emotion` | "Nervous about the move" | "How they've been feeling:" |
 
-### Hook Retrieval
+### Hook Scoping Architecture (v1.3)
+
+Hooks are **character-scoped only** (not series-specific):
 
 ```sql
+-- Hooks are intentionally cross-series
 SELECT * FROM hooks
 WHERE user_id = ? AND character_id = ?
   AND is_active = TRUE
@@ -234,16 +261,39 @@ ORDER BY priority DESC
 LIMIT 5
 ```
 
+**Rationale**: Hooks are "reminders to follow up" - should carry across all conversations
+
 | Type | Example | Use |
 |------|---------|-----|
 | `reminder` | "Job interview Thursday" | Time-based callback |
 | `follow_up` | "Sister's wedding" | Topic to revisit |
 | `milestone` | "One month together" | Relationship marker |
 
+**Design decision**: A callback like "job interview Thursday" should trigger in both free chat AND series episodes with the same character. Hooks are personal, not narrative-bounded.
+
+### Extraction Ownership (v1.3)
+
+**Director Protocol v2.3**: Director now owns memory/hook extraction
+
+```
+Character LLM responds
+    ↓
+DirectorService.process_exchange()
+    ↓
+MemoryService.extract_memories() ← LLM call
+MemoryService.extract_hooks() ← LLM call
+    ↓
+MemoryService.save_memories(series_id=...) ← Series-scoped
+MemoryService.save_hooks() ← Character-scoped
+```
+
+Director orchestrates extraction; MemoryService handles LLM prompting and storage.
+
 ### Quality Impact
 - Enables "she remembers me" feeling
 - Prevents repetitive questions
 - Creates natural callbacks
+- Series isolation prevents memory leakage between narratives
 
 ---
 

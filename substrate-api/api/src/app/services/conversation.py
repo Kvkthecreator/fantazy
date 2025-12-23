@@ -128,16 +128,9 @@ class ConversationService:
                     character_id=character_id,
                     user_id=user_id,
                 )
-
-            # Also run legacy memory extraction until fully absorbed
-            await self._process_exchange(
-                user_id=user_id,
-                character_id=character_id,
-                episode_id=episode.id,
-                messages=full_messages,
-            )
+            # Director now owns memory/hook extraction (v2.3)
         except Exception as e:
-            log.error(f"Director/memory processing failed: {e}")
+            log.error(f"Director processing failed: {e}")
 
         # Record message for rate limiting (after successful send)
         await self.rate_limiter.record_message(user_id)
@@ -332,16 +325,9 @@ class ConversationService:
                             evaluation=director_output.evaluation,
                         ),
                     }) + "\n"
-
-            # Also run legacy memory extraction until fully absorbed by Director
-            await self._process_exchange(
-                user_id=user_id,
-                character_id=character_id,
-                episode_id=episode.id,
-                messages=full_messages,
-            )
+            # Director now owns memory/hook extraction (v2.3)
         except Exception as e:
-            log.error(f"Director/memory processing failed: {e}")
+            log.error(f"Director processing failed: {e}")
 
         # Record message for rate limiting (after successful exchange)
         await self.rate_limiter.record_message(user_id)
@@ -1020,62 +1006,7 @@ class ConversationService:
         except Exception as e:
             log.error(f"Auto-scene generation failed for episode {episode_id}: {e}")
 
-    async def _process_exchange(
-        self,
-        user_id: UUID,
-        character_id: UUID,
-        episode_id: UUID,
-        messages: List[Dict[str, str]],
-    ):
-        """Process a conversation exchange for memories, hooks, and beat classification."""
-        # Get existing memories for deduplication
-        existing_memories = await self.memory_service.get_relevant_memories(
-            user_id, character_id, limit=20
-        )
-
-        # Extract memories and beat classification (single LLM call)
-        extracted_memories, beat_data = await self.memory_service.extract_memories(
-            user_id=user_id,
-            character_id=character_id,
-            episode_id=episode_id,
-            messages=messages,
-            existing_memories=existing_memories,
-        )
-
-        if extracted_memories:
-            await self.memory_service.save_memories(
-                user_id=user_id,
-                character_id=character_id,
-                episode_id=episode_id,
-                memories=extracted_memories,
-            )
-            log.info(f"Saved {len(extracted_memories)} memories")
-
-        # Update relationship dynamic with beat classification
-        if beat_data:
-            try:
-                await self.memory_service.update_relationship_dynamic(
-                    user_id=user_id,
-                    character_id=character_id,
-                    beat_type=beat_data.get("type", "neutral"),
-                    tension_change=int(beat_data.get("tension_change", 0)),
-                    milestone=beat_data.get("milestone"),
-                )
-                log.info(f"Updated relationship dynamic: beat={beat_data.get('type')}")
-            except Exception as e:
-                log.error(f"Failed to update relationship dynamic: {e}")
-
-        # Extract hooks
-        extracted_hooks = await self.memory_service.extract_hooks(messages)
-
-        if extracted_hooks:
-            await self.memory_service.save_hooks(
-                user_id=user_id,
-                character_id=character_id,
-                episode_id=episode_id,
-                hooks=extracted_hooks,
-            )
-            log.info(f"Saved {len(extracted_hooks)} hooks")
+    # NOTE: _process_exchange() removed - Director now owns memory/hook extraction (v2.3)
 
     async def _get_series_context(
         self,
