@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // =============================================================================
 // Types & Constants
@@ -40,6 +46,8 @@ const ARCHETYPES = [
   'wounded_star',
 ]
 
+// NOTE: Genre removed from Character (ADR-001) - genre belongs to Series/Episode
+// This constant kept for reference but no longer used in character editing
 const GENRES = [
   'romantic_tension',
   'psychological_thriller',
@@ -139,10 +147,10 @@ export default function CharacterDetailPage() {
   })
 
   // Overview tab editable fields
+  // NOTE: genre removed from Character (ADR-001) - genre belongs to Series/Episode
   const [overviewForm, setOverviewForm] = useState({
     name: '',
     archetype: '',
-    genre: '',
     baseline_personality: '',
     boundaries: '',
   })
@@ -267,10 +275,10 @@ export default function CharacterDetailPage() {
         opening_line: openingLine,
       })
       // Populate overview form
+      // NOTE: genre removed from Character (ADR-001) - genre belongs to Series/Episode
       setOverviewForm({
         name: data.name || '',
         archetype: data.archetype || '',
-        genre: data.genre || 'romantic_tension',
         baseline_personality: JSON.stringify(data.baseline_personality || {}, null, 2),
         boundaries: JSON.stringify(data.boundaries || {}, null, 2),
       })
@@ -329,10 +337,10 @@ export default function CharacterDetailPage() {
         return
       }
 
+      // NOTE: genre removed from Character (ADR-001) - genre belongs to Series/Episode
       const updated = await api.studio.updateCharacter(characterId, {
         name: overviewForm.name,
         archetype: overviewForm.archetype,
-        genre: overviewForm.genre,
         baseline_personality: personality,
         boundaries: boundaries,
       })
@@ -507,20 +515,38 @@ export default function CharacterDetailPage() {
                 {character.status}
               </span>
             </div>
+            {/* NOTE: Genre removed from subtitle (ADR-001) - genre belongs to Series/Episode, not Character */}
             <p className="text-sm text-muted-foreground capitalize">
-              {character.archetype} &middot; {character.genre?.replace('_', ' ') || 'romantic tension'} &middot; {character.content_rating.toUpperCase()}
+              {character.archetype.replace('_', ' ')} &middot; {character.content_rating.toUpperCase()}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {character.status === 'draft' ? (
-            <Button
-              onClick={activateCharacter}
-              disabled={!galleryStatus?.can_activate}
-              title={!galleryStatus?.can_activate ? galleryStatus?.missing_requirements?.join(', ') : undefined}
-            >
-              {galleryStatus?.can_activate ? 'Activate' : `Not Ready (${galleryStatus?.missing_requirements?.length || 0} issues)`}
-            </Button>
+            galleryStatus?.can_activate ? (
+              <Button onClick={activateCharacter}>
+                Activate
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="secondary" className="bg-yellow-500/20 text-yellow-700 hover:bg-yellow-500/30">
+                    Not Ready ({galleryStatus?.missing_requirements?.length || 0} issues)
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" side="bottom" className="w-72">
+                  <DropdownMenuLabel>Missing Requirements</DropdownMenuLabel>
+                  <div className="px-3 py-2 space-y-1">
+                    {galleryStatus?.missing_requirements?.map((req, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <span className="text-yellow-500 mt-0.5">•</span>
+                        <span className="text-muted-foreground">{req}</span>
+                      </div>
+                    ))}
+                  </div>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )
           ) : (
             <Button variant="outline" onClick={deactivateCharacter}>
               Move to Draft
@@ -593,24 +619,7 @@ export default function CharacterDetailPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-xs">Genre</Label>
-                  <Select
-                    value={overviewForm.genre}
-                    onValueChange={(v) => handleOverviewChange('genre', v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select genre" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GENRES.map((genre) => (
-                        <SelectItem key={genre} value={genre}>
-                          {genre.replace('_', ' ')}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* NOTE: Genre field removed (ADR-001) - genre now belongs to Series/Episode */}
                 <div className="pt-2 space-y-1">
                   <p className="text-xs text-muted-foreground">Slug</p>
                   <p className="font-mono text-sm text-muted-foreground">{character.slug}</p>
