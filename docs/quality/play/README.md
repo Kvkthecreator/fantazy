@@ -1,8 +1,8 @@
 # Play Mode System
 
-> **Version**: 2.0.0
-> **Status**: Canonical
-> **Updated**: 2025-12-21
+> **Version**: 3.0.0
+> **Status**: Active Development
+> **Updated**: 2025-12-23
 
 ---
 
@@ -11,10 +11,33 @@
 This folder contains the **Play Mode System** — specifications for viral, shareable personality quiz experiences that serve as customer acquisition channels.
 
 Play Mode experiences are:
-- **Quiz-based** — Static questions with deterministic scoring (no LLM variance)
+- **Quiz-based** — Static questions with LLM-powered personalized evaluation
 - **Anonymous until conversion** — No auth wall before result
-- **Designed for virality** — MBTI/BuzzFeed-style identity results
+- **Designed for virality** — Each quiz optimized for a specific viral mechanic
 - **Gateway to Episode 0** — Result page promotes full interactive stories
+
+---
+
+## v3.0 Strategic Direction
+
+> **See [QUIZ_STRATEGY_V3.md](QUIZ_STRATEGY_V3.md) for the complete strategic framework, first principles, and implementation details.**
+
+### The Core Insight
+
+Most quizzes fail by blending viral mechanics. v3.0 separates them:
+
+| Quiz | Primary Mechanic | Target Reaction |
+|------|-----------------|-----------------|
+| **Dating Personality Test** | Identity validation | "This is so me" |
+| **The Unhinged Test** | Social comparison | "What did you get?" |
+
+### Key Changes from v2.0
+
+- **Separated mechanics** — Each quiz owns ONE viral hook
+- **Removed "your people"** — Fictional character references felt forced
+- **Dating test = depth** — Reveals patterns, not preferences
+- **Unhinged test = fun** — Pure entertainment, no psychology
+- **Distinct LLM voices** — Therapist vs. Chaotic friend
 
 ---
 
@@ -23,9 +46,10 @@ Play Mode experiences are:
 ```
 docs/quality/play/
 ├── README.md                    ← You are here
-├── QUIZ_MODE_SPEC.md            ← Quiz implementation specification (NEW)
+├── QUIZ_STRATEGY_V3.md          ← v3.0 Strategic framework (START HERE)
+├── QUIZ_MODE_SPEC.md            ← Quiz implementation specification
 ├── TROPE_CONTENT_SPEC.md        ← Romantic Trope content copy
-├── PLAY_MODE_ARCHITECTURE.md    ← Legacy conversation-based architecture (deprecated)
+├── PLAY_MODE_ARCHITECTURE.md    ← Legacy (deprecated)
 ├── TROPE_SYSTEM.md              ← Trope taxonomy and signals
 ├── RESULT_REPORT_SPEC.md        ← Result page structure
 └── IMPLEMENTATION_STATUS.md     ← Implementation tracking (outdated)
@@ -33,7 +57,7 @@ docs/quality/play/
 
 ---
 
-## Current Approach: Quiz Mode (v2.0)
+## Current Approach: Quiz Mode (v3.0)
 
 ### Strategic Pivot
 
@@ -169,5 +193,6 @@ Quiz mode is **entirely frontend**:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 3.0.0 | 2025-12-23 | Strategic split: Identity test vs. Social comparison test |
 | 2.0.0 | 2025-12-21 | Quiz-based approach replaces conversation-based |
 | 1.0.0 | 2024-12-20 | Initial Play Mode system documentation |
