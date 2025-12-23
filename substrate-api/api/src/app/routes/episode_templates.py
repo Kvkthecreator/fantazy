@@ -46,6 +46,10 @@ class EpisodeTemplateBase(BaseModel):
     # Episode Dynamics (per EPISODE_DYNAMICS_CANON.md)
     dramatic_question: Optional[str] = None
     resolution_types: Optional[List[str]] = ["positive", "neutral", "negative"]
+    # Scene motivation (ADR-002: Theatrical Model)
+    scene_objective: Optional[str] = None  # What character wants from user this scene
+    scene_obstacle: Optional[str] = None   # What's stopping them from just asking
+    scene_tactic: Optional[str] = None     # How they're trying to get what they want
 
 
 class EpisodeTemplateCreate(EpisodeTemplateBase):
@@ -68,6 +72,10 @@ class EpisodeTemplateUpdate(BaseModel):
     # Episode Dynamics
     dramatic_question: Optional[str] = None
     resolution_types: Optional[List[str]] = None
+    # Scene motivation (ADR-002: Theatrical Model)
+    scene_objective: Optional[str] = None
+    scene_obstacle: Optional[str] = None
+    scene_tactic: Optional[str] = None
 
 
 class EpisodeTemplate(EpisodeTemplateBase):
@@ -220,7 +228,8 @@ async def get_episode_template(
         SELECT id, character_id, series_id, episode_number, title, slug,
                situation, opening_line, background_image_url,
                episode_frame, is_default, sort_order, status,
-               episode_type, dramatic_question
+               episode_type, dramatic_question,
+               scene_objective, scene_obstacle, scene_tactic
         FROM episode_templates
         WHERE id = :id
     """
@@ -248,7 +257,8 @@ async def get_default_episode(
         SELECT id, character_id, series_id, episode_number, title, slug,
                situation, opening_line, background_image_url,
                episode_frame, is_default, sort_order, status,
-               episode_type, dramatic_question
+               episode_type, dramatic_question,
+               scene_objective, scene_obstacle, scene_tactic
         FROM episode_templates
         WHERE character_id = :character_id
         AND is_default = TRUE
@@ -298,15 +308,19 @@ async def create_episode_template(
         INSERT INTO episode_templates (
             character_id, episode_number, title, slug,
             situation, opening_line, episode_frame,
+            dramatic_question, scene_objective, scene_obstacle, scene_tactic,
             is_default, sort_order, status
         ) VALUES (
             :character_id, :episode_number, :title, :slug,
             :situation, :opening_line, :episode_frame,
+            :dramatic_question, :scene_objective, :scene_obstacle, :scene_tactic,
             :is_default, :sort_order, 'draft'
         )
         RETURNING id, character_id, episode_number, title, slug,
                   situation, opening_line, background_image_url,
-                  episode_frame, is_default, sort_order, status
+                  episode_frame, is_default, sort_order, status,
+                  episode_type, dramatic_question,
+                  scene_objective, scene_obstacle, scene_tactic
     """
 
     row = await db.fetch_one(query, {
@@ -317,6 +331,10 @@ async def create_episode_template(
         "situation": data.situation,
         "opening_line": data.opening_line,
         "episode_frame": data.episode_frame,
+        "dramatic_question": data.dramatic_question,
+        "scene_objective": data.scene_objective,
+        "scene_obstacle": data.scene_obstacle,
+        "scene_tactic": data.scene_tactic,
         "is_default": data.is_default,
         "sort_order": max_sort["next_sort"],
     })
@@ -356,6 +374,23 @@ async def update_episode_template(
     if data.status is not None:
         updates.append("status = :status")
         values["status"] = data.status
+    # Episode Dynamics
+    if data.dramatic_question is not None:
+        updates.append("dramatic_question = :dramatic_question")
+        values["dramatic_question"] = data.dramatic_question
+    if data.resolution_types is not None:
+        updates.append("resolution_types = :resolution_types")
+        values["resolution_types"] = data.resolution_types
+    # Scene motivation (ADR-002: Theatrical Model)
+    if data.scene_objective is not None:
+        updates.append("scene_objective = :scene_objective")
+        values["scene_objective"] = data.scene_objective
+    if data.scene_obstacle is not None:
+        updates.append("scene_obstacle = :scene_obstacle")
+        values["scene_obstacle"] = data.scene_obstacle
+    if data.scene_tactic is not None:
+        updates.append("scene_tactic = :scene_tactic")
+        values["scene_tactic"] = data.scene_tactic
 
     if not updates:
         raise HTTPException(
@@ -369,9 +404,11 @@ async def update_episode_template(
         UPDATE episode_templates
         SET {", ".join(updates)}
         WHERE id = :id
-        RETURNING id, character_id, episode_number, title, slug,
+        RETURNING id, character_id, series_id, episode_number, title, slug,
                   situation, opening_line, background_image_url,
-                  episode_frame, is_default, sort_order, status
+                  episode_frame, is_default, sort_order, status,
+                  episode_type, dramatic_question,
+                  scene_objective, scene_obstacle, scene_tactic
     """
 
     row = await db.fetch_one(query, values)
@@ -395,9 +432,11 @@ async def activate_episode_template(
         UPDATE episode_templates
         SET status = 'active', updated_at = NOW()
         WHERE id = :id
-        RETURNING id, character_id, episode_number, title, slug,
+        RETURNING id, character_id, series_id, episode_number, title, slug,
                   situation, opening_line, background_image_url,
-                  episode_frame, is_default, sort_order, status
+                  episode_frame, is_default, sort_order, status,
+                  episode_type, dramatic_question,
+                  scene_objective, scene_obstacle, scene_tactic
     """
 
     row = await db.fetch_one(query, {"id": str(template_id)})

@@ -113,6 +113,12 @@ class ConversationContext(BaseModel):
     resolution_types: List[str] = Field(default_factory=lambda: ["positive", "neutral", "negative"])
     series_context: Optional[str] = None  # Context from previous episodes in serial
 
+    # Scene Motivation (ADR-002: Theatrical Model)
+    # These are the "director's notes" internalized during rehearsal, not generated per-turn
+    scene_objective: Optional[str] = None  # What character wants from user this scene
+    scene_obstacle: Optional[str] = None   # What's stopping them from just asking
+    scene_tactic: Optional[str] = None     # How they're trying to get what they want
+
     # Character boundaries (ADR-001: needed by Director for energy_level)
     character_boundaries: Dict[str, Any] = Field(default_factory=dict)
 
@@ -220,6 +226,9 @@ Recent beats: {beat_flow}"""
         CRITICAL: Physical grounding (situation) comes FIRST - this is the most
         important context for immersive responses. Generic romantic tension
         without physical awareness breaks immersion.
+
+        ADR-002: Scene motivation (objective/obstacle/tactic) is now authored
+        into episodes and internalized during "rehearsal" - not generated per-turn.
         """
         parts = []
 
@@ -238,6 +247,18 @@ You are HERE, right now. Reference your physical surroundings naturally:
 
         if self.dramatic_question:
             parts.append(f"DRAMATIC QUESTION (explore, don't resolve too quickly):\n{self.dramatic_question}")
+
+        # Scene Motivation (ADR-002: Theatrical Model)
+        # These are the director's notes internalized during rehearsal
+        if self.scene_objective or self.scene_obstacle or self.scene_tactic:
+            motivation_parts = ["SCENE MOTIVATION (internalized direction - play this subtly):"]
+            if self.scene_objective:
+                motivation_parts.append(f"What you want: {self.scene_objective}")
+            if self.scene_obstacle:
+                motivation_parts.append(f"What's stopping you: {self.scene_obstacle}")
+            if self.scene_tactic:
+                motivation_parts.append(f"How you're playing it: {self.scene_tactic}")
+            parts.append("\n".join(motivation_parts))
 
         if self.resolution_types:
             # Let LLM know valid resolution directions

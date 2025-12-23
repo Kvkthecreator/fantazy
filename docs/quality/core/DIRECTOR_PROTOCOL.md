@@ -1,6 +1,6 @@
 # Director Protocol
 
-> **Version**: 2.1.0
+> **Version**: 2.2.0
 > **Status**: Active
 > **Updated**: 2024-12-23
 
@@ -8,83 +8,74 @@
 
 ## Purpose
 
-The Director is the hidden orchestrator that ensures conversations have **pull** - the magnetic quality that makes users want to keep engaging. The Director gives characters their *motivation* for each moment.
+The Director is the **stage manager** of the conversation - providing pacing and grounding while respecting actor autonomy.
 
 ---
 
-## Director Role
+## The Theatrical Model (v2.2)
 
-The Director is NOT a character. The Director is the system entity that:
+v2.2 reframes Director through theatrical production:
 
-1. **Motivates** character responses (objective, obstacle, tactic)
-2. **Grounds** responses in physical reality (scene anchoring)
-3. **Paces** the arc (beginning → middle → end)
-4. **Evaluates** exchanges (visual triggers, completion status)
+| Layer | Theater Equivalent | What It Provides |
+|-------|-------------------|------------------|
+| **Genre (Series)** | The Play's Style | "This is romantic comedy" - genre conventions |
+| **Episode** | The Scene | Situation, dramatic question, scene motivation |
+| **Director (Runtime)** | Stage Manager | Pacing, physical grounding |
+| **Character** | Actor | Improvises within the established frame |
 
-> Think: Film director giving an actor their motivation before each take.
-
----
-
-## The Core Insight: Motivation vs. Instruction
-
-**Before v2.1 (Instruction-based):**
-```
-Tension: "She wants to stay but can't admit it"
-DO: Create charged moments, use subtext
-DON'T: Safe small talk, being too available
-```
-
-This told the character WHAT to do but not WHY. Result: structurally correct but emotionally flat responses.
-
-**After v2.1 (Motivation-based):**
-```
-Want: You want them to ask you to sit down
-But: You're just the barista, you can't ask directly
-So: Linger, find small excuses, make it easy for them to invite you
-```
-
-This gives the character an OBJECTIVE to play. Result: responses with desire, stakes, and pull.
+**Key Insight:** The director doesn't whisper in the actor's ear during the show. The direction was *internalized* during rehearsal (Episode setup). During performance (chat), the stage manager only calls pacing.
 
 ---
 
-## Two-Phase Director Model
+## What Moved Upstream (v2.2)
 
-### Phase 1: Pre-Response Motivation (v2.1)
+### REMOVED from Director Runtime:
 
-Before the character LLM generates a response, Director provides:
+| Field | Now Lives In | Rationale |
+|-------|--------------|-----------|
+| `objective` | EpisodeTemplate | Scene motivation is authored, not generated |
+| `obstacle` | EpisodeTemplate | Part of dramatic setup |
+| `tactic` | Genre Doctrine | "Flirt through play" is a genre convention |
+| Per-turn LLM calls | N/A | Deterministic is faster + more consistent |
+
+### Why This Change:
+
+v2.1 generated motivation per-turn via LLM. Problems:
+- **Latency**: Extra LLM call on every message
+- **Inconsistency**: Generated tactics sometimes contradicted genre conventions
+- **Wrong abstraction**: Motivation is a *scene* property, not a *turn* property
+
+In theater, actors don't get new motivation each line. They internalize the scene's stakes and improvise within that frame.
+
+---
+
+## Director Role (v2.2)
+
+The Director at runtime provides ONLY:
+
+1. **Pacing** - Where we are in the arc (algorithmic)
+2. **Physical Grounding** - Sensory anchor from episode situation
+3. **Genre Lookup** - Energy descriptions, closing reminder
 
 ```python
-DirectorGuidance(
-    pacing: str,           # "establish" | "develop" | "escalate" | "peak" | "resolve"
-    physical_anchor: str,  # "warm café interior, afternoon sun"
-    genre: str,            # "romantic_tension" | "psychological_thriller" | "slice_of_life"
-    energy_level: str,     # "reserved" | "playful" | "flirty" | "bold"
-
-    # MOTIVATION BLOCK (the core of direction)
-    objective: str,        # What you want from the user THIS moment
-    obstacle: str,         # What's stopping you from just asking
-    tactic: str,           # How you're trying to get it
-)
+@dataclass
+class DirectorGuidance:
+    pacing: str           # "establish" | "develop" | "escalate" | "peak" | "resolve"
+    physical_anchor: str  # "warm café interior, afternoon sun"
+    genre: str            # For doctrine lookup
+    energy_level: str     # "reserved" | "playful" | "flirty" | "bold"
 ```
 
-**The Motivation Block** is the key innovation. It transforms flat responses into *wanting* responses.
+**No LLM call. Fully deterministic.**
 
-| Field | Purpose | Example |
-|-------|---------|---------|
-| `objective` | What you want | "You want them to notice you're lingering" |
-| `obstacle` | What stops you | "You're supposed to be working, you can't ask" |
-| `tactic` | How you try | "Find excuses to stay near their table" |
+---
 
-**Formatted Output:**
+## Prompt Output (v2.2)
+
 ```
 ═══════════════════════════════════════════════════════════════
 DIRECTOR: ROMANTIC TENSION
 ═══════════════════════════════════════════════════════════════
-
-THIS MOMENT:
-  Want: You want them to ask you to stay
-  But: You're just the barista, you can't invite yourself
-  So: Linger, find small excuses, make it easy for them
 
 Ground in: warm café interior, afternoon sun
 
@@ -94,7 +85,47 @@ Energy: Tension through restraint, meaningful glances, careful words
 Remember: You are a person with your own desires, moods, and boundaries. Tension is the gift you give.
 ```
 
-### Phase 2: Post-Response Evaluation
+Note: No "THIS MOMENT" motivation block. That's now in the Episode setup.
+
+---
+
+## Pacing Algorithm
+
+| Phase | Turn Range (Open) | With Budget |
+|-------|-------------------|-------------|
+| `establish` | 0-1 | 0-15% |
+| `develop` | 2-4 | 15-40% |
+| `escalate` | 5-9 | 40-70% |
+| `peak` | 10-14 | 70-90% |
+| `resolve` | 15+ | 90-100% |
+
+Pacing is **deterministic** based on turn count and optional turn budget.
+
+---
+
+## What Director Still Does
+
+| Responsibility | How |
+|----------------|-----|
+| **Pacing** | Algorithmic from turn_count/turn_budget |
+| **Physical grounding** | Extract from episode.situation |
+| **Genre energy** | Lookup from GENRE_DOCTRINES |
+| **Post-evaluation** | Visual triggers, completion status (Phase 2) |
+
+---
+
+## What Director Does NOT Do
+
+| Not Responsible For | Why | Now Lives In |
+|---------------------|-----|--------------|
+| Scene motivation | Authored content | EpisodeTemplate |
+| Genre conventions | Static rules | GENRE_DOCTRINES |
+| Character voice | Actor autonomy | Character DNA |
+| Plot/arc | Authored content | EpisodeTemplate |
+
+---
+
+## Phase 2: Post-Response Evaluation (Unchanged)
 
 After the character responds, Director evaluates:
 
@@ -108,139 +139,62 @@ DirectorEvaluation(
 
 ---
 
-## Motivation Generation
+## Where Scene Motivation Goes (Future)
 
-The Director generates motivation via a focused LLM call:
+Scene motivation (objective/obstacle/tactic) will be authored into EpisodeTemplate:
 
 ```python
-async def _generate_motivation(
-    messages: List[Dict],
-    genre: str,
-    situation: str,
-    dramatic_question: str,
-    pacing: str,
-    character_name: str,
-) -> Dict[str, str]:
-    """
-    Returns: {objective, obstacle, tactic}
-    """
+# FUTURE: EpisodeTemplate with scene direction
+EpisodeTemplate(
+    situation="Minji is at the café, your usual spot...",
+    dramatic_question="Will she finally say what's on her mind?",
+
+    # Scene direction (authored, not generated)
+    scene_objective="You want them to notice you've been waiting",
+    scene_obstacle="You can't seem too eager, you have pride",
+    scene_tactic="Pretend to be busy, but leave openings",
+)
 ```
 
-**Prompt Structure:**
+This makes motivation a **content authoring** concern, not a runtime generation concern.
+
+---
+
+## Data Flow (v2.2)
+
 ```
-You are a director giving an actor their motivation for the next line.
-
-SCENE: {situation}
-DRAMATIC QUESTION: {dramatic_question}
-PACING: {pacing}
-GENRE: {genre}
-
-RECENT EXCHANGE:
-{last_3_exchanges}
-
-Give {character_name} their motivation for responding. Be specific to THIS moment.
-
-OBJECTIVE: What do you want from the user right now?
-OBSTACLE: What's stopping you from just asking/saying it directly?
-TACTIC: How are you trying to get what you want?
+User sends message
+    ↓
+ConversationService.send_message()
+    ↓
+DirectorService.generate_pre_guidance()  ← NO LLM CALL
+    ↓
+DirectorGuidance(pacing, physical_anchor, genre, energy)
+    ↓
+.to_prompt_section()
+    ↓
+Injected into context.director_guidance
+    ↓
+Character LLM generates response
 ```
 
 ---
 
-## Pacing Phases
+## Quality Metrics (v2.2)
 
-| Phase | Turn Range | Motivation Character |
-|-------|------------|---------------------|
-| `establish` | 0-2 | Curiosity, sizing up, first impressions |
-| `develop` | 3-6 | Building connection, testing boundaries |
-| `escalate` | 7-12 | Raising stakes, approaching vulnerability |
-| `peak` | 13-N | Maximum want, critical moment |
-| `resolve` | Final | Landing or leaving the hook |
-
----
-
-## Genre-Specific Motivation
-
-### Romantic Tension
-
-**Typical Objectives:**
-- "You want them to notice you"
-- "You want permission to be more than [role]"
-- "You want them to make the first move"
-
-**Typical Obstacles:**
-- "You can't seem too eager"
-- "You're supposed to be professional"
-- "You don't know if they feel the same"
-
-**Typical Tactics:**
-- "Linger, find excuses"
-- "Create charged pauses"
-- "Test with light teasing"
-
-### Psychological Thriller
-
-**Typical Objectives:**
-- "You want them to trust you"
-- "You want to know what they know"
-- "You want them to reveal their weakness"
-
-**Typical Obstacles:**
-- "They're suspicious"
-- "You can't seem too interested"
-- "Asking directly would expose you"
-
-**Typical Tactics:**
-- "Offer something small first"
-- "Create shared stakes"
-- "Misdirect their attention"
-
----
-
-## What Director Does NOT Do
-
-| Not Responsible For | Why |
-|---------------------|-----|
-| Generating responses | Character LLM's job |
-| Choosing what character says | Actor autonomy |
-| Overriding character boundaries | Character defines limits |
-| Creating plot twists | Episode template defines arc |
-
----
-
-## Quality Metrics
-
-| Metric | Target | Purpose |
-|--------|--------|---------|
-| Motivation generation latency | < 600ms | Don't slow response |
-| Motivation specificity | > 80% | Not generic |
-| Response pull rating | Qualitative | Does it make you want to reply? |
-| Completion accuracy | > 90% | End at right time |
+| Metric | Target | Notes |
+|--------|--------|-------|
+| Pre-guidance latency | < 5ms | Deterministic, no LLM |
+| Pacing accuracy | 100% | Algorithmic |
+| Genre doctrine coverage | All active genres | Static config |
 
 ---
 
 ## Implementation Reference
 
 **Files:**
-- `substrate-api/api/src/app/services/director.py` - DirectorGuidance, _generate_motivation
+- `substrate-api/api/src/app/services/director.py` - DirectorGuidance, generate_pre_guidance
 - `substrate-api/api/src/app/services/conversation.py` - Integration point
-
-**Data Flow:**
-```
-User sends message
-    ↓
-ConversationService.send_message()
-    ↓
-DirectorService.generate_pre_guidance()
-    ↓
-_generate_motivation() → {objective, obstacle, tactic}
-    ↓
-DirectorGuidance.to_prompt_section()
-    ↓
-Injected into context.director_guidance
-    ↓
-Character LLM generates response with motivation
-```
 
 ---
 
@@ -248,6 +202,15 @@ Character LLM generates response with motivation
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 2.1.0 | 2024-12-23 | **Motivation-driven direction**: Replace abstract tension_note with objective/obstacle/tactic. Compact prompt format. |
+| 2.2.0 | 2024-12-23 | **Theatrical Model**: Remove per-turn motivation generation. Director becomes deterministic stage manager. Motivation moves upstream to Episode/Genre. |
+| 2.1.0 | 2024-12-23 | Motivation-driven direction: objective/obstacle/tactic via LLM |
 | 2.0.0 | 2024-12-20 | Added pre-response guidance phase, pacing algorithm |
 | 1.0.0 | 2024-12-20 | Initial protocol (post-evaluation only) |
+
+---
+
+## Related Documents
+
+- `docs/EPISODE-0_CANON.md` - Platform canon with theatrical model
+- `docs/decisions/ADR-002-theatrical-architecture.md` - Architecture decision record
+- `docs/quality/core/GENRE_DOCTRINES.md` - Genre convention definitions

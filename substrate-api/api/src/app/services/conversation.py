@@ -220,15 +220,14 @@ class ConversationService:
                 char_boundaries = context.character_boundaries or {}
                 energy_level = char_boundaries.get("flirting_level", "playful")
 
-                guidance = await self.director_service.generate_pre_guidance(
-                    messages=context.messages,
+                # Director Protocol v2.2: Deterministic, no LLM call
+                # Motivation (objective/obstacle/tactic) now comes from Episode upstream
+                guidance = self.director_service.generate_pre_guidance(
                     genre=getattr(episode_template, 'genre', 'romantic_tension'),
                     situation=episode_template.situation or "",
-                    dramatic_question=episode_template.dramatic_question or "",
                     turn_count=episode.turn_count,
                     turn_budget=getattr(episode_template, 'turn_budget', None),
                     energy_level=energy_level,
-                    character_name=context.character_name,
                 )
                 # Inject guidance into context (includes genre doctrine)
                 context.director_guidance = guidance.to_prompt_section()
@@ -512,6 +511,10 @@ class ConversationService:
         dramatic_question = None
         resolution_types = ["positive", "neutral", "negative"]
         series_context = None
+        # Scene motivation (ADR-002: Theatrical Model)
+        scene_objective = None
+        scene_obstacle = None
+        scene_tactic = None
 
         if episode_id:
             # Get episode_template_id and scene from the session
@@ -525,8 +528,10 @@ class ConversationService:
             if session_row and session_row["episode_template_id"]:
                 template_id = session_row["episode_template_id"]
                 # Fetch episode dynamics from template (situation is the primary physical grounding)
+                # ADR-002: Now includes scene motivation fields
                 template_query = """
-                    SELECT situation, episode_frame, dramatic_question, resolution_types, series_id
+                    SELECT situation, episode_frame, dramatic_question, resolution_types, series_id,
+                           scene_objective, scene_obstacle, scene_tactic
                     FROM episode_templates
                     WHERE id = :template_id
                 """
@@ -541,6 +546,11 @@ class ConversationService:
                     resolution_types_raw = template_row["resolution_types"]
                     if resolution_types_raw:
                         resolution_types = list(resolution_types_raw) if not isinstance(resolution_types_raw, str) else resolution_types
+
+                    # Scene motivation (ADR-002: Theatrical Model)
+                    scene_objective = template_row["scene_objective"]
+                    scene_obstacle = template_row["scene_obstacle"]
+                    scene_tactic = template_row["scene_tactic"]
 
                     # If part of a series, get series context from previous episodes
                     if template_row["series_id"]:
@@ -567,6 +577,10 @@ class ConversationService:
             dramatic_question=dramatic_question,
             resolution_types=resolution_types,
             series_context=series_context,
+            # Scene motivation (ADR-002: Theatrical Model)
+            scene_objective=scene_objective,
+            scene_obstacle=scene_obstacle,
+            scene_tactic=scene_tactic,
             # Character boundaries (ADR-001: needed by Director for energy_level)
             character_boundaries=character.boundaries,
             # Series genre settings (per GENRE_SETTINGS_ARCHITECTURE)

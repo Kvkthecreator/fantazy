@@ -53,6 +53,11 @@ class EpisodeTemplate(BaseModel):
     It contains the situation, opening line, dramatic question, and beats.
 
     When a user plays an episode, a Session is created from this template.
+
+    ADR-002: Theatrical Model
+    Scene motivation (objective/obstacle/tactic) is now authored here,
+    not generated per-turn by Director. The actor (character LLM) internalizes
+    these during "rehearsal" (context building) and improvises within the frame.
     """
     id: UUID
 
@@ -79,6 +84,12 @@ class EpisodeTemplate(BaseModel):
     resolution_types: List[str] = Field(
         default_factory=lambda: ["positive", "neutral", "negative"]
     )
+
+    # Scene motivation (ADR-002: Theatrical Model)
+    # These are the "director's notes" given during rehearsal, not generated per-turn
+    scene_objective: Optional[str] = None  # What character wants from user this scene
+    scene_obstacle: Optional[str] = None   # What's stopping them from just asking
+    scene_tactic: Optional[str] = None     # How they're trying to get what they want
 
     # Director configuration
     genre: str = "romance"  # Story genre for semantic evaluation context
@@ -142,6 +153,11 @@ class EpisodeTemplateCreate(BaseModel):
         default_factory=lambda: ["positive", "neutral", "negative"]
     )
 
+    # Scene motivation (ADR-002: Theatrical Model)
+    scene_objective: Optional[str] = None
+    scene_obstacle: Optional[str] = None
+    scene_tactic: Optional[str] = None
+
     # Director configuration
     genre: str = "romance"
     turn_budget: Optional[int] = None
@@ -168,6 +184,11 @@ class EpisodeTemplateUpdate(BaseModel):
     episode_frame: Optional[str] = None
     dramatic_question: Optional[str] = None
     resolution_types: Optional[List[str]] = None
+
+    # Scene motivation (ADR-002: Theatrical Model)
+    scene_objective: Optional[str] = None
+    scene_obstacle: Optional[str] = None
+    scene_tactic: Optional[str] = None
 
     # Director configuration
     genre: Optional[str] = None

@@ -158,36 +158,37 @@ GENRE_BEATS = {
 class DirectorGuidance:
     """Pre-response guidance for character LLM.
 
-    This is injected into context BEFORE the character generates a response.
-    The core of direction is the MOTIVATION BLOCK - what the character wants,
-    what's stopping them, and how they're trying to get it.
+    Director Protocol v2.2: Theatrical Model
 
-    ADR-001: Genre doctrine is now injected here by Director, not baked into
-    character system_prompt. This allows the same character to work in
-    different genre contexts (romance, thriller, slice-of-life).
+    The Director at runtime provides ONLY:
+    - pacing: Where we are in the arc (establish → develop → escalate → peak → resolve)
+    - physical_anchor: Sensory grounding for the scene
+    - genre: For doctrine lookup (energy descriptions, genre conventions)
+    - energy_level: Character's energy for this scene
 
-    Director Protocol v2.1: Motivation-Driven Direction
-    - objective: What you want from the user THIS moment
-    - obstacle: What's stopping you from just asking/doing it
-    - tactic: How you're trying to get what you want
+    REMOVED in v2.2 (moved upstream to Episode/Genre):
+    - objective/obstacle/tactic: Now authored into EpisodeTemplate
+    - Per-turn motivation generation: Genre doctrine provides conventions
+
+    Theatrical Analogy:
+    - Genre (Series) = The Play's style ("This is romantic comedy")
+    - Episode = The Scene ("The moment before the first kiss")
+    - Director at runtime = Stage manager ("We're in the DEVELOP phase")
+    - Character = Actor (improvises within the established frame)
+
+    The actor doesn't need line-by-line motivation if the scene setup is strong.
     """
     pacing: str = "develop"  # establish/develop/escalate/peak/resolve
     physical_anchor: Optional[str] = None  # Sensory grounding
     genre: str = "romantic_tension"  # Genre for doctrine lookup
     energy_level: str = "playful"  # Character's energy level
 
-    # Motivation Block (the core of direction)
-    objective: Optional[str] = None  # What you want from user
-    obstacle: Optional[str] = None   # What's stopping you
-    tactic: Optional[str] = None     # How you're trying to get it
-
     def to_prompt_section(self) -> str:
         """Format as prompt section for character LLM.
 
-        Structure (in priority order):
-        1. MOTIVATION BLOCK - the actable direction (objective/obstacle/tactic)
-        2. SCENE - physical grounding
-        3. GENRE ENERGY - how to express within this genre
+        Director Protocol v2.2: Minimal runtime direction.
+        Genre conventions and scene motivation come from upstream (Episode/Genre).
+        Director only provides pacing and physical grounding.
         """
         doctrine = GENRE_DOCTRINES.get(self.genre, GENRE_DOCTRINES["romantic_tension"])
 
@@ -197,23 +198,12 @@ class DirectorGuidance:
             "═══════════════════════════════════════════════════════════════",
         ]
 
-        # MOTIVATION BLOCK - The core direction (if generated)
-        if self.objective or self.obstacle or self.tactic:
-            lines.append("")
-            lines.append("THIS MOMENT:")
-            if self.objective:
-                lines.append(f"  Want: {self.objective}")
-            if self.obstacle:
-                lines.append(f"  But: {self.obstacle}")
-            if self.tactic:
-                lines.append(f"  So: {self.tactic}")
-
         # SCENE - Physical grounding
         if self.physical_anchor:
             lines.append("")
             lines.append(f"Ground in: {self.physical_anchor}")
 
-        # PACING + ENERGY - Genre-appropriate expression
+        # PACING + ENERGY
         lines.append("")
         lines.append(f"Pacing: {self.pacing.upper()}")
 
@@ -224,7 +214,7 @@ class DirectorGuidance:
         if energy_desc:
             lines.append(f"Energy: {energy_desc}")
 
-        # Condensed doctrine reminder
+        # Genre reminder (conventions internalized from rehearsal)
         lines.append("")
         lines.append(f"Remember: {doctrine['closing']}")
 
@@ -331,27 +321,29 @@ class DirectorService:
             else:
                 return "resolve"
 
-    async def generate_pre_guidance(
+    def generate_pre_guidance(
         self,
-        messages: List[Dict[str, str]],
         genre: str,
         situation: str,
-        dramatic_question: str,
         turn_count: int,
         turn_budget: Optional[int] = None,
         energy_level: str = "playful",
-        character_name: Optional[str] = None,
     ) -> DirectorGuidance:
         """Generate pre-response guidance for character LLM.
 
-        Director Protocol v2.1: Motivation-Driven Direction
+        Director Protocol v2.2: Theatrical Model
 
-        The core output is the MOTIVATION BLOCK:
-        - objective: What you want from user THIS moment
-        - obstacle: What's stopping you from just asking
-        - tactic: How you're trying to get it
+        Director at runtime provides ONLY deterministic outputs:
+        - pacing: Algorithmic based on turn_count/turn_budget
+        - physical_anchor: Extracted from episode situation
+        - genre: For doctrine lookup
+        - energy_level: Passed through from episode/character
 
-        This replaces abstract doctrine with actable direction.
+        NO LLM calls. Scene motivation (objective/obstacle/tactic) is now
+        authored into EpisodeTemplate upstream, not generated per-turn.
+
+        Theatrical Analogy: The director gave notes during rehearsal (Episode setup).
+        During the performance (chat), the stage manager just calls pacing.
         """
         # 1. Determine pacing algorithmically
         pacing = self.determine_pacing(turn_count, turn_budget)
@@ -364,106 +356,12 @@ class DirectorService:
         if situation:
             physical_anchor = situation.split(".")[0].strip()[:100]
 
-        # 4. Generate motivation block via LLM
-        motivation = await self._generate_motivation(
-            messages=messages,
-            genre=genre_key,
-            situation=situation,
-            dramatic_question=dramatic_question,
-            pacing=pacing,
-            character_name=character_name,
-        )
-
         return DirectorGuidance(
             pacing=pacing,
             physical_anchor=physical_anchor,
             genre=genre_key,
             energy_level=energy_level,
-            objective=motivation.get("objective"),
-            obstacle=motivation.get("obstacle"),
-            tactic=motivation.get("tactic"),
         )
-
-    async def _generate_motivation(
-        self,
-        messages: List[Dict[str, str]],
-        genre: str,
-        situation: str,
-        dramatic_question: str,
-        pacing: str,
-        character_name: Optional[str] = None,
-    ) -> Dict[str, Optional[str]]:
-        """Generate the motivation block for character direction.
-
-        Returns objective/obstacle/tactic - the actable core of direction.
-        This is what transforms flat responses into wanting responses.
-        """
-        # Use last 2-3 exchanges for context
-        recent = messages[-6:] if len(messages) > 6 else messages
-        formatted = "\n".join(
-            f"{m['role'].upper()}: {m['content'][:150]}"
-            for m in recent
-        )
-
-        char_label = character_name or "Character"
-
-        prompt = f"""You are a director giving an actor their motivation for the next line.
-
-SCENE: {situation or 'An intimate moment'}
-DRAMATIC QUESTION: {dramatic_question or 'What happens next between you two?'}
-PACING: {pacing.upper()}
-GENRE: {genre.replace('_', ' ')}
-
-RECENT EXCHANGE:
-{formatted}
-
-Give {char_label} their motivation for responding. Be specific to THIS moment.
-
-OBJECTIVE: What do you want from the user right now? (one clear sentence)
-OBSTACLE: What's stopping you from just asking/saying it directly? (one clear sentence)
-TACTIC: How are you trying to get what you want? (one clear sentence)
-
-Examples for romantic_tension:
-OBJECTIVE: You want them to ask you to stay
-OBSTACLE: You're supposed to be working, you can't ask
-TACTIC: Linger, find small excuses, make it easy for them to invite you
-
-Examples for psychological_thriller:
-OBJECTIVE: You want them to trust you enough to reveal what they know
-OBSTACLE: They're suspicious and you can't seem too eager
-TACTIC: Offer something small first, create a sense of shared stakes
-
-Respond in this exact format:
-OBJECTIVE: [your direction]
-OBSTACLE: [your direction]
-TACTIC: [your direction]"""
-
-        try:
-            response = await self.llm.generate(
-                [{"role": "user", "content": prompt}],
-                max_tokens=150,
-                temperature=0.7,
-            )
-            return self._parse_motivation(response.content)
-        except Exception as e:
-            log.warning(f"Motivation generation failed: {e}")
-            return {"objective": None, "obstacle": None, "tactic": None}
-
-    def _parse_motivation(self, response: str) -> Dict[str, Optional[str]]:
-        """Parse LLM response into objective/obstacle/tactic."""
-        result = {"objective": None, "obstacle": None, "tactic": None}
-
-        for key in ["objective", "obstacle", "tactic"]:
-            pattern = rf'{key.upper()}:\s*(.+?)(?:\n|$)'
-            match = re.search(pattern, response, re.IGNORECASE)
-            if match:
-                value = match.group(1).strip()
-                # Clean up common artifacts
-                value = value.strip('"\'')
-                if value and len(value) > 5:
-                    result[key] = value[:200]  # Cap length
-
-        return result
 
     # =========================================================================
     # PHASE 2: POST-EVALUATION (after character response)

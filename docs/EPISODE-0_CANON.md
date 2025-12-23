@@ -172,18 +172,62 @@ Genre doctrine is now injected by Director at runtime, not baked into character 
 
 ---
 
-## 8. The Director Protocol v2.0
+## 8. The Theatrical Model (ADR-002)
 
-The Director is the "brain, eyes, ears, and hands" of the conversation system:
+Episode-0 adopts a **theatrical production model** for conversation architecture:
 
-### Phase 1: Pre-Guidance (before character responds)
+| Layer | Theater Equivalent | What It Provides |
+|-------|-------------------|------------------|
+| **Genre (Series)** | The Play's Style | "This is romantic comedy" - genre conventions |
+| **Episode** | The Scene | Situation, dramatic question, scene motivation |
+| **Director (Runtime)** | Stage Manager | Pacing, physical grounding |
+| **Character** | Actor | Improvises within the established frame |
+| **User** | Improv Partner | Untrained participant who can say anything |
 
-- **Pacing**: establish → develop → escalate → peak → resolve
-- **Tension Note**: contextual direction for the actor
-- **Physical Anchor**: ground in sensory reality
-- **Genre Beat**: what this phase means for this genre
+### The Key Insight
 
-### Phase 2: Post-Evaluation (after character responds)
+In theater, the director doesn't whisper in the actor's ear during the show. The direction was **internalized during rehearsal**.
+
+Applied to Episode-0:
+- **Rehearsal** = Episode template authoring (situation, dramatic question, motivation)
+- **Performance** = The chat (character improvises with user)
+- **Stage Manager** = Director at runtime (just pacing + grounding)
+
+### The User as Improv Partner
+
+Episode-0 is like **improv theater with a trained partner**:
+- The character (trained actor) knows the genre, the scene, the stakes
+- The user (untrained participant) can say anything
+- The magic is when the trained actor *makes the untrained participant look good*
+
+---
+
+## 9. Director Protocol v2.2
+
+The Director is now a **stage manager**, not a line-by-line director.
+
+### What Director Provides at Runtime
+
+```python
+DirectorGuidance(
+    pacing: str,           # "establish" | "develop" | "escalate" | "peak" | "resolve"
+    physical_anchor: str,  # "warm café interior, afternoon sun"
+    genre: str,            # For doctrine lookup
+    energy_level: str,     # "reserved" | "playful" | "flirty" | "bold"
+)
+```
+
+**No LLM call. Fully deterministic.**
+
+### What Moved Upstream
+
+| Field | Now Lives In | Rationale |
+|-------|--------------|-----------|
+| `objective` | EpisodeTemplate | Scene motivation is authored, not generated |
+| `obstacle` | EpisodeTemplate | Part of dramatic setup |
+| `tactic` | Genre Doctrine | "Flirt through play" is a genre convention |
+
+### Phase 2: Post-Evaluation (Unchanged)
 
 - **Visual Detection**: should we generate an image?
 - **Completion Status**: is this episode ready to close?
@@ -191,135 +235,84 @@ The Director is the "brain, eyes, ears, and hands" of the conversation system:
 
 ---
 
-## 9. Quality Gap Analysis (2024-12-23)
+## 10. Scene Motivation in Episodes
 
-### What's Working
-
-| Aspect | Evidence |
-|--------|----------|
-| Physical Grounding | "*She sets down your coffee but doesn't move. Her fingers are fidgeting.*" |
-| Character Voice | Minji's ellipsis usage, hesitation, shyness match baseline_personality |
-| Genre Separation | ADR-001 cleanly separates character identity from genre doctrine |
-| Micro-Action Pattern | Responses lead with sensory beats before dialogue |
-
-### The Core Problem: FLATNESS
-
-**Structural correctness ≠ Emotional pull**
-
-The architecture is sound, but conversations lack:
-
-- **Magnetic tension** — the feeling that you WANT to keep talking
-- **Stakes** — something must be won or lost in THIS moment
-- **Subtext** — what's NOT being said matters more than what is
-- **Character agency** — the character wants something FROM the user
-
-### Root Cause Hypothesis
-
-The system provides **data** but not **desire**.
-
-Current prompt structure:
-```
-[Character DNA] — who I am
-[Relationship Context] — how long we've known each other
-[Episode Dynamics] — where we are, what's happening
-[Director Guidance] — pacing phase, tension note
-```
-
-What's missing:
-```
-[Character Want] — what I want from YOU, right now, in this moment
-[Stakes] — what happens if I don't get it
-[Subtext] — what I'm afraid to say directly
-```
-
-The Director provides pacing guidance but not **character motivation**.
-
----
-
-## 10. The Missing Layer: Character Want
-
-### The Netflix Analogy
-
-When you watch a great show, every scene has:
-1. **What the character says** (dialogue)
-2. **What the character does** (action)
-3. **What the character WANTS** (motivation)
-4. **What's at stake** (consequences)
-5. **What they can't say** (subtext)
-
-Episode-0 currently delivers 1 and 2 well. 3, 4, and 5 are implicit or absent.
-
-### Proposed Enhancement: Want/Stakes/Subtext Injection
-
-Director pre-guidance should include per-exchange motivation:
-
-```
-DIRECTOR NOTE: ROMANTIC TENSION
-
-Pacing: DEVELOP
-Ground in: warm café interior, afternoon sun
-
-YOUR WANT (this moment):
-You want them to notice you're lingering. You want them to give you a reason to stay.
-If they don't, you'll have to leave—and you don't want to.
-
-WHAT YOU CAN'T SAY:
-You've memorized their order. You noticed when they changed laptops.
-You can't say any of this out loud. Not yet.
-
-STAKES:
-If this goes well, you might actually talk like real people.
-If this goes badly, you're just the barista again.
-```
-
-This transforms the character from **reactive** to **wanting**.
-
----
-
-## 11. Architectural Recommendations
-
-### Priority 1: Enhance Director Pre-Guidance
-
-Add `character_want`, `stakes`, and `subtext` fields to `DirectorGuidance`:
+Scene motivation (objective/obstacle/tactic) is now a **content authoring** concern:
 
 ```python
-@dataclass
-class DirectorGuidance:
-    pacing: str = "develop"
-    tension_note: Optional[str] = None
-    physical_anchor: Optional[str] = None
-    genre_beat: Optional[str] = None
-    genre: str = "romantic_tension"
-    energy_level: str = "playful"
-    # NEW: Motivation layer
-    character_want: Optional[str] = None  # What they want from user THIS moment
-    stakes: Optional[str] = None          # What happens if they don't get it
-    subtext: Optional[str] = None         # What they can't say directly
+# EpisodeTemplate with scene direction
+EpisodeTemplate(
+    situation="Minji is at the café, your usual spot...",
+    dramatic_question="Will she finally say what's on her mind?",
+
+    # Scene direction (authored by content creator)
+    scene_objective="You want them to notice you've been waiting",
+    scene_obstacle="You can't seem too eager, you have pride",
+    scene_tactic="Pretend to be busy, but leave openings",
+)
 ```
 
-### Priority 2: Make Want Generation Contextual
+### Why This Works
 
-Director should generate `character_want` based on:
-- Episode situation (what's physically happening)
-- Dramatic question (what's unresolved)
-- Conversation state (what just happened)
-- Character boundaries (how bold they can be)
+| Approach | Problem |
+|----------|---------|
+| Generate motivation per-turn | Latency, inconsistency, wrong abstraction |
+| Author motivation per-scene | Consistent, fast, content-driven |
 
-### Priority 3: Reduce Prompt Verbosity
+In theater, actors don't get new motivation each line. They internalize the scene's stakes and improvise within that frame.
 
-Current prompt has ~15 section headers. Consolidate to 4:
+### Genre Conventions (Static)
 
-1. **IDENTITY** — who you are (character DNA)
-2. **SCENE** — where you are (physical grounding + situation)
-3. **DIRECTOR** — how to play this moment (pacing + want + stakes + subtext)
-4. **MEMORY** — what you know about them
+Genre doctrine defines HOW to execute tactics:
 
-### Priority 4: Test the Pull
+| Genre | Convention |
+|-------|------------|
+| Romantic Tension | Flirt through play, not confession. Withhold > reveal. |
+| Psychological Thriller | Build trust slowly. Offer small things first. |
+| Slice of Life | Comfort in mundane. Presence > drama. |
 
-After implementing Want/Stakes/Subtext:
-- A/B test conversation length
-- Measure re-engagement within 24h
-- Qualitative review: does it feel different?
+These are **static rules** in `GENRE_DOCTRINES`, not generated per-turn.
+
+---
+
+## 11. Architecture Summary
+
+### The 6-Layer Context (Updated)
+
+| Layer | Owner | Responsibility |
+|-------|-------|----------------|
+| **1. Character** | Character DNA | WHO: personality, voice, boundaries |
+| **2. Episode** | EpisodeTemplate | SCENE: situation, dramatic question, motivation |
+| **3. Genre** | Series/Episode | STYLE: genre conventions, tactics |
+| **4. Engagement** | Engagement record | HISTORY: total episodes, time since meeting |
+| **5. Memory** | MemoryService | WHAT WE KNOW: extracted facts, preferences |
+| **6. Director** | DirectorService | PACING: where we are in the arc |
+
+### Data Flow (v2.2)
+
+```
+User sends message
+    ↓
+ConversationService.send_message()
+    ↓
+DirectorService.generate_pre_guidance()  ← NO LLM CALL
+    ↓
+DirectorGuidance(pacing, physical_anchor, genre, energy)
+    ↓
+.to_prompt_section()
+    ↓
+Injected into context.director_guidance
+    ↓
+Character LLM generates response
+    ↓
+DirectorService.evaluate_exchange()  ← LLM CALL (post only)
+```
+
+### What's Next
+
+1. **Add scene motivation fields to EpisodeTemplate** (objective/obstacle/tactic)
+2. **Enhance GENRE_DOCTRINES** with tactical conventions per genre
+3. **Test the pull** with authored motivation vs. generated
 
 ---
 
@@ -384,4 +377,5 @@ This is the difference between:
 - `docs/character-philosophy/Genre 01 — Romantic Tension.md` — Romance studio doctrine
 - `docs/character-philosophy/Genre 02 — Psychological Thriller- Suspense.md` — Thriller studio doctrine
 - `docs/decisions/ADR-001-genre-architecture.md` — Genre belongs to Story, not Character
-- `docs/quality/core/DIRECTOR_PROTOCOL.md` — Director two-phase model
+- `docs/decisions/ADR-002-theatrical-architecture.md` — Theatrical production model
+- `docs/quality/core/DIRECTOR_PROTOCOL.md` — Director Protocol v2.2 (stage manager model)
