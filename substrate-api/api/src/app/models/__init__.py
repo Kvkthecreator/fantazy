@@ -49,7 +49,6 @@ from app.models.memory import (
     MemoryEvent,
     MemoryEventCreate,
     MemoryType,
-    MemoryQuery,
 )
 from app.models.hook import (
     Hook,
