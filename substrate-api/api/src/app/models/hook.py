@@ -9,13 +9,16 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class HookType(str, Enum):
-    """Types of conversation hooks."""
+    """Types of conversation hooks.
+
+    These 4 types are extracted by HOOK_EXTRACTION_PROMPT in memory.py.
+    """
 
     REMINDER = "reminder"  # Check in about something
     FOLLOW_UP = "follow_up"  # Follow up on mentioned event
     MILESTONE = "milestone"  # Relationship milestone
     SCHEDULED = "scheduled"  # Scheduled check-in
-    ANNIVERSARY = "anniversary"  # Remember special dates
+    # NOTE: ANNIVERSARY type removed - was never extracted (not in LLM prompt)
 
 
 class HookCreate(BaseModel):
@@ -25,7 +28,7 @@ class HookCreate(BaseModel):
     episode_id: Optional[UUID] = None
     type: HookType
     content: str
-    context: Optional[str] = None
+    # NOTE: context field removed - was never populated during extraction
     suggested_opener: Optional[str] = None
     trigger_after: Optional[datetime] = None
     trigger_before: Optional[datetime] = None
@@ -46,7 +49,7 @@ class Hook(BaseModel):
 
     # Content
     content: str
-    context: Optional[str] = None
+    # NOTE: context field removed - was never populated during extraction
     suggested_opener: Optional[str] = None
 
     # Scheduling

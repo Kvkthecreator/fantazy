@@ -70,6 +70,10 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 - **Character Model**: `relationship_stage_thresholds` field (never read)
 - **Prompt Templates**: `Relationship: {relationship_stage}` from scene prompts
 - **Create Wizard**: `can_reject_user` toggle (was never used)
+- **Memory Model**: `MemoryType.META` (never extracted or formatted)
+- **Memory Model**: `MemoryQuery` class (never used - retrieval done in service)
+- **Hook Model**: `HookType.ANNIVERSARY` (never extracted - not in LLM prompt)
+- **Hook Model**: `context` field on Hook and HookCreate (never populated)
 
 ### Migration
 - Database migration `042_drop_sunset_engagement_columns.sql` drops stage progression fields

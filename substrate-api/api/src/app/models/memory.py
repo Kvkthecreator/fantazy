@@ -9,7 +9,11 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class MemoryType(str, Enum):
-    """Types of memory events."""
+    """Types of memory events.
+
+    These 6 types are extracted by MEMORY_EXTRACTION_PROMPT and
+    formatted into grouped sections by _format_memories_by_type().
+    """
 
     FACT = "fact"  # User's name is Alex
     PREFERENCE = "preference"  # Likes oat milk
@@ -17,7 +21,7 @@ class MemoryType(str, Enum):
     GOAL = "goal"  # Wants to learn guitar
     RELATIONSHIP = "relationship"  # Has sister named Emma
     EMOTION = "emotion"  # Feeling stressed about work
-    META = "meta"  # Meta info about the relationship
+    # NOTE: META type removed - was never extracted or formatted
 
 
 class MemoryEventCreate(BaseModel):
@@ -83,14 +87,8 @@ class MemoryEvent(BaseModel):
         from_attributes = True
 
 
-class MemoryQuery(BaseModel):
-    """Query parameters for memory retrieval."""
-
-    character_id: Optional[UUID] = None
-    types: Optional[List[MemoryType]] = None
-    min_importance: float = 0.0
-    limit: int = Field(10, ge=1, le=50)
-    include_global: bool = True
+# NOTE: MemoryQuery model removed - was never used
+# Memory retrieval is done directly in MemoryService.get_relevant_memories()
 
 
 class ExtractedMemory(BaseModel):
