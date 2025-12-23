@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.deps import get_db
 from app.dependencies import get_current_user_id
-from app.models.memory import MemoryEvent, MemoryEventCreate, MemoryType, MemoryQuery
+from app.models.memory import MemoryEvent, MemoryEventCreate, MemoryType
 
 router = APIRouter(prefix="/memory", tags=["Memory"])
 
