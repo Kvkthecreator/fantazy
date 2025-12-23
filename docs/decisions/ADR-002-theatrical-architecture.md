@@ -87,9 +87,10 @@ guidance = director.generate_pre_guidance(
 # Returns: DirectorGuidance with pacing/grounding only
 ```
 
-### Future: EpisodeTemplate with Scene Motivation
+### EpisodeTemplate with Scene Motivation (Implemented)
 
 ```python
+# IMPLEMENTED - migration 045_scene_motivation_fields.sql
 EpisodeTemplate(
     situation="Minji is at the café, your usual spot...",
     dramatic_question="Will she finally say what's on her mind?",
@@ -100,6 +101,12 @@ EpisodeTemplate(
     scene_tactic="Pretend to be busy, but leave openings",
 )
 ```
+
+**Implementation Status**: ✅ Fully implemented
+- **Database**: `scene_objective`, `scene_obstacle`, `scene_tactic` columns in `episode_templates`
+- **Backend**: Studio + public episode template endpoints support CRUD
+- **Frontend**: Studio series page has Scene Motivation section in episode editor
+- **Runtime**: `ConversationContext.build_episode_dynamics()` injects motivation into character prompt
 
 ---
 

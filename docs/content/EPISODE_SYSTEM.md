@@ -86,10 +86,15 @@ EPISODE TEMPLATE
    ├── opening_line: Character's first message
    └── background_image_url: Visual context
 
-4. RESOLUTION SPACE
+4. SCENE MOTIVATION (ADR-002 Theatrical Model)
+   ├── scene_objective: What character wants from user
+   ├── scene_obstacle: What's stopping them
+   └── scene_tactic: How they're playing it
+
+5. RESOLUTION SPACE
    └── resolution_types: [positive, neutral, negative, surprise]
 
-5. DIRECTOR SIGNALS
+6. DIRECTOR SIGNALS
    ├── auto_scene_mode: off | peaks | rhythmic
    ├── scene_interval: N (if rhythmic)
    └── spark_cost_per_scene: int
@@ -371,6 +376,9 @@ Sessions are scoped by: `(user_id, series_id, episode_template_id)`
 | `situation` | text | Physical setting (CRITICAL) |
 | `episode_frame` | text | Stage direction |
 | `dramatic_question` | text | Tension to explore |
+| `scene_objective` | text | What character wants (ADR-002) |
+| `scene_obstacle` | text | What's stopping them (ADR-002) |
+| `scene_tactic` | text | How they're playing it (ADR-002) |
 | `resolution_types` | text[] | Valid endings |
 | `auto_scene_mode` | enum | off, peaks, rhythmic |
 | `scene_interval` | int | Turns between scenes (rhythmic) |

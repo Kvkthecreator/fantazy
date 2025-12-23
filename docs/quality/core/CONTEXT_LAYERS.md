@@ -76,6 +76,9 @@ This document defines the 6-layer context architecture that composes every chara
 | **Situation** | Physical grounding | CRITICAL |
 | Episode Frame | Stage direction | High |
 | Dramatic Question | Core tension | High |
+| **Scene Objective** | What character wants (ADR-002) | High |
+| **Scene Obstacle** | What's stopping them (ADR-002) | High |
+| **Scene Tactic** | How they're playing it (ADR-002) | High |
 | Genre | Doctrine selection | High |
 | Resolution Types | Valid endings | Medium |
 
@@ -135,6 +138,26 @@ Dramatic questions must be:
 - Episode-specific (not reusable)
 - Action-oriented (implies what could happen)
 - Tension-sustaining (not resolved in 2 turns)
+
+### Scene Motivation (ADR-002 Theatrical Model)
+
+Scene motivation fields are the "director's notes" that the character internalizes during "rehearsal" (context building). These guide behavior without being visible to users.
+
+| Field | Purpose | Example |
+|-------|---------|---------|
+| `scene_objective` | What character wants from user | "You want them to finally notice the signs" |
+| `scene_obstacle` | What's stopping them | "You can't seem too eager, you have pride" |
+| `scene_tactic` | How they're playing it | "Pretend to be busy, but leave openings" |
+
+**Prompt Injection**: Formatted by `ConversationContext.build_episode_dynamics()`:
+```
+SCENE MOTIVATION (internalized direction - play this subtly):
+What you want: {scene_objective}
+What's stopping you: {scene_obstacle}
+How you're playing it: {scene_tactic}
+```
+
+**Key Principle**: The director doesn't whisper in the actor's ear during the show. The direction was internalized during rehearsal.
 
 ---
 

@@ -139,12 +139,12 @@ DirectorEvaluation(
 
 ---
 
-## Where Scene Motivation Goes (Future)
+## Scene Motivation in EpisodeTemplate (Implemented)
 
-Scene motivation (objective/obstacle/tactic) will be authored into EpisodeTemplate:
+Scene motivation (objective/obstacle/tactic) is authored into EpisodeTemplate:
 
 ```python
-# FUTURE: EpisodeTemplate with scene direction
+# EpisodeTemplate with scene direction (IMPLEMENTED)
 EpisodeTemplate(
     situation="Minji is at the café, your usual spot...",
     dramatic_question="Will she finally say what's on her mind?",
@@ -156,7 +156,20 @@ EpisodeTemplate(
 )
 ```
 
-This makes motivation a **content authoring** concern, not a runtime generation concern.
+**Database Fields** (migration 045):
+- `scene_objective` - What the character wants from the user in this scene
+- `scene_obstacle` - What's stopping the character from just asking directly
+- `scene_tactic` - How the character is trying to get what they want
+
+**Prompt Injection**: Scene motivation is formatted in `ConversationContext.build_episode_dynamics()`:
+```
+SCENE MOTIVATION (internalized direction - play this subtly):
+What you want: {scene_objective}
+What's stopping you: {scene_obstacle}
+How you're playing it: {scene_tactic}
+```
+
+This makes motivation a **content authoring** concern, not a runtime generation concern. Studio UI supports editing these fields per episode.
 
 ---
 

@@ -81,10 +81,23 @@ This document defines how prompts are configured and composed for the Fantazy co
 | Episode Frame | `episode_frame` | Director's stage direction (platform-generated) |
 | Dramatic Question | `dramatic_question` | Core tension to explore (not resolve quickly) |
 | Resolution Types | `resolution_types[]` | `['positive', 'neutral', 'negative', 'surprise']` |
+| **Scene Objective** | `scene_objective` | What character wants from user this scene (ADR-002) |
+| **Scene Obstacle** | `scene_obstacle` | What's stopping them from just asking (ADR-002) |
+| **Scene Tactic** | `scene_tactic` | How they're trying to get what they want (ADR-002) |
 | Genre | `genre` | Informs Director semantic evaluation |
 | Turn Budget | `turn_budget` | Optional hard limit for completion |
 | Auto Scene Mode | `auto_scene_mode` | `off`, `peaks`, `rhythmic` |
 | Scene Interval | `scene_interval` | Turns between auto-scenes (rhythmic mode) |
+
+**Scene Motivation (ADR-002 Theatrical Model)**:
+
+Scene motivation fields are the "director's notes" internalized during rehearsal. They are injected into the prompt as:
+```
+SCENE MOTIVATION (internalized direction - play this subtly):
+What you want: {scene_objective}
+What's stopping you: {scene_obstacle}
+How you're playing it: {scene_tactic}
+```
 
 **Physical Grounding is PRIMARY**:
 
@@ -363,6 +376,9 @@ DIFFERENT SERIES: "Summer Café" (also Soo-ah)
 | `episode_frame` | TEXT | Platform stage direction |
 | `dramatic_question` | TEXT | Core narrative tension |
 | `resolution_types` | TEXT[] | Valid endings |
+| `scene_objective` | TEXT | What character wants from user (ADR-002) |
+| `scene_obstacle` | TEXT | What's stopping them (ADR-002) |
+| `scene_tactic` | TEXT | How they're playing it (ADR-002) |
 | `genre` | TEXT | Director evaluation context |
 | `auto_scene_mode` | TEXT | `off`, `peaks`, `rhythmic` |
 | `scene_interval` | INT | Turns between rhythmic scenes |
