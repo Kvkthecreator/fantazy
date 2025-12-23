@@ -55,7 +55,7 @@ Episode context: {episode_frame}
 ═══════════════════════════════════════════════════════════════════════════════
 STEP 3: THE EMOTIONAL BEAT
 ═══════════════════════════════════════════════════════════════════════════════
-Relationship: {relationship_stage} | Tone: {emotional_tone} | Tension: {tension_level}/100
+Tone: {emotional_tone} | Tension: {tension_level}/100
 
 Tension guide:
 - 0-30: Casual, comfortable, soft gaze
@@ -99,7 +99,7 @@ Episode context: {episode_frame}
 ═══════════════════════════════════════════════════════════════════════════════
 STEP 3: THE EMOTIONAL BEAT
 ═══════════════════════════════════════════════════════════════════════════════
-Relationship: {relationship_stage} | Tone: {emotional_tone} | Tension: {tension_level}/100
+Tone: {emotional_tone} | Tension: {tension_level}/100
 
 Tension guide:
 - 0-30: Casual, comfortable, soft gaze
@@ -179,7 +179,7 @@ async def generate_scene(
             ak.style_prompt,
             ak.negative_prompt,
             ak.primary_anchor_id,
-            'acquaintance' as relationship_stage,
+            -- NOTE: relationship_stage removed (EP-01 pivot), using dynamic tone instead
             eng.dynamic as relationship_dynamic,
             et.title as episode_template_title,
             et.situation as episode_situation,
@@ -204,7 +204,7 @@ async def generate_scene(
         )
 
     # Extract relationship context for emotional grounding
-    relationship_stage = episode["relationship_stage"] or "acquaintance"
+    # NOTE: relationship_stage removed (EP-01 pivot), using dynamic tone instead
     relationship_dynamic = episode["relationship_dynamic"]
     if isinstance(relationship_dynamic, str):
         try:
@@ -353,7 +353,6 @@ async def generate_scene(
             prompt_request = KONTEXT_PROMPT_TEMPLATE.format(
                 episode_situation=episode_situation,
                 episode_frame=episode_frame,
-                relationship_stage=relationship_stage,
                 emotional_tone=emotional_tone,
                 tension_level=tension_level,
                 conversation_summary=conversation_summary,
@@ -378,7 +377,6 @@ MOST IMPORTANT:
                 appearance_prompt=appearance_prompt,
                 episode_situation=episode_situation,
                 episode_frame=episode_frame,
-                relationship_stage=relationship_stage,
                 emotional_tone=emotional_tone,
                 tension_level=tension_level,
                 conversation_summary=conversation_summary,

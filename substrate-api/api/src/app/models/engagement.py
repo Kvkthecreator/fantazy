@@ -55,7 +55,7 @@ class Engagement(BaseModel):
 
     # Custom data
     nickname: Optional[str] = None
-    inside_jokes: List[str] = Field(default_factory=list)
+    # NOTE: inside_jokes removed - never populated, milestones serves similar purpose
     engagement_notes: Optional[str] = None  # was relationship_notes
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
@@ -83,7 +83,7 @@ class Engagement(BaseModel):
                 return {"raw": v}
         return {}
 
-    @field_validator("inside_jokes", "milestones", mode="before")
+    @field_validator("milestones", mode="before")
     @classmethod
     def ensure_list(cls, v: Any) -> List[str]:
         """Handle list fields as JSON string (from DB)."""

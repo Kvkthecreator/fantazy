@@ -139,9 +139,7 @@ class Character(BaseModel):
 
     # Boundaries
     boundaries: Dict[str, Any] = Field(default_factory=dict)
-
-    # Relationship config
-    relationship_stage_thresholds: Dict[str, int] = Field(default_factory=dict)
+    # NOTE: relationship_stage_thresholds removed - stage progression sunset (EP-01 pivot)
 
     # Status & lifecycle
     status: str = "active"  # 'draft' or 'active'
@@ -161,7 +159,7 @@ class Character(BaseModel):
 
     @field_validator(
         "baseline_personality", "tone_style", "speech_patterns",
-        "boundaries", "relationship_stage_thresholds", mode="before"
+        "boundaries", mode="before"
     )
     @classmethod
     def ensure_dict(cls, v: Any) -> Dict[str, Any]:

@@ -134,9 +134,11 @@ async def get_conversation_context(
         character_id=character_id,
     )
 
+    # NOTE: relationship_stage/relationship_progress removed (EP-01 pivot)
+    # Dynamic relationship (tone, tension) provides engagement context instead
     return {
-        "relationship_stage": context.relationship_stage,
-        "relationship_progress": context.relationship_progress,
+        "relationship_dynamic": context.relationship_dynamic,
+        "relationship_milestones": context.relationship_milestones,
         "message_count": len(context.messages),
         "memory_count": len(context.memories),
         "hook_count": len(context.hooks),

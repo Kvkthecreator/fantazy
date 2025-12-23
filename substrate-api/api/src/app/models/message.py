@@ -93,8 +93,8 @@ class ConversationContext(BaseModel):
     messages: List[Dict[str, str]] = Field(default_factory=list)
     memories: List[MemorySummary] = Field(default_factory=list)
     hooks: List[HookSummary] = Field(default_factory=list)
-    relationship_stage: str = "acquaintance"
-    relationship_progress: int = 0
+    # NOTE: relationship_stage/relationship_progress removed - stage progression sunset (EP-01 pivot)
+    # Dynamic relationship (tone, tension, beats) provides better engagement context
     total_episodes: int = 0
     time_since_first_met: str = ""
 
@@ -119,13 +119,8 @@ class ConversationContext(BaseModel):
     # Series Genre Settings (per GENRE_SETTINGS_ARCHITECTURE)
     series_genre_prompt: Optional[str] = None  # Pre-formatted genre settings section from Series
 
-    # Stage labels for display (data only, no behavioral guidance)
-    STAGE_LABELS: ClassVar[Dict[str, str]] = {
-        "acquaintance": "Just met",
-        "friendly": "Getting close",
-        "close": "You're my person",
-        "intimate": "Something special"
-    }
+    # NOTE: STAGE_LABELS and stage progression removed - EP-01 pivot
+    # Relationship context now uses dynamic (tone, tension, milestones) instead
 
     def _format_memories_by_type(self) -> str:
         """Format memories grouped by type for better context."""
@@ -294,12 +289,10 @@ You are HERE, right now. Reference your physical surroundings naturally:
         # Format hooks with openers
         hooks_text = self._format_hooks()
 
-        # Get stage label (kept for compatibility)
-        stage_label = self.STAGE_LABELS.get(self.relationship_stage, self.relationship_stage)
-
         # NOTE: life_arc_text removed - backstory + archetype + genre doctrine provide depth
+        # NOTE: stage_label removed - stage progression sunset (EP-01 pivot)
 
-        # Format dynamic relationship context (Phase 4)
+        # Format dynamic relationship context (Phase 4: Beat-aware system)
         dynamic_context = self._format_relationship_dynamic()
 
         # Format milestones
@@ -311,10 +304,13 @@ You are HERE, right now. Reference your physical surroundings naturally:
 
         # Build system prompt with context
         # First do the standard template substitution
+        # NOTE: relationship_stage placeholder kept for backwards compatibility
+        # but now uses dynamic tone instead of static stage
+        relationship_label = self.relationship_dynamic.get("tone", "intrigued")
         system_prompt = self.character_system_prompt.format(
             memories=memory_text,
             hooks=hooks_text,
-            relationship_stage=f"{stage_label} ({self.relationship_stage})",
+            relationship_stage=relationship_label,
         )
 
         # Add enhanced context section with dynamic relationships (data only, no behavioral guidance)
@@ -324,7 +320,6 @@ You are HERE, right now. Reference your physical surroundings naturally:
 RELATIONSHIP CONTEXT
 ═══════════════════════════════════════════════════════════════
 
-Stage: {stage_label}
 Episodes together: {self.total_episodes}
 {f"Time since meeting: {self.time_since_first_met}" if self.time_since_first_met else ""}
 {milestones_text}

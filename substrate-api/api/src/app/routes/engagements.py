@@ -177,14 +177,12 @@ async def reset_relationship(
             total_messages = 0,
             first_met_at = NOW(),
             last_interaction_at = NULL,
-            dynamic = '{"tone": "warm", "tension_level": 30, "recent_beats": []}'::jsonb,
-            milestones = '{}',
+            dynamic = '{"tone": "intrigued", "tension_level": 45, "recent_beats": []}'::jsonb,
+            milestones = '[]'::jsonb,
             nickname = NULL,
-            inside_jokes = '{}',
-            relationship_notes = NULL,
-            stage = 'acquaintance',
-            stage_progress = 0,
+            engagement_notes = NULL,
             updated_at = NOW()
+            -- NOTE: stage, stage_progress, inside_jokes removed (EP-01 pivot)
         WHERE user_id = :user_id AND character_id = :character_id
         RETURNING id
     """

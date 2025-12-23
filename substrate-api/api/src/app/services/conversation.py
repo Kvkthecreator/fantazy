@@ -548,9 +548,8 @@ class ConversationService:
             messages=messages,
             memories=memory_summaries,
             hooks=hook_summaries,
-            # Stage is sunset - always return "acquaintance" (EP-01 pivot)
-            relationship_stage="acquaintance",
-            relationship_progress=0,
+            # NOTE: relationship_stage/relationship_progress removed (EP-01 pivot)
+            # Dynamic relationship (tone, tension, beats) provides engagement context
             total_episodes=engagement.total_sessions if engagement else 0,
             time_since_first_met=time_since_first_met,
             relationship_dynamic=relationship_dynamic,

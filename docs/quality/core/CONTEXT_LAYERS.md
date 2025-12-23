@@ -79,6 +79,25 @@ This document defines the 6-layer context architecture that composes every chara
 | Genre | Doctrine selection | High |
 | Resolution Types | Valid endings | Medium |
 
+### Clarification Items (Pending Decision)
+
+The following Episode fields exist in the database but their runtime behavior needs clarification:
+
+| Field | Current State | Options |
+|-------|---------------|---------|
+| `turn_budget` | Stored, used for pacing calculation, but NOT enforced as hard limit | Document as "advisory" OR implement enforcement |
+| `series_finale` | Stored but not used in prompt generation | Document purpose OR remove |
+| `genre` | Exists at 3 levels: character, episode, series | Document hierarchy (which wins?) OR consolidate |
+
+**`turn_budget` Detail**: The Director uses `turn_budget` to calculate pacing phase (establish/develop/escalate/peak/resolve), but episodes don't auto-complete when budget is reached. Semantic completion (`status: done`) is the actual trigger.
+
+**`genre` Hierarchy Question**: Currently:
+- Character has `genre` (archetype context)
+- Episode has `genre` (used in Director evaluation)
+- Series has implicit genre (from character?)
+
+Which takes precedence for prompt composition and Director evaluation?
+
 ### The Situation Imperative
 
 The `situation` field is the most important context element. It must be:
@@ -119,6 +138,11 @@ Dramatic questions must be:
 | Time Together | `NOW() - first_met_at` | Temporal grounding |
 | Dynamic | `{tone, tension_level}` | Current mood |
 | Recent Beats | `dynamic.recent_beats[]` | What just happened |
+| Milestones | `milestones[]` | Significant relationship moments |
+
+> **Note**: Stage progression (`stage`, `stage_progress`) sunset in EP-01 pivot. The dynamic relationship system (tone, tension, beats, milestones) provides richer engagement context than static stages.
+>
+> **Removed fields**: `inside_jokes` (never populated), `relationship_stage_thresholds` (never read)
 
 ### Format in Prompt
 
@@ -283,6 +307,7 @@ Layers are assembled in this order (later = higher priority):
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.3.0 | 2024-12-23 | Added Episode Layer clarification items (turn_budget, series_finale, genre hierarchy). Hardened on Ticket + Moments model. |
 | 1.2.0 | 2024-12-23 | Simplified boundaries to flirting_level + nsfw_allowed only. Removed Character Dynamics UI (9 unused fields) |
 | 1.1.0 | 2024-12-23 | Simplified character data: merged backstory fields, removed life_arc/current_stressor |
 | 1.0.0 | 2024-12-20 | Initial 6-layer specification, added Layer 6 (Director Guidance) |

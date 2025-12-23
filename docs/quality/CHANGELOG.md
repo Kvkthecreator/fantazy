@@ -28,6 +28,12 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Updated Spark Balance Handling for entry-gate model
   - Removed per-generation spark checking from data flow
 
+- **[CONTEXT_LAYERS.md]** v1.3.0 - Engagement layer cleanup
+  - Stage progression (`stage`, `stage_progress`) sunset - dynamic system replaces it
+  - `relationship_stage`/`relationship_progress` removed from ConversationContext
+  - Prompt now uses dynamic `tone` instead of static stage labels
+  - Added clarification items (turn_budget, series_finale, genre hierarchy)
+
 - **[CONTEXT_LAYERS.md]** v1.2.0 - Boundaries simplification
   - Simplified `boundaries` to only `flirting_level` and `nsfw_allowed`
   - Replaced Character Dynamics card with focused Energy Level card
@@ -54,9 +60,14 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 - **Character Layer**: `life_arc` field (was half-implemented, no UI)
 - **Character Layer**: `current_stressor` field (redundant with episode situation)
 - **ConversationContext**: `character_life_arc` field and `_format_life_arc()` method
+- **ConversationContext**: `relationship_stage` and `relationship_progress` fields
+- **Engagement Model**: `inside_jokes` field (never populated)
+- **Character Model**: `relationship_stage_thresholds` field (never read)
+- **Prompt Templates**: `Relationship: {relationship_stage}` from scene prompts
 - **Create Wizard**: `can_reject_user` toggle (was never used)
 
 ### Migration
+- Database migration `042_drop_sunset_engagement_columns.sql` drops stage progression fields
 - Database migration `041_drop_legacy_visual_columns.sql` drops legacy visual fields
 - Database migration `039_consolidate_backstory_fields.sql` merges backstory fields
 - UI Backstory tab simplified to single textarea
