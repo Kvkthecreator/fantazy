@@ -21,34 +21,44 @@ log = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# KONTEXT MODE PROMPT TEMPLATE
+# KONTEXT MODE PROMPT TEMPLATE (Phase 1C: Improved for facial expression focus)
 # Used when we have an anchor/reference image. Character appearance comes from
-# the reference image, so prompt describes ONLY action/setting/mood.
+# the reference image, so prompt describes ONLY action/setting/mood/expression.
 # ═══════════════════════════════════════════════════════════════════════════════
-KONTEXT_PROMPT_TEMPLATE = """Create a scene transformation prompt. A reference image of the character will be provided.
+KONTEXT_PROMPT_TEMPLATE = """Create a scene transformation prompt for FLUX Kontext. A reference image provides character appearance.
 
-CRITICAL: DO NOT describe the character's appearance (hair, eyes, face, clothing).
-ONLY describe the ACTION, SETTING, and MOOD.
+CRITICAL: DO NOT describe appearance (hair, eyes, face features, clothing).
+DO describe: facial expression, body language, specific action, environmental context, emotional tone.
 
 SETTING & MOMENT:
 - Location: {scene}
 - What's happening: {moment}
 
-Write a prompt (40-60 words) describing the scene transformation.
+Focus on:
+1. FACIAL EXPRESSION - Specific emotion visible in eyes/mouth (vulnerable, teasing, conflicted)
+2. WITHIN-SCENE COMPOSITION - Spatial relationship to environment (leaning against, reaching for, turning away from)
+3. BODY LANGUAGE - Gesture or posture that conveys the emotional beat
+4. ENVIRONMENTAL INTERACTION - How character engages with the space/objects
 
-FORMAT: "[action/pose], [setting details], [lighting], [expression], anime style, cinematic"
+Write a detailed prompt (50-70 words).
 
-GOOD EXAMPLE: "leaning on café counter, dim after-hours lighting, steaming coffee cup nearby, soft knowing glance over shoulder, anime style, cinematic"
+FORMAT: "[specific expression], [precise action/gesture], [environmental interaction], [lighting/atmosphere], [camera angle], anime style, cinematic"
 
-BAD EXAMPLE: "young woman with brown hair..." ← NO! Appearance comes from reference image.
+GOOD EXAMPLES:
+- "eyes downcast with slight smile, fingers tracing café table edge, leaning back against counter with one foot crossed over ankle, warm dim lighting from overhead pendant lamp, slightly low angle shot, anime style, cinematic"
+- "vulnerable expression with parted lips, reaching for coffee cup but hesitating mid-motion, standing at window with rain-blurred cityscape behind, backlit by cool evening light, medium close-up, anime style, cinematic"
+
+BAD EXAMPLES:
+- "standing in café" ← Too vague, no expression/gesture detail
+- "brown-haired girl smiling" ← Describing appearance instead of scene
 
 Your prompt:"""
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# T2I MODE PROMPT TEMPLATE
+# T2I MODE PROMPT TEMPLATE (Phase 1C: Improved for narrative composition)
 # Used when NO reference image exists. Must include full character appearance.
 # ═══════════════════════════════════════════════════════════════════════════════
-T2I_PROMPT_TEMPLATE = """Create an image prompt for this romantic moment. Include full character description.
+T2I_PROMPT_TEMPLATE = """Create an image prompt for this narrative moment. Include full character description AND compositional details.
 
 CHARACTER:
 - Name: {character_name}
@@ -58,11 +68,21 @@ SETTING & MOMENT:
 - Location: {scene}
 - What's happening: {moment}
 
-Write a prompt (50-80 words) for this specific scenario.
+Write a detailed prompt (60-90 words) that captures the emotional beat through composition.
 
-FORMAT: "solo, 1girl, [character appearance], [action], [setting], [lighting], [expression], anime style, cinematic"
+Focus on:
+1. CHARACTER APPEARANCE - Full description from appearance_prompt
+2. FACIAL EXPRESSION - Specific emotion conveyed through eyes/mouth
+3. BODY LANGUAGE - Gesture, posture, action that tells the story
+4. ENVIRONMENTAL COMPOSITION - Spatial relationship to setting
+5. LIGHTING & ATMOSPHERE - Mood-enhancing details
+6. CAMERA FRAMING - Shot type that serves the narrative
 
-Example: "solo, 1girl, young woman with messy black hair, wiping down espresso machine, dim café after-hours lighting, soft knowing smile, anime style, cinematic"
+FORMAT: "solo, 1girl, [full appearance], [specific expression], [detailed action/gesture], [environmental interaction], [lighting/atmosphere], [camera angle], anime style, cinematic"
+
+GOOD EXAMPLE: "solo, 1girl, young woman with messy black hair and tired eyes, vulnerable expression with slight smile, wiping down espresso machine while glancing sideways toward door, leaning against café counter with one hand on hip, warm dim overhead lighting casting soft shadows, rain visible through window behind, medium shot from slight low angle, anime style, cinematic"
+
+BAD EXAMPLE: "girl in café smiling" ← Too vague, no compositional detail
 
 Your prompt:"""
 
@@ -194,7 +214,7 @@ class SceneService:
             use_kontext = anchor_image is not None
 
             if use_kontext:
-                # KONTEXT MODE: Prompt describes scene only, not appearance
+                # KONTEXT MODE: Phase 1C improved prompting for facial expressions
                 log.info(f"KONTEXT MODE: Generating scene for episode {episode_id}")
                 prompt_request = KONTEXT_PROMPT_TEMPLATE.format(
                     scene=scene_setting or "A cozy setting",
@@ -202,14 +222,25 @@ class SceneService:
                 )
                 system_prompt = """You are an expert at writing scene transformation prompts for FLUX Kontext.
 
-CRITICAL: A reference image of the character will be provided separately.
-Your prompt must describe ONLY the scene/action - NOT the character's appearance.
+Phase 1C Goal: Better facial expressions and within-scene composition, not just generic poses.
 
-DO NOT mention: hair color, eye color, face features, clothing
-DO describe: action, pose, setting, lighting, mood, expression"""
+CRITICAL: A reference image provides character appearance. Your prompt must describe ONLY:
+- FACIAL EXPRESSION (specific emotion in eyes/mouth)
+- BODY LANGUAGE (gesture, posture)
+- ENVIRONMENTAL INTERACTION (spatial relationship to setting/objects)
+- LIGHTING & CAMERA ANGLE (how the moment is framed)
+
+NEVER mention: hair color, eye color, face shape, clothing, physical appearance
+
+ALWAYS include:
+1. Specific facial expression (not just "smiling" - be precise)
+2. Detailed gesture or action
+3. How they interact with the environment
+4. Lighting that enhances the mood
+5. Camera angle that serves the emotional beat"""
 
             else:
-                # T2I MODE: Prompt includes full character appearance
+                # T2I MODE: Phase 1C improved prompting for narrative composition
                 log.info(f"T2I MODE: Generating scene for episode {episode_id}")
                 prompt_request = T2I_PROMPT_TEMPLATE.format(
                     character_name=character_name,
@@ -217,14 +248,21 @@ DO describe: action, pose, setting, lighting, mood, expression"""
                     scene=scene_setting or "A cozy setting",
                     moment=moment_description,
                 )
-                system_prompt = """You are an expert at writing image generation prompts for anime-style illustrations.
+                system_prompt = """You are an expert at writing image generation prompts for anime-style narrative illustrations.
+
+Phase 1C Goal: Character portraits that tell a story through composition, not just likeness.
 
 CRITICAL RULES:
 1. ALWAYS start with "solo, 1girl" (or "solo, 1boy" for male characters)
-2. Include the character's full appearance as described
-3. NEVER include multiple people - only the character
-4. Capture the SPECIFIC scenario from the moment
-5. Match lighting to the location"""
+2. Include FULL character appearance from appearance_prompt
+3. Add SPECIFIC facial expression (not just "smiling")
+4. Describe DETAILED gesture/action (not just "standing")
+5. Show ENVIRONMENTAL INTERACTION (how they engage with the space)
+6. Specify LIGHTING that enhances mood
+7. Include CAMERA ANGLE that serves the narrative beat
+8. NEVER include multiple people - only the character
+
+Think cinematically: This is a single frame that must convey an emotional story."""
 
             prompt_response = await self.llm_service.generate([
                 {"role": "system", "content": system_prompt},
