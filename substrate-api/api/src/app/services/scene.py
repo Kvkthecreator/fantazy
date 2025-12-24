@@ -511,11 +511,15 @@ CRITICAL RULES:
 
 Think: Makoto Shinkai environmental shots, Cowboy Bebop insert frames."""
 
+            log.info(f"CINEMATIC INSERT INPUT - visual_hint: {visual_hint}")
+
             prompt_response = await self.llm_service.generate([
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt_request},
             ], max_tokens=250)
             scene_prompt = prompt_response.content.strip()
+
+            log.info(f"CINEMATIC INSERT LLM OUTPUT (raw): {scene_prompt}")
 
             # Add base anime style if no custom style provided
             if style_prompt:
@@ -523,7 +527,7 @@ Think: Makoto Shinkai environmental shots, Cowboy Bebop insert frames."""
             else:
                 scene_prompt = f"{scene_prompt}, anime style, cinematic composition, atmospheric lighting, emotional depth"
 
-            log.info(f"CINEMATIC INSERT: {scene_prompt[:100]}...")
+            log.info(f"CINEMATIC INSERT FINAL PROMPT: {scene_prompt}")
 
             # Generate using T2I - allowing partial figures but avoiding portrait focus
             negative = "detailed face, close-up portrait, photorealistic, 3D render, selfie angle, centered character, full body character reference"
@@ -684,10 +688,15 @@ Focus on the feeling of the space itself."""
         # Generate caption
         caption = None
         try:
+            caption_input = CAPTION_PROMPT.format(prompt=scene_prompt)
+            log.info(f"CAPTION INPUT - scene_prompt length: {len(scene_prompt)}, first 200 chars: {scene_prompt[:200]}")
+
             caption_response = await self.llm_service.generate([
-                {"role": "user", "content": CAPTION_PROMPT.format(prompt=scene_prompt)},
+                {"role": "user", "content": caption_input},
             ], max_tokens=100)
             caption = caption_response.content.strip().strip('"')
+
+            log.info(f"CAPTION OUTPUT: {caption}")
         except Exception as e:
             log.warning(f"Caption generation failed: {e}")
 
