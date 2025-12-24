@@ -72,6 +72,14 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Added good/bad examples to both templates
   - Fixed 500 error by switching to FLUX Schnell default provider
 
+### Fixed
+- **[HOTFIX]** Director completely broken - removed orphaned execute_actions() call (commit bf3331c0)
+  - Phase 1A removed execute_actions() method but missed removing the call in process_exchange()
+  - Caused: 'DirectorService' object has no attribute 'execute_actions' error on every exchange
+  - Impact: Director silently failed - no turn_count updates, no memory/hook extraction, no auto-gen images
+  - Fix: Removed orphaned method call from process_exchange() line 570
+  - Result: Director now runs properly, all Phase 2 features now functional
+
 ### Removed
 - **[ConversationService]**: `_process_exchange()` method (55 lines)
   - Legacy memory/hook extraction consolidated into Director
