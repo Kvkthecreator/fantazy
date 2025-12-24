@@ -1,6 +1,6 @@
 # Director UI Toolkit
 
-> **Version**: 2.1.0
+> **Version**: 2.2.0
 > **Status**: Canonical
 > **Updated**: 2024-12-24
 
@@ -92,6 +92,143 @@ The Director classifies visual moments into types:
 | `atmosphere` | Setting/mood without character | "The empty café at closing time" | SceneCard, 4:3 aspect |
 | `instruction` | Game-like text overlay | "Choice: Stay or Leave" | InstructionCard |
 | `none` | No visual warranted | — | Nothing rendered |
+
+---
+
+## Interjection System Architecture
+
+**Director Protocol v2.2** clarifies the fundamental distinction between interjections that display pre-authored/generated content vs. interjections driven by runtime Director evaluation. This distinction is **architecturally decisive** for implementation paths.
+
+### The Core Distinction
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ UPSTREAM-DRIVEN INTERJECTIONS                                    │
+│ (Display pre-authored/generated data through Director domain)   │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│ Data Source: Episode templates, Genre definitions, Series config │
+│ Director Role: Format, coordinate display timing                 │
+│ Service Boundary: Episode/Series Service owns data               │
+│ Error Handling: Missing data (graceful degradation)              │
+│ Testing Strategy: Test formatting & conditional display logic    │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│ RUNTIME-DRIVEN INTERJECTIONS                                     │
+│ (Director semantic evaluation during conversation)              │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│ Data Source: Director Phase 2 LLM evaluation                     │
+│ Director Role: Semantic judgment, trigger actions                │
+│ Service Boundary: Director Service owns evaluation logic         │
+│ Error Handling: Evaluation failure (fallback to safe defaults)   │
+│ Testing Strategy: Test LLM evaluation quality & edge cases       │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### Interjection Types by Category
+
+#### UPSTREAM-DRIVEN Interjections
+
+| Component | Data Source | Trigger Condition | Director Role | Implementation Path |
+|-----------|-------------|-------------------|---------------|---------------------|
+| **EpisodeOpeningCard** | `episode_templates` table (title, situation, dramatic_question) | Episode start (empty chat state) | Format Episode metadata into card UI | Deterministic: Read Episode → Format → Display |
+| **InstructionCard** (conditional) | Character LLM output during message generation | Director Phase 2 detects `visual_type="instruction"` in response | Detect instruction pattern in Character response, coordinate display | Hybrid: Character generates → Director detects → Display |
+
+**Key Characteristics**:
+- **Deterministic Display**: No LLM evaluation needed for display decision (data either exists or doesn't)
+- **Authored Content**: Created during Episode/Series authoring, not generated at runtime
+- **Graceful Degradation**: Missing fields don't break experience (e.g., no dramatic_question? Show title + situation only)
+- **Service Boundaries Clear**: Episode Service owns data, Director formats for display
+
+**Error Handling Strategy**:
+```python
+# Example: EpisodeOpeningCard
+if episode.situation:
+    display_opening_card(
+        title=episode.title,
+        situation=episode.situation,
+        dramatic_question=episode.dramatic_question  # Optional, may be None
+    )
+else:
+    # Graceful fallback: Show minimal prompt
+    display_default_prompt()
+```
+
+#### RUNTIME-DRIVEN Interjections
+
+| Component | Evaluation Trigger | Director Phase | Decision Logic | Implementation Path |
+|-----------|-------------------|----------------|----------------|---------------------|
+| **SceneCard** (visual moments) | After Character message complete | Phase 2: Visual evaluation | LLM determines `visual_type` in (character, object, atmosphere) | Semantic: Evaluate exchange → Classify visual moment → Trigger generation |
+| **InlineCompletionCard** (episode complete) | After Character message complete | Phase 2: Completion check | LLM evaluates `status` (going/closing/done) OR algorithmic `turn_count >= turn_budget` | Semantic + Algorithmic: Evaluate narrative status → Suggest next episode |
+
+**Key Characteristics**:
+- **Semantic Judgment**: Requires LLM evaluation to determine if/when to display
+- **Runtime Generation**: Decision made during conversation, not pre-authored
+- **Fallback Required**: LLM evaluation can fail (timeout, API error) → need safe defaults
+- **Director Owns Logic**: Director Service owns evaluation prompts, trigger logic, error handling
+
+**Error Handling Strategy**:
+```python
+# Example: SceneCard visual evaluation
+try:
+    visual_eval = await director.evaluate_visual_moment(
+        user_msg=user_message,
+        char_msg=character_response,
+        context=episode_context
+    )
+    if visual_eval.visual_type != "none":
+        emit_visual_pending(visual_eval.visual_type, visual_eval.hint)
+except LLMEvaluationError:
+    # Fallback: No visual generation (safe default)
+    logger.warning("Visual evaluation failed, continuing without visual")
+    visual_type = "none"
+```
+
+### Implementation Decision Tree
+
+When implementing a new Director interjection, ask:
+
+**Question 1**: Does the interjection display pre-authored/generated content, or does it require runtime semantic evaluation?
+
+- **Pre-authored/generated** → UPSTREAM-DRIVEN
+  - Service boundary: Episode/Series Service owns data
+  - Implementation: Deterministic formatting & display logic
+  - Error handling: Graceful degradation for missing data
+  - Example: EpisodeOpeningCard
+
+- **Runtime evaluation** → RUNTIME-DRIVEN
+  - Service boundary: Director Service owns evaluation
+  - Implementation: LLM evaluation prompt + trigger logic
+  - Error handling: Fallback to safe defaults on evaluation failure
+  - Example: SceneCard, InlineCompletionCard
+
+**Question 2**: Is the interjection timing deterministic or semantic?
+
+- **Deterministic** → Episode start, turn count threshold, user action
+  - Example: EpisodeOpeningCard (episode start), InlineCompletionCard (turn_limit trigger)
+
+- **Semantic** → Requires LLM evaluation to determine timing
+  - Example: SceneCard (visual moment detection), InlineCompletionCard (semantic "done" status)
+
+**Question 3**: What happens if data is missing or evaluation fails?
+
+- **UPSTREAM**: Graceful degradation (show partial card, skip optional fields)
+- **RUNTIME**: Fallback to safe default (no visual, continue episode)
+
+### Visual Interjection Summary
+
+| Component | Category | Data Source | Trigger | Director Role |
+|-----------|----------|-------------|---------|---------------|
+| EpisodeOpeningCard | UPSTREAM | Episode template | Episode start | Format & display |
+| InstructionCard | UPSTREAM* | Character LLM output | Phase 2 detection | Detect & coordinate display |
+| SceneCard | RUNTIME | Phase 2 visual eval | Visual moment detected | Semantic judgment + trigger generation |
+| InlineCompletionCard | RUNTIME | Phase 2 completion check | Episode complete | Semantic judgment + suggest next |
+
+\* Hybrid: Character generates content, Director detects pattern and coordinates display
 
 ---
 
@@ -418,6 +555,7 @@ The `useChat` hook exposes Director state:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.2.0 | 2024-12-24 | **Architectural addition**: Interjection System Architecture section documenting upstream vs runtime categorization, implementation decision tree, service boundaries, error handling strategies |
 | 2.1.0 | 2024-12-24 | Added EpisodeOpeningCard specification (authored scene setup card before conversation start) |
 | 2.0.0 | 2024-12-24 | **Major update**: Theatrical model (v2.2+), manual-first visuals (v2.5), user preference override, removed `sparks_deducted` field, updated data flow diagram, Episode-authored motivation |
 | 1.1.0 | 2024-12-23 | Hardened on Ticket + Moments model. Removed legacy auto_scene_mode config. |
