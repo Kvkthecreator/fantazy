@@ -396,7 +396,9 @@ class DirectorService:
             for m in recent
         )
 
-        prompt = f"""You are the Director observing a {genre} story.
+        # v2.4: Simplified prompt - just describe the moment + status
+        # Visual trigger decision is now deterministic (turn-based)
+        prompt = f"""You are observing a {genre} story moment.
 
 Character: {character_name}
 Situation: {situation}
@@ -405,23 +407,20 @@ Core tension: {dramatic_question}
 RECENT EXCHANGE:
 {formatted}
 
-As a director, observe this moment. Answer naturally, then provide signals.
+Provide two things:
 
-1. VISUAL: Would this exchange benefit from a visual element?
-   - CHARACTER: A shot featuring the character (portrait, expression, pose)
-   - OBJECT: Close-up of an item (letter, phone, key, evidence)
-   - ATMOSPHERE: Setting/mood without character visible
-   - INSTRUCTION: Game-like information (codes, hints, choices)
-   - NONE: No visual needed
+1. VISUAL DESCRIPTION: Describe this moment in one evocative sentence for a cinematic insert shot.
+   Focus on: mood, lighting, composition, symbolic objects.
+   Style: anime environmental storytelling (Makoto Shinkai, Cowboy Bebop).
 
-   If not NONE, describe what should be shown in one evocative sentence.
+2. EPISODE STATUS: Is this episode ready to close, approaching closure, or still unfolding?
+   - GOING: story continues
+   - CLOSING: approaching natural ending
+   - DONE: story complete
 
-2. STATUS: Is this episode ready to close, approaching closure, or still unfolding?
-   Explain briefly in terms that make sense for this {genre} story.
-
-End with a signal line for parsing:
-SIGNAL: [visual: character/object/atmosphere/instruction/none] [status: going/closing/done]
-If visual is not "none", add: [hint: <description>]"""
+Format:
+VISUAL: <one sentence description>
+STATUS: going/closing/done"""
 
         try:
             response = await self.llm.generate([
@@ -440,32 +439,85 @@ If visual is not "none", add: [hint: <description>]"""
             }
 
     def _parse_evaluation(self, response: str) -> Dict[str, Any]:
-        """Parse natural language evaluation into actionable signals."""
-        # Extract signal line with visual type
-        signal_match = re.search(
-            r'SIGNAL:\s*\[visual:\s*(character|object|atmosphere|instruction|none)\]\s*\[status:\s*(going|closing|done)\]',
-            response, re.IGNORECASE
-        )
+        """Parse natural language evaluation into actionable signals.
 
-        # Extract hint if present
-        hint_match = re.search(r'\[hint:\s*([^\]]+)\]', response, re.IGNORECASE)
+        v2.4: Simplified parsing - visual_type no longer matters (deterministic triggers),
+        just extract description and status.
+        """
+        # Extract visual description
+        visual_match = re.search(r'VISUAL:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
+        visual_hint = visual_match.group(1).strip() if visual_match else None
 
-        if signal_match:
-            visual_type = signal_match.group(1).lower()
-            status_signal = signal_match.group(2).lower()
-            visual_hint = hint_match.group(1).strip() if hint_match else None
+        # Extract status
+        status_match = re.search(r'STATUS:\s*(going|closing|done)', response, re.IGNORECASE)
+        status_signal = status_match.group(1).lower() if status_match else "going"
+
+        if visual_match and status_match:
+            parse_method = "hybrid_v2_4"
+        elif visual_hint or status_signal != "going":
+            parse_method = "partial_match"
         else:
-            # Fallback parsing
-            visual_type = 'none'
-            status_signal = 'done' if 'done' in response.lower() else 'going'
-            visual_hint = None
+            parse_method = "fallback"
+            log.warning(f"Director evaluation parse incomplete. Response: {response[:200]}")
 
         return {
             "raw_response": response,
-            "visual_type": visual_type,
-            "visual_hint": visual_hint,
+            "visual_type": "character",  # v2.4: Always "character" for cinematic inserts
+            "visual_hint": visual_hint or "the current moment",
             "status": status_signal,
+            "parse_method": parse_method,
         }
+
+    def _should_generate_visual_deterministic(
+        self,
+        turn_count: int,
+        turn_budget: Optional[int],
+        visual_mode: VisualMode,
+        generations_used: int,
+        generation_budget: int,
+    ) -> tuple[bool, str]:
+        """Determine if visual should be generated (DETERMINISTIC, no LLM).
+
+        v2.4: Turn-based triggers instead of LLM-driven decisions.
+
+        Returns:
+            (should_generate: bool, reason: str)
+        """
+        if generations_used >= generation_budget:
+            return False, f"budget_exhausted ({generations_used}/{generation_budget})"
+
+        if visual_mode == VisualMode.CINEMATIC:
+            # Generate at narrative beats: 25%, 50%, 75% of episode
+            position = turn_count / turn_budget if turn_budget and turn_budget > 0 else turn_count / 10
+
+            # Calculate trigger positions based on budget
+            if generation_budget == 3:
+                triggers = [0.25, 0.5, 0.75]
+            elif generation_budget == 4:
+                triggers = [0.2, 0.4, 0.6, 0.8]
+            elif generation_budget == 2:
+                triggers = [0.33, 0.67]
+            else:
+                # Fallback: fixed turns for open episodes
+                return turn_count in [3, 6, 9, 12], f"fixed_turn_{turn_count}"
+
+            # Check if we're at a trigger point
+            for i, trigger_pos in enumerate(triggers):
+                if i == generations_used and position >= trigger_pos:
+                    return True, f"turn_position_{trigger_pos:.2f}"
+
+        elif visual_mode == VisualMode.MINIMAL:
+            # Only at climax (90%+ of episode)
+            if turn_budget and turn_budget > 0:
+                position = turn_count / turn_budget
+                if position >= 0.9:
+                    return True, "climax_reached"
+            else:
+                # Open episode: trigger at turn 15+
+                if turn_count >= 15 and generations_used == 0:
+                    return True, "open_episode_climax"
+
+        return False, "no_trigger_point"
 
     def decide_actions(
         self,
@@ -475,6 +527,8 @@ If visual is not "none", add: [hint: <description>]"""
     ) -> DirectorActions:
         """Convert semantic evaluation into deterministic actions.
 
+        v2.4: Hybrid Model - Deterministic triggers + Semantic descriptions
+
         Ticket + Moments Model:
         - Episodes have a generation_budget (max auto-gens included in entry cost)
         - visual_mode determines when to trigger: cinematic (peaks), minimal (climax only), none
@@ -483,40 +537,35 @@ If visual is not "none", add: [hint: <description>]"""
         """
         actions = DirectorActions()
         turn = session.turn_count + 1  # New turn count after this exchange
-        visual_type = evaluation.get("visual_type", "none")
 
         if not episode:
             return actions
 
-        # --- Visual Generation (Ticket + Moments model) ---
+        # --- Visual Generation (v2.4: Hybrid model) ---
         visual_mode = getattr(episode, 'visual_mode', VisualMode.NONE)
         generation_budget = getattr(episode, 'generation_budget', 0)
         generations_used = getattr(session, 'generations_used', 0)
+        turn_budget = getattr(episode, 'turn_budget', None)
 
-        # Check if we have budget remaining
-        budget_remaining = generation_budget - generations_used > 0
+        # Deterministic trigger check
+        should_generate, trigger_reason = self._should_generate_visual_deterministic(
+            turn_count=turn,
+            turn_budget=turn_budget,
+            visual_mode=visual_mode,
+            generations_used=generations_used,
+            generation_budget=generation_budget,
+        )
 
-        if visual_mode == VisualMode.CINEMATIC and budget_remaining:
-            # Generate on visual moments (any image type except none/instruction)
-            if visual_type in ("character", "object", "atmosphere"):
-                actions.visual_type = visual_type
-                actions.visual_hint = evaluation.get("visual_hint")
-
-        elif visual_mode == VisualMode.MINIMAL and budget_remaining:
-            # Only generate at episode climax (status == "done" or "closing")
-            status = evaluation.get("status", "going")
-            if status in ("done", "closing") and visual_type in ("character", "object", "atmosphere"):
-                actions.visual_type = visual_type
-                actions.visual_hint = evaluation.get("visual_hint") or "the climactic moment"
-
-        # Instruction cards are free and don't count against budget
-        elif visual_type == "instruction":
-            actions.visual_type = "instruction"
-            actions.visual_hint = evaluation.get("visual_hint")
+        if should_generate:
+            # Use LLM-provided description from evaluation (simplified prompt)
+            actions.visual_type = "character"  # Default for cinematic inserts
+            actions.visual_hint = evaluation.get("visual_hint") or "the current moment"
+            log.info(f"Visual triggered: {trigger_reason}, hint='{actions.visual_hint[:50]}...'")
+        else:
+            log.debug(f"Visual skipped: {trigger_reason}")
 
         # --- Episode Progression ---
         status = evaluation.get("status", "going")
-        turn_budget = getattr(episode, 'turn_budget', None)
 
         if status == "done":
             actions.suggest_next = True
@@ -576,13 +625,45 @@ If visual is not "none", add: [hint: <description>]"""
                 if new_turn_count >= episode_template.turn_budget:
                     completion_trigger = "turn_limit"
 
-        # 7. Update session state
+        # 7. Update session state (with observability v2.4)
         director_state = dict(session.director_state) if session.director_state else {}
+
+        # Initialize visual_decisions history if needed
+        if "visual_decisions" not in director_state:
+            director_state["visual_decisions"] = []
+
+        # Capture last evaluation with observability fields
         director_state["last_evaluation"] = {
             "status": evaluation.get("status"),
             "visual_type": evaluation.get("visual_type"),
+            "visual_hint": evaluation.get("visual_hint"),
             "turn": new_turn_count,
+            "raw_response": evaluation.get("raw_response", ""),  # NEW: Full LLM output
+            "parse_method": evaluation.get("parse_method", "unknown"),  # NEW: How we got visual_type
         }
+
+        # Log visual decision to history (keep last 10)
+        # v2.4: Capture deterministic trigger reason
+        if episode_template:
+            should_gen, trigger_reason = self._should_generate_visual_deterministic(
+                turn_count=new_turn_count,
+                turn_budget=getattr(episode_template, 'turn_budget', None),
+                visual_mode=getattr(episode_template, 'visual_mode', VisualMode.NONE),
+                generations_used=getattr(session, 'generations_used', 0),
+                generation_budget=getattr(episode_template, 'generation_budget', 0),
+            )
+            decision_reason = trigger_reason if should_gen else trigger_reason
+        else:
+            decision_reason = "no_episode_template"
+
+        visual_decision = {
+            "turn": new_turn_count,
+            "triggered": actions.visual_type not in ("none", None),
+            "reason": decision_reason,  # v2.4: Deterministic reason
+            "visual_hint_preview": (actions.visual_hint[:50] + "...") if actions.visual_hint and len(actions.visual_hint) > 50 else actions.visual_hint,
+        }
+        director_state["visual_decisions"].append(visual_decision)
+        director_state["visual_decisions"] = director_state["visual_decisions"][-10:]  # Keep last 10
 
         await self._update_session_director_state(
             session_id=session.id,

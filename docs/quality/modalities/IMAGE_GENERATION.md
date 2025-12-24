@@ -1,6 +1,6 @@
 # Image Generation Quality Specification
 
-> **Version**: 1.1.0
+> **Version**: 1.2.0
 > **Status**: Active
 > **Updated**: 2024-12-24
 
@@ -34,17 +34,66 @@ Director auto-gen uses **anime insert shot technique** to capture narrative beat
 - Cowboy Bebop (insert frames between scenes)
 - Anime production: 物の絵 (mono no e, "pictures of things")
 
-### Visual Types
+### Trigger Strategy (v1.2 - Hybrid Model)
 
-Director evaluates each exchange and classifies visual needs:
+**CHANGE FROM v1.1**: Director now uses **turn-based triggers** instead of LLM evaluation.
 
-| Visual Type | Description | Example |
-|-------------|-------------|---------|
-| `character` | Cinematic insert with partial/environmental character presence | Rain on window, silhouette at table |
-| `object` | Close-up of significant item | Letter on desk, two coffee cups |
-| `atmosphere` | Pure environmental/mood shot | Empty café at night, sunset through curtains |
-| `instruction` | Text-based direction card | "She's testing you" |
-| `none` | No visual needed | — |
+**Why**: Production testing showed LLM-driven decisions (`"Would this benefit from a visual?"`) were unreliable - Gemini Flash evaluated every turn as `visual_type: "none"` despite clear visual moments.
+
+**New Strategy**: **Deterministic WHEN + Semantic WHAT**
+
+#### When to Generate (Turn-Based)
+
+Visual generation triggers at **fixed narrative positions**:
+
+| Visual Mode | Trigger Logic | Example (12-turn episode, budget 3) |
+|-------------|---------------|-------------------------------------|
+| **Cinematic** | 25%, 50%, 75% of episode | Turns 3, 6, 9 |
+| **Minimal** | 90%+ of episode (climax only) | Turn 11 |
+| **None** | Never | — |
+
+```python
+# Deterministic trigger (no LLM)
+position = turn_count / turn_budget
+if generation_budget == 3:
+    triggers = [0.25, 0.5, 0.75]  # 25%, 50%, 75% through episode
+    if position >= triggers[generations_used]:
+        return True  # Generate now
+```
+
+**Benefits**:
+- ✅ Predictable (users know when images will appear)
+- ✅ Testable (no LLM variability)
+- ✅ Reliable (can't fail to trigger due to conservative LLM)
+
+#### What to Show (LLM Description)
+
+LLM generates **description only**, no decision-making:
+
+```
+# Prompt (simplified from v1.1)
+Describe this {genre} story moment in one evocative sentence for a cinematic insert shot.
+Focus on: mood, lighting, composition, symbolic objects.
+Style: anime environmental storytelling (Makoto Shinkai, Cowboy Bebop).
+
+Recent exchange:
+{messages}
+
+One sentence only:
+```
+
+**No SIGNAL format, no regex parsing** - plain text description used directly as `visual_hint`.
+
+### Visual Types (Simplified)
+
+**v1.2 Change**: Auto-gen defaults to `visual_type: "character"` (cinematic inserts). Visual type classification is optional and only used for analytics.
+
+| Visual Type | When Used | Example |
+|-------------|-----------|---------|
+| `character` | Default for all auto-gen | Cinematic insert with partial/environmental character presence |
+| `object` | (Optional) Keyword detected in description | "coffee cup", "letter", "phone" → object-focused |
+| `atmosphere` | (Optional) Keyword detected in description | "window", "rain", "light" → pure environment |
+| `instruction` | Manual only | Text-based direction cards |
 
 ### Cinematic Insert Characteristics
 
@@ -507,6 +556,7 @@ else:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.2.0 | 2024-12-24 | **Hybrid Trigger Model**: Replace LLM-driven visual decisions with deterministic turn-based triggers (25%, 50%, 75% of episode). Simplify LLM to description-only (no SIGNAL parsing). Add observability (raw_response, visual_decisions history). Reference: DIRECTOR_PROTOCOL.md v2.4. |
 | 1.1.0 | 2024-12-24 | Added provider configuration section. Fixed manual generation 500 error (Phase 1E). Updated cost analysis with FLUX Schnell. |
 | 1.0.0 | 2024-12-24 | Initial specification. Two-track strategy, Phase 1C improved prompting, cost analysis, quality anti-patterns. |
 

@@ -1,6 +1,6 @@
 # Director Protocol
 
-> **Version**: 2.3.0
+> **Version**: 2.4.0
 > **Status**: Active
 > **Updated**: 2024-12-24
 
@@ -268,10 +268,129 @@ Character LLM generates response
 
 ---
 
+## Visual Trigger Strategy (v2.4 - Hybrid Model)
+
+**Problem**: LLM-driven visual triggers (`"Would this benefit from a visual?"`) proved unreliable in production:
+- Gemini 3 Flash evaluated every turn as `visual_type: "none"` despite clear visual moments
+- Regex parsing fragile (exact `SIGNAL:` format required)
+- Zero observability (couldn't see raw LLM responses)
+
+**Solution**: **Hybrid Deterministic + Semantic Model**
+
+### When to Generate (Deterministic)
+
+Visual generation triggers are **turn-based**, not LLM-driven:
+
+```python
+def should_generate_visual(turn_count, turn_budget, visual_mode, generations_used, generation_budget):
+    """Pure function - predictable, testable, no LLM calls."""
+
+    if generations_used >= generation_budget:
+        return False, "budget_exhausted"
+
+    if visual_mode == "cinematic":
+        # Generate at narrative beats: 25%, 50%, 75% of episode
+        position = turn_count / turn_budget if turn_budget else turn_count / 10
+
+        # Budget of 3: trigger at 25%, 50%, 75%
+        if generation_budget == 3:
+            triggers = [0.25, 0.5, 0.75]
+            for i, trigger_pos in enumerate(triggers):
+                if i == generations_used and position >= trigger_pos:
+                    return True, f"turn_position_{trigger_pos}"
+
+    elif visual_mode == "minimal":
+        # Only at climax (90%+ of episode)
+        position = turn_count / turn_budget if turn_budget else 0
+        if position >= 0.9:
+            return True, "climax_reached"
+
+    return False, "no_trigger_point"
+```
+
+**Benefits**:
+- ✅ Predictable (e.g., 12-turn episode with budget 3 → images at turns 3, 6, 9)
+- ✅ Testable (no LLM variability)
+- ✅ Observable (exact reason for each decision)
+- ✅ Model-agnostic (works regardless of LLM backend)
+
+### What to Show (Semantic)
+
+LLM generates **description only**, no structured parsing:
+
+```python
+# BEFORE (v2.3): Ask LLM to decide AND describe
+prompt = """Would this exchange benefit from a visual?
+- CHARACTER: shot featuring character
+- OBJECT: close-up of item
+- ATMOSPHERE: setting/mood
+- NONE: no visual
+
+Answer with: SIGNAL: [visual: X] [status: Y] [hint: description]"""
+
+# AFTER (v2.4): Just describe the moment
+prompt = f"""Describe this {genre} story moment in one evocative sentence for a cinematic insert shot.
+Focus on: mood, lighting, composition, symbolic objects.
+Style: anime environmental storytelling (Makoto Shinkai, Cowboy Bebop).
+
+Recent exchange:
+{messages}
+
+One sentence only:"""
+
+# No regex parsing - use raw text as visual_hint!
+```
+
+**Benefits**:
+- ✅ No parse failures (plain text, no format requirements)
+- ✅ Clearer LLM task ("describe" vs "judge + decide + describe")
+- ✅ Better descriptions (LLM focused on quality, not structure)
+
+### Observability (v2.4)
+
+Director now logs full evaluation context:
+
+```json
+{
+  "director_state": {
+    "last_evaluation": {
+      "turn": 5,
+      "status": "going",
+      "visual_type": "character",
+      "visual_hint": "rain streaking down café window, warm amber light from inside...",
+      "raw_response": "full LLM response here",  // NEW
+      "parse_method": "hybrid_deterministic"     // NEW
+    },
+    "visual_decisions": [  // NEW: Decision history
+      {
+        "turn": 3,
+        "triggered": true,
+        "reason": "turn_position_0.25",
+        "description": "close-up of hands exchanging note..."
+      },
+      {
+        "turn": 4,
+        "triggered": false,
+        "reason": "budget_remaining_2_of_3"
+      }
+    ]
+  }
+}
+```
+
+**Why This Matters**:
+- Can debug visual failures (see exact LLM output)
+- Can analyze trigger patterns (why images appear when they do)
+- Can tune thresholds (adjust turn positions based on data)
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.4.0 | 2024-12-24 | **Hybrid Visual Triggers**: Replace LLM-driven visual decisions with deterministic turn-based triggers. Add observability (raw_response, visual_decisions history). Simplify LLM to description-only (no SIGNAL parsing). |
+| 2.3.0 | 2024-12-24 | **Memory & Hook Extraction Ownership**: Director orchestrates post-exchange processing (memory/hook extraction, beat classification). Series-scoped memory isolation. |
 | 2.2.0 | 2024-12-23 | **Theatrical Model**: Remove per-turn motivation generation. Director becomes deterministic stage manager. Motivation moves upstream to Episode/Genre. |
 | 2.1.0 | 2024-12-23 | Motivation-driven direction: objective/obstacle/tactic via LLM |
 | 2.0.0 | 2024-12-20 | Added pre-response guidance phase, pacing algorithm |
