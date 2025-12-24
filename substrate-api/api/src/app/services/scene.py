@@ -467,68 +467,74 @@ Think cinematically: This is a single frame that must convey an emotional story.
         visual_hint: str,
         style_prompt: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Generate cinematic insert shot (Phase 1B auto-gen strategy).
+        """Generate narrative moment image (auto-gen, manual T2I quality).
 
-        Anime insert shot philosophy: Environmental storytelling that captures
-        the emotional beat of the moment without character likeness focus.
+        Captures the emotional beat through compositional framing, similar to manual generation
+        but triggered automatically by Director.
+
+        Focus: MOMENT + COMPOSITION + ATMOSPHERE
+        - Action/gesture happening in this exact moment
+        - Environmental grounding (location-specific details)
+        - Lighting and mood matching conversation emotion
+        - Character presence varies (partial, silhouette, or environmental based on moment)
 
         Examples:
-        - Rain streaking down a window while a silhouette sits alone
-        - Two coffee cups on a table, one still steaming, one untouched
-        - Sunset light filtering through curtains onto an empty couch
-        - Hands exchanging a note, faces out of frame
-        - Footsteps in snow leading to a closed door
+        - Hand reaching for coffee cup, trembling slightly, warm café lighting, rain outside
+        - Character at window, back turned, rain-blurred cityscape, melancholic atmosphere
+        - Two shadows on wall, intimate proximity, soft evening light filtering through
 
-        These shots capture narrative tension through composition, not character consistency.
+        Emphasizes composition and emotional resonance over character detail.
         """
         try:
             # Get recent conversation context for mood/vibe
             conversation_summary = await self.get_recent_conversation_summary(episode_id, limit=3)
             log.info(f"CINEMATIC INSERT CONTEXT - conversation_summary: {conversation_summary[:200]}...")
 
-            # Generate cinematic insert prompt with conversation context
-            prompt_request = f"""Create a cinematic insert shot prompt for this moment:
+            # Generate narrative moment prompt (similar to manual T2I, but auto-generated)
+            prompt_request = f"""Create a narrative moment image prompt for this scene.
 
-Setting/Location: {scene_setting or "An intimate setting"}
-Emotional beat: {visual_hint}
-Recent conversation context: {conversation_summary}
+SETTING/LOCATION: {scene_setting or "An intimate setting"}
+EMOTIONAL BEAT: {visual_hint}
+CONVERSATION CONTEXT: {conversation_summary}
 
-The image should capture the FEELING of this moment through environmental storytelling.
-Use anime insert shot techniques: focus on details, lighting, composition, symbolic objects.
+Write a detailed prompt (60-80 words) that captures the emotional beat through composition.
 
-CRITICAL REQUIREMENTS:
-1. LOCATION SPECIFICITY: Extract the physical environment from Setting (e.g., "top floor penthouse", "farm", "office", "apartment"). Include architectural details, interior design elements, time of day.
-2. EMOTIONAL TONE: Use conversation context to match mood (intimate, tense, playful, vulnerable, etc.)
-3. ENVIRONMENTAL STORYTELLING: Objects, lighting, weather that convey both the specific location AND emotional state
+Focus on:
+1. VISUAL MOMENT - What's happening in this exact moment (action, gesture, posture)
+2. EMOTIONAL EXPRESSION - Mood conveyed through body language or environmental cues
+3. ENVIRONMENTAL COMPOSITION - How the setting grounds the moment
+4. LIGHTING & ATMOSPHERE - Color temperature, mood-enhancing details that match the emotion
+5. CAMERA FRAMING - Shot type that serves the narrative (medium shot, low angle, etc.)
 
-Visual techniques:
-- Partial framing (hands, silhouettes, backs of heads OK - no face focus)
-- Setting-specific details (penthouse cityscape views, farm landscapes, office interiors, etc.)
-- Cinematic composition (dramatic angles, selective focus)
-- Atmospheric mood (color temperature, depth of field, lighting that matches both location and emotion)
-- Emotional resonance with the conversation's tone
+STYLE GUIDE:
+- Character presence allowed (partial, silhouette, or environmental focus - varies by moment)
+- Emphasize COMPOSITION over character detail
+- Location-specific environmental details (penthouse cityscape, café ambiance, etc.)
+- Lighting must match both location AND emotional tone
+- Anime aesthetic, cinematic framing
 
-Write a detailed image generation prompt (2-3 sentences) that captures:
-- The SPECIFIC physical environment/location from the Setting
-- The emotional atmosphere from the conversation
-- Anime cinematic insert shot aesthetic"""
+FORMAT: Descriptive paragraph focusing on the MOMENT and COMPOSITION
 
-            system_prompt = """You are an expert at writing anime-style cinematic insert shot prompts.
+GOOD EXAMPLE: "Character's hand reaching for coffee cup on weathered wooden table, fingers trembling slightly, warm amber light from café window casting long afternoon shadows, rain visible through glass behind, steam rising from untouched cup, medium close-up with selective focus, melancholic atmosphere, anime style, cinematic depth of field"
 
-These are NOT character portraits. They are environmental storytelling moments that capture BOTH a SPECIFIC LOCATION and EMOTIONAL ATMOSPHERE.
+BAD EXAMPLE: "Person in café" ← Too vague, no emotional detail
+
+Your prompt:"""
+
+            system_prompt = """You are an expert at writing narrative moment prompts for anime-style scenes.
+
+These are MOMENTS IN TIME - capturing the emotional beat through composition, action, and atmosphere.
 
 CRITICAL RULES:
-- NO character faces or detailed appearance descriptions
-- YES to: silhouettes, partial figures, hands, environmental details
-- MUST extract the specific physical location from Setting (penthouse/farm/office/apartment/etc.)
-- MUST include location-specific architectural/design elements (floor-to-ceiling windows, exposed brick, modern furniture, rustic wood, etc.)
-- MUST read the conversation context and match the emotional tone (intimate, tense, playful, vulnerable, etc.)
-- Focus on: specific location details, mood, lighting, composition, symbolic objects, atmospheric details
-- Style: anime aesthetic, cinematic framing, emotional atmosphere
-- Color temperature and lighting MUST reflect both the location type AND conversation's emotional tone
+- Focus on THE MOMENT: What's happening right now (gesture, action, posture, environmental detail)
+- COMPOSITION OVER DETAIL: Frame the scene to tell the emotional story
+- Location specificity: Extract setting details (café, penthouse, farm, etc.) and ground the moment there
+- Emotional resonance: Lighting, weather, atmosphere must match the conversation's mood
+- Character presence varies by moment: Sometimes partial/silhouette, sometimes environmental only
+- Avoid generic portraits: Every shot should have narrative purpose
+- Style: Anime aesthetic, cinematic framing, atmospheric mood
 
-Think: Makoto Shinkai environmental shots showing SPECIFIC places, Cowboy Bebop insert frames that ground scenes.
-The visual should make viewers FEEL the emotional moment AND know exactly where it's happening."""
+Think: Narrative moments that ground emotion in physical space and action."""
 
             log.info(f"CINEMATIC INSERT INPUT - visual_hint: {visual_hint}")
 
@@ -548,8 +554,8 @@ The visual should make viewers FEEL the emotional moment AND know exactly where 
 
             log.info(f"CINEMATIC INSERT FINAL PROMPT: {scene_prompt}")
 
-            # Generate using T2I - allowing partial figures but avoiding portrait focus
-            negative = "detailed face, close-up portrait, photorealistic, 3D render, selfie angle, centered character, full body character reference"
+            # Generate using T2I - allowing character presence but avoiding generic portraits
+            negative = "photorealistic, 3D render, low quality, blurry, distorted anatomy, text, watermark"
             image_response = await self.image_service.generate(
                 prompt=scene_prompt,
                 negative_prompt=negative,
