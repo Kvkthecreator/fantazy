@@ -17,6 +17,18 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 ## 2024-12-24
 
 ### Added
+- **[User Preferences]** visual_mode_override field for hybrid episode/user control
+  - New field in UserPreferences model: visual_mode_override ("always_off" | "always_on" | "episode_default")
+  - Enables user-level accessibility/performance overrides while respecting creator intent by default
+  - "always_off": Text-only mode (accessibility, performance, data-saving)
+  - "always_on": Maximum visuals (upgrade none→minimal, minimal→cinematic)
+  - "episode_default" or null: Respect episode template visual_mode (default behavior)
+
+- **[VISUAL_MODE_MIGRATION.sql]** Database migration script for hybrid visual_mode architecture
+  - Updates all paid episodes to visual_mode='cinematic', generation_budget=3
+  - Updates Episode 0 (free entry) to cinematic with budget=2 (cost control)
+  - Verification queries to ensure expected distribution
+  - Rationale: Auto-gen included in episode price, users expect visuals for paid content
 - **[ADR-003]** Image Generation Strategy - Cinematic Inserts for Auto-Gen
   - Two-track strategy: Auto-gen = T2I cinematic inserts, Manual = dual mode (T2I + Kontext)
   - Anime insert shot philosophy (Makoto Shinkai, Cowboy Bebop)
@@ -43,6 +55,14 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Migration path and rollout plan
 
 ### Changed
+- **[DirectorService]** visual_mode resolution with user preference override
+  - Added `_get_user_preferences()` to fetch user settings from database
+  - Added `_resolve_visual_mode_with_user_preference()` for hybrid resolution logic
+  - Updated `decide_actions()` to accept and use user_preferences parameter (now async)
+  - Updated `process_exchange()` to fetch user preferences before deciding actions
+  - Logging shows when visual_mode is overridden by user preference
+  - Maintains episode-level defaults while enabling user-level accessibility/performance control
+
 - **[DIRECTOR_PROTOCOL.md]** v2.4.0 - Hybrid Visual Triggers + Observability
   - **NEW Section**: "Visual Trigger Strategy (v2.4 - Hybrid Model)"
   - Replaced LLM-driven visual decisions with deterministic turn-based triggers

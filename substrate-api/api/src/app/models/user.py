@@ -14,6 +14,7 @@ class UserPreferences(BaseModel):
     theme: str = "system"
     language: str = "en"
     vibe_preference: Optional[str] = None
+    visual_mode_override: Optional[str] = None  # "always_off" | "always_on" | "episode_default" | None
 
 
 class UserCreate(BaseModel):

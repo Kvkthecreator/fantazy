@@ -519,19 +519,21 @@ STATUS: going/closing/done"""
 
         return False, "no_trigger_point"
 
-    def decide_actions(
+    async def decide_actions(
         self,
         evaluation: Dict[str, Any],
         episode: Optional[EpisodeTemplate],
         session: Session,
+        user_preferences: Dict[str, Any],
     ) -> DirectorActions:
         """Convert semantic evaluation into deterministic actions.
 
-        v2.4: Hybrid Model - Deterministic triggers + Semantic descriptions
+        v2.4: Hybrid Model - Deterministic triggers + Semantic descriptions + User preferences
 
         Ticket + Moments Model:
         - Episodes have a generation_budget (max auto-gens included in entry cost)
         - visual_mode determines when to trigger: cinematic (peaks), minimal (climax only), none
+        - User can override visual_mode via preferences (always_off/always_on/episode_default)
         - No spark charging here - generations are included in episode cost
         - Track generations_used against budget
         """
@@ -541,8 +543,14 @@ STATUS: going/closing/done"""
         if not episode:
             return actions
 
-        # --- Visual Generation (v2.4: Hybrid model) ---
-        visual_mode = getattr(episode, 'visual_mode', VisualMode.NONE)
+        # --- Visual Generation (v2.4: Hybrid model with user preferences) ---
+        episode_visual_mode = getattr(episode, 'visual_mode', VisualMode.NONE)
+
+        # Resolve visual_mode with user preference override
+        visual_mode = self._resolve_visual_mode_with_user_preference(
+            episode_visual_mode,
+            user_preferences
+        )
         generation_budget = getattr(episode, 'generation_budget', 0)
         generations_used = getattr(session, 'generations_used', 0)
         turn_budget = getattr(episode, 'turn_budget', None)
@@ -612,8 +620,11 @@ STATUS: going/closing/done"""
             # Free-form chat - minimal evaluation
             evaluation = {"status": "going", "visual_type": "none", "raw_response": ""}
 
-        # 4. Decide actions
-        actions = self.decide_actions(evaluation, episode_template, session) if episode_template else DirectorActions()
+        # 3.5. Fetch user preferences for visual_mode override
+        user_preferences = await self._get_user_preferences(user_id)
+
+        # 4. Decide actions (with user preference support)
+        actions = await self.decide_actions(evaluation, episode_template, session, user_preferences) if episode_template else DirectorActions()
 
         # 5. Determine completion (execute_actions removed - generations_used increment moved to _generate_auto_scene)
         is_complete = actions.suggest_next
@@ -643,12 +654,19 @@ STATUS: going/closing/done"""
         }
 
         # Log visual decision to history (keep last 10)
-        # v2.4: Capture deterministic trigger reason
+        # v2.4: Capture deterministic trigger reason with user preference resolution
         if episode_template:
+            # Resolve visual_mode with user preference (same as in decide_actions)
+            episode_visual_mode = getattr(episode_template, 'visual_mode', VisualMode.NONE)
+            resolved_visual_mode = self._resolve_visual_mode_with_user_preference(
+                episode_visual_mode,
+                user_preferences
+            )
+
             should_gen, trigger_reason = self._should_generate_visual_deterministic(
                 turn_count=new_turn_count,
                 turn_budget=getattr(episode_template, 'turn_budget', None),
-                visual_mode=getattr(episode_template, 'visual_mode', VisualMode.NONE),
+                visual_mode=resolved_visual_mode,  # Use resolved visual_mode
                 generations_used=getattr(session, 'generations_used', 0),
                 generation_budget=getattr(episode_template, 'generation_budget', 0),
             )
@@ -751,6 +769,57 @@ STATUS: going/closing/done"""
             {"character_id": str(character_id)}
         )
         return dict(row) if row else None
+
+    async def _get_user_preferences(self, user_id: UUID) -> Dict[str, Any]:
+        """Fetch user preferences from database."""
+        row = await self.db.fetch_one(
+            "SELECT preferences FROM users WHERE id = :user_id",
+            {"user_id": str(user_id)}
+        )
+        return dict(row)["preferences"] if row and row["preferences"] else {}
+
+    def _resolve_visual_mode_with_user_preference(
+        self,
+        episode_visual_mode: VisualMode,
+        user_preferences: Dict[str, Any]
+    ) -> VisualMode:
+        """Resolve visual_mode with user preference override.
+
+        Hybrid model: Episode defines default, user can override.
+
+        User preference options:
+        - "always_off": Disable auto-gen (accessibility/performance/preference)
+        - "always_on": Enable visuals even on text-focused episodes
+        - "episode_default" or None: Respect creator's intent (default)
+
+        Args:
+            episode_visual_mode: The visual_mode defined by episode template
+            user_preferences: User preferences dict (may contain visual_mode_override)
+
+        Returns:
+            Resolved VisualMode to use for this episode
+        """
+        user_override = user_preferences.get("visual_mode_override")
+
+        if user_override == "always_off":
+            # User wants text-only (accessibility/performance/preference)
+            log.debug(f"User override: always_off, forcing visual_mode=none")
+            return VisualMode.NONE
+        elif user_override == "always_on":
+            # User wants maximum visuals (upgrade 'none' → 'minimal', 'minimal' → 'cinematic')
+            if episode_visual_mode == VisualMode.NONE:
+                log.debug(f"User override: always_on, upgrading none → minimal")
+                return VisualMode.MINIMAL
+            elif episode_visual_mode == VisualMode.MINIMAL:
+                log.debug(f"User override: always_on, upgrading minimal → cinematic")
+                return VisualMode.CINEMATIC
+            else:
+                log.debug(f"User override: always_on, keeping cinematic")
+                return episode_visual_mode
+        else:
+            # Respect creator's intent (default behavior)
+            log.debug(f"User override: episode_default, respecting episode visual_mode={episode_visual_mode}")
+            return episode_visual_mode
 
     async def _update_director_state(self, session_id: UUID, director_state: Dict[str, Any]):
         """Update just the director_state field."""
