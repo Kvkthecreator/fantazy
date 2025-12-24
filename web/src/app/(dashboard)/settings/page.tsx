@@ -72,17 +72,20 @@ export default function SettingsPage() {
   };
 
   const handleToggleAutoGen = async (enabled: boolean) => {
+    // Optimistically update UI
     setAutoGenEnabled(enabled);
     setIsSavingPrefs(true);
     setPrefsSaveSuccess(false);
     try {
       const visual_mode_override = enabled ? "always_on" : "episode_default";
-      await updateUser({
+      const updatedUser = await updateUser({
         preferences: {
           ...user?.preferences,
           visual_mode_override,
         },
       });
+      // Ensure state matches server response
+      setAutoGenEnabled(updatedUser?.preferences?.visual_mode_override === "always_on");
       setPrefsSaveSuccess(true);
       setTimeout(() => setPrefsSaveSuccess(false), 3000);
     } catch (err) {

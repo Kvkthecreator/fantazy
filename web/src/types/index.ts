@@ -33,6 +33,7 @@ export interface UserPreferences {
   theme?: string;
   language?: string;
   vibe_preference?: string;
+  visual_mode_override?: "always_off" | "always_on" | "episode_default";
 }
 
 // Character types

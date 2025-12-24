@@ -9,6 +9,7 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { InstructionCard } from "./InstructionCard";
+import { EpisodeOpeningCard } from "./EpisodeOpeningCard";
 import { RateLimitModal } from "./RateLimitModal";
 import { InlineCompletionCard } from "./InlineCompletionCard";
 import { InlineSuggestionCard } from "./InlineSuggestionCard";
@@ -571,30 +572,44 @@ function EmptyState({
       "flex flex-col items-center justify-center h-full text-center px-4",
       hasBackground && "text-white"
     )}>
-      {/* Character avatar or initial */}
-      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/80 to-accent/80 flex items-center justify-center text-white text-2xl font-bold mb-4 border-2 border-white/30 shadow-lg overflow-hidden">
-        {characterAvatar ? (
-          <img src={characterAvatar} alt={characterName} className="w-full h-full object-cover" />
-        ) : (
-          characterName[0]
-        )}
-      </div>
+      {/* UPSTREAM-DRIVEN: Episode Opening Card (if episode data available) */}
+      {episodeTemplate?.situation ? (
+        <EpisodeOpeningCard
+          title={episodeTemplate.title}
+          situation={episodeTemplate.situation}
+          dramaticQuestion={episodeTemplate.dramatic_question}
+          characterName={characterName}
+          hasBackground={hasBackground}
+        />
+      ) : (
+        /* Fallback: Character-only chat (no episode) */
+        <>
+          {/* Character avatar or initial */}
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/80 to-accent/80 flex items-center justify-center text-white text-2xl font-bold mb-4 border-2 border-white/30 shadow-lg overflow-hidden">
+            {characterAvatar ? (
+              <img src={characterAvatar} alt={characterName} className="w-full h-full object-cover" />
+            ) : (
+              characterName[0]
+            )}
+          </div>
 
-      {/* Episode title or character name */}
-      <h2 className={cn(
-        "text-lg font-semibold mb-2",
-        hasBackground && "drop-shadow-md"
-      )}>
-        {episodeTemplate?.title || `Start talking with ${characterName}`}
-      </h2>
+          {/* Character name */}
+          <h2 className={cn(
+            "text-lg font-semibold mb-2",
+            hasBackground && "drop-shadow-md"
+          )}>
+            Start talking with {characterName}
+          </h2>
 
-      {/* Episode situation or default prompt */}
-      <p className={cn(
-        "text-sm mb-4 max-w-sm",
-        hasBackground ? "text-white/80" : "text-muted-foreground"
-      )}>
-        {episodeTemplate?.situation || `Send a message to begin your conversation. ${characterName} will remember everything you share.`}
-      </p>
+          {/* Default prompt */}
+          <p className={cn(
+            "text-sm mb-4 max-w-sm",
+            hasBackground ? "text-white/80" : "text-muted-foreground"
+          )}>
+            Send a message to begin your conversation. {characterName} will remember everything you share.
+          </p>
+        </>
+      )}
 
       {/* Episode frame - stage direction (Hybrid POV) */}
       {episodeTemplate?.episode_frame && (
