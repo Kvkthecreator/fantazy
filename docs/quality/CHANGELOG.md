@@ -97,6 +97,12 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Deterministic triggers: 25%, 50%, 75% for cinematic (budget=3), 90%+ for minimal
 
 ### Fixed
+- **[Frontend - ChatContainer]** Auto-gen scene images now appear in chat without page refresh (commit 685cdc95)
+  - Root cause: useScenes hook only loaded scenes once on episode mount
+  - Solution: Wire visual_pending event from useChat to trigger scene refresh
+  - Added refreshScenesRef + onVisualPending callback with 1-second setTimeout
+  - Completes Director v2.4 end-to-end pipeline (backend + frontend)
+
 - **[Director Auto-Gen]** Visual triggers now reliable and observable (v2.4)
   - Root cause: Gemini Flash evaluated ALL turns as visual_type="none" despite clear visual moments
   - Fix: Replaced LLM decision with deterministic turn-based triggers
