@@ -277,40 +277,49 @@ Character LLM generates response
 
 **Solution**: **Hybrid Deterministic + Semantic Model**
 
-### Visual Mode Resolution (v2.5 - User Preference Override)
+### Visual Mode Resolution (v2.5 - Manual-First Strategy)
 
-**NEW (2024-12-24)**: `visual_mode` now supports **user preference override** for accessibility and performance.
+**UPDATED (2024-12-24)**: After quality assessment, switched to **manual-first philosophy**:
+- **Default**: All episodes use `visual_mode='none'` (text-only, fast, no interruptions)
+- **Opt-in**: Users can enable experimental auto-gen via Settings > Preferences toggle
+- **Manual generation**: "Capture Moment" (1 Spark) remains the primary, proven path
+
+**Rationale**:
+- Auto-gen quality not yet consistent (abstract/confusing images vs clear manual portraits)
+- Generation time (5-10 seconds) interrupts narrative flow
+- Manual T2I provides reliable, high-quality results with user control
+- Auto-gen improved prompts (dropped Shinkai environmental-only) available for opt-in users
 
 ```python
 def resolve_visual_mode(episode, user_preferences):
     """Resolve visual_mode with user preference override.
 
-    Hybrid model: Episode defines default, user can override.
+    Manual-first model: Episodes default to 'none', users opt-in for experimental auto-gen.
     """
-    episode_mode = episode.visual_mode  # Creator's intent
+    episode_mode = episode.visual_mode  # Creator's intent (typically 'none')
     user_override = user_preferences.get("visual_mode_override")
 
     if user_override == "always_off":
-        # User needs text-only (accessibility/performance/data-saving)
+        # User explicitly disabled (accessibility/performance/data-saving)
         return VisualMode.NONE
     elif user_override == "always_on":
-        # Power user wants maximum visuals
+        # User opted into experimental auto-gen
         if episode_mode == VisualMode.NONE:
-            return VisualMode.MINIMAL
+            return VisualMode.MINIMAL  # Upgrade to minimal auto-gen
         elif episode_mode == VisualMode.MINIMAL:
-            return VisualMode.CINEMATIC
+            return VisualMode.CINEMATIC  # Upgrade to full auto-gen
         else:
             return episode_mode
     else:  # "episode_default" or null
-        # Respect creator's intent (default, 95%+ of users)
+        # Default: Respect episode setting (typically 'none' for manual-first)
         return episode_mode
 ```
 
 **Benefits**:
-- ✅ Creator control maintained (episode sets default)
-- ✅ Accessibility support (screen readers, cognitive load reduction)
-- ✅ Performance control (slow connections, limited data, battery conservation)
-- ✅ Cost unchanged (user override doesn't affect episode pricing)
+- ✅ Fast, uninterrupted narrative by default
+- ✅ Manual generation (1 Spark) provides proven quality when users want images
+- ✅ Experimental auto-gen available for users who opt-in via settings
+- ✅ No degraded experience from inconsistent auto-gen quality
 
 ### When to Generate (Deterministic)
 

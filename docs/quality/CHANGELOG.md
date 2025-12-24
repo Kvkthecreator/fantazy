@@ -17,31 +17,44 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 ## 2024-12-24
 
 ### Added
-- **[DIRECTOR_PROTOCOL.md]** v2.5.0 - User Preference Override for visual_mode
-  - New section: "Visual Mode Resolution (v2.5 - User Preference Override)"
-  - `resolve_visual_mode()` function balances episode defaults with user overrides
-  - Hybrid architecture: Episode sets default, user can override for accessibility/performance
-  - User options: "always_off" (text-only), "always_on" (maximum visuals), "episode_default" (respect creator)
-  - Benefits: Creator control + User accessibility + Performance control + Cost predictability
+- **[Settings UI]** Visual Preferences tab for auto-gen toggle
+  - New "Preferences" tab in Settings page (web/src/app/(dashboard)/settings/page.tsx)
+  - Toggle for "Auto-generated images" (opt-in for experimental feature)
+  - Maps to visual_mode_override: "always_on" (enabled) | "episode_default" (disabled)
+  - Warning banner explaining experimental nature (5-10s generation time, quality improving)
+  - User education: Default behavior (auto-gen OFF), manual generation always available
+  - Save handler with optimistic UI, loading state, success feedback
 
-- **[IMAGE_GENERATION.md]** v1.3.0 - Visual Mode Architecture (Hybrid Model)
-  - New section: "Visual Mode Architecture (v1.3 - Hybrid Model)"
-  - Episode-level defaults: cinematic (default for paid), minimal, none
-  - User-level override: always_off, always_on, episode_default
-  - Resolution logic with accessibility/performance support
-  - Updated auto-generation gating to use resolved visual_mode
+- **[DIRECTOR_PROTOCOL.md]** v2.5.0 - Manual-First Visual Strategy
+  - Updated section: "Visual Mode Resolution (v2.5 - Manual-First Strategy)"
+  - **Strategy shift**: After quality assessment, switched to manual-first philosophy
+  - Default: All episodes use visual_mode='none' (text-only, fast, no interruptions)
+  - Opt-in: Users enable experimental auto-gen via Settings > Preferences toggle
+  - Manual generation (1 Spark "Capture Moment") remains primary, proven path
+  - Rationale: Auto-gen quality not yet consistent, 5-10s generation interrupts flow
+  - `resolve_visual_mode()` updated to reflect manual-first approach
+
+- **[IMAGE_GENERATION.md]** v1.3.0 - Manual-First Generation Philosophy
+  - **Strategic Philosophy rewrite**: Manual-first as primary path
+  - Primary: Manual "Capture Moment" (proven quality, user control)
+  - Secondary: Experimental auto-gen (opt-in via settings)
+  - Track 1 updated: Dropped Shinkai environmental-only, now "Narrative Moment Captures"
+  - Improved prompts: Composition + atmosphere + action (matches manual T2I quality)
+  - Visual Mode Architecture section updated with manual-first strategy
+  - Settings UI documentation (toggle location, warning banner, default behavior)
+  - Benefits updated: Fast uninterrupted narrative, proven manual quality, experimental opt-in
 
 - **[UserPreferences Model]** visual_mode_override field
   - New optional field in substrate-api/api/src/app/models/user.py
   - Stored in existing users.preferences JSONB column
   - Values: "always_off" | "always_on" | "episode_default" | null
 
-- **[Database Migration]** All paid episodes now default to cinematic mode
-  - Migration executed 2024-12-24: Updated 21 episodes from visual_mode='none' to 'cinematic'
-  - All 34 paid episodes now have visual_mode='cinematic', generation_budget=3
-  - Consistent premium visual experience across all paid content
-  - Users can opt-out via visual_mode_override='always_off'
-  - Economics: $0.075 cost per episode (3 auto-gens × $0.025), 75% margin on $0.30 revenue
+- **[Database Migration]** Manual-first strategy (visual_mode='none')
+  - Initial migration 2024-12-24: Updated 21 episodes to 'cinematic' (experimental)
+  - **Reverted same day**: All 34 paid episodes set to visual_mode='none', generation_budget=0
+  - Rationale: Quality assessment showed auto-gen not ready (abstract/confusing images)
+  - Users opt-in via settings if they want experimental auto-gen
+  - Manual generation (1 Spark T2I) provides reliable quality
 
 - **[ADR-003]** Image Generation Strategy - Cinematic Inserts for Auto-Gen
   - Two-track strategy: Auto-gen = T2I cinematic inserts, Manual = dual mode (T2I + Kontext)

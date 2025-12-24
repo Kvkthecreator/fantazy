@@ -14,25 +14,41 @@ This document defines quality standards, prompting strategies, and best practice
 
 ## Strategic Philosophy
 
-### Core Principle: Two-Track Generation
+### Core Principle: Manual-First Generation (v1.3)
 
-**Track 1: Director Auto-Gen** → Environmental storytelling
-**Track 2: Manual "Capture Moment"** → Character focus with user choice
+**UPDATED (2024-12-24)**: After quality assessment, switched to **manual-first philosophy**:
 
-This separation reflects Episode-0 Canon: "People engage with situations, not characters."
+**Primary Path: Manual "Capture Moment"** → Proven quality, user control
+- T2I mode (1 Spark): Reliable character portraits in narrative composition
+- Kontext Pro (3 Sparks): High-fidelity character likeness with facial expressions
+
+**Secondary Path: Experimental Auto-Gen** → Opt-in via Settings
+- Default: All episodes use `visual_mode='none'` (text-only, fast, no interruptions)
+- Users can enable auto-gen in Settings > Preferences (experimental feature)
+- Improved prompts (dropped Shinkai environmental-only) for better quality
+
+**Rationale**:
+- Auto-gen quality not yet consistent (abstract/confusing images in testing)
+- Generation time (5-10 seconds) interrupts narrative flow
+- Manual generation provides reliable results when users want images
+- Opt-in approach allows testing improvements without degrading default experience
 
 ---
 
-## Track 1: Director Auto-Generation
+## Track 1: Director Auto-Generation (Experimental, Opt-In)
 
-### Philosophy: Cinematic Insert Shots
+### Philosophy: Narrative Moment Captures
 
-Director auto-gen uses **anime insert shot technique** to capture narrative beats through environmental storytelling rather than character portraiture.
+**UPDATED (2024-12-24)**: Dropped Shinkai environmental-only philosophy in favor of **narrative moment composition** matching manual T2I quality.
 
-**Artistic References:**
-- Makoto Shinkai films (environmental storytelling, light/atmosphere)
-- Cowboy Bebop (insert frames between scenes)
-- Anime production: 物の絵 (mono no e, "pictures of things")
+Director auto-gen now captures emotional beats through:
+- **Composition + atmosphere + action** (not just environment)
+- Character presence varies by moment (partial, silhouette, or environmental)
+- Emphasizes MOMENT over character detail
+- Focuses on what's happening RIGHT NOW (gesture, posture, environmental interaction)
+
+**Status**: Experimental feature, opt-in via Settings > Preferences
+**Default**: All episodes use `visual_mode='none'` (manual-first strategy)
 
 ### Trigger Strategy (v1.2 - Hybrid Model)
 
@@ -416,43 +432,49 @@ style, cinematic"
 
 ## Subscription & Budget Gating
 
-### Visual Mode Architecture (v1.3 - Hybrid Model)
+### Visual Mode Architecture (v1.3 - Manual-First Strategy)
 
-**NEW (2024-12-24)**: visual_mode now supports **user preference override** for accessibility and performance.
+**UPDATED (2024-12-24)**: Switched to **manual-first philosophy** after quality assessment.
 
-**Episode-Level Defaults** (Creator Intent):
-- `cinematic`: 3-4 auto-gens at narrative beats (default for all paid episodes)
-- `minimal`: 1 auto-gen at climax only
-- `none`: No auto-gen (text-focused episodes)
+**Episode-Level Defaults** (Manual-First):
+- **All paid episodes**: `visual_mode='none'` (text-only by default)
+- **Manual generation**: Always available via "Capture Moment" button (1 Spark T2I / 3 Sparks Kontext)
 
-**User-Level Override** (Accessibility/Performance):
-- `"episode_default"` or `null`: Respect episode design (default, 95%+ of users)
-- `"always_off"`: Force text-only mode (accessibility, slow connections, data-saving)
-- `"always_on"`: Upgrade visuals (none→minimal, minimal→cinematic)
+**User-Level Override** (Experimental Auto-Gen Opt-In):
+- `"episode_default"` or `null`: Respect episode setting (typically 'none', default for all users)
+- `"always_off"`: Explicitly disabled (accessibility, slow connections, data-saving)
+- `"always_on"`: **Opt into experimental auto-gen** (upgrades none→minimal, minimal→cinematic)
+
+**Settings UI**:
+- Toggle in Settings > Preferences > Visual Experience
+- "Auto-generated images" switch (default: OFF)
+- Warning banner: "Experimental Feature - 5-10s generation time, quality improving"
+- Guidance: "Manual 'Capture Moment' offers higher quality with more control"
 
 **Resolution Logic:**
 ```python
-# Hybrid resolution (episode default + user override)
+# Manual-first resolution (episodes default to 'none', users opt-in for auto-gen)
 def resolve_visual_mode(episode, user_preferences):
-    episode_mode = episode.visual_mode  # Creator's intent
+    episode_mode = episode.visual_mode  # Typically 'none' (manual-first)
     user_override = user_preferences.get("visual_mode_override")
 
     if user_override == "always_off":
-        return "none"  # User needs text-only (accessibility/performance)
+        return "none"  # Explicitly disabled
     elif user_override == "always_on":
-        # Upgrade visuals for power users
+        # User opted into experimental auto-gen
         if episode_mode == "none":
-            return "minimal"
+            return "minimal"  # Upgrade to minimal auto-gen
         elif episode_mode == "minimal":
-            return "cinematic"
+            return "cinematic"  # Upgrade to full auto-gen
     else:
-        return episode_mode  # Respect creator intent (default)
+        return episode_mode  # Default: typically 'none' (manual-first)
 ```
 
 **Benefits:**
-- ✅ Creator control maintained (episode sets default)
-- ✅ User accessibility supported (screen readers, cognitive load)
-- ✅ Performance control (slow connections, limited data, battery)
+- ✅ Fast, uninterrupted narrative by default (no 5-10s generation pauses)
+- ✅ Manual generation (1 Spark) provides proven quality when users want images
+- ✅ Experimental auto-gen available for users who opt-in via settings
+- ✅ No degraded experience from inconsistent auto-gen quality
 - ✅ Cost predictability unchanged (override doesn't change episode price)
 
 ### Auto-Generation Access
