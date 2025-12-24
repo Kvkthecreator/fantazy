@@ -16,6 +16,14 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 
 ## 2024-12-24
 
+### Added
+- **[ADR-003]** Image Generation Strategy - Cinematic Inserts for Auto-Gen
+  - Two-track strategy: Auto-gen = T2I cinematic inserts, Manual = dual mode (T2I + Kontext)
+  - Anime insert shot philosophy (Makoto Shinkai, Cowboy Bebop)
+  - Environmental storytelling over character consistency for auto-gen
+  - Cost reduction: $0.05 vs $0.15 per auto-gen (67% savings)
+  - Improved manual prompting: facial expressions, body language, composition
+
 ### Changed
 - **[DIRECTOR_PROTOCOL.md]** v2.3.0 - Memory & Hook Extraction Ownership
   - Director now owns all post-exchange processing (memory, hooks, beats)
@@ -33,10 +41,25 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Added extraction ownership flow diagram
   - Design decision: Callbacks are personal, not narrative-bounded
 
+- **[SceneService]** Image generation refactoring (Phase 1A/1B/1C)
+  - Phase 1A: Fixed broken auto-gen trigger, added subscription gating
+  - Phase 1B: Added `_generate_cinematic_insert()` for Director auto-gen
+  - Phase 1C: Improved `KONTEXT_PROMPT_TEMPLATE` and `T2I_PROMPT_TEMPLATE`
+  - Auto-gen now T2I only (no avatar kit lookup, simplified pipeline)
+  - Manual generation retains dual mode with improved prompting
+
 ### Removed
 - **[ConversationService]**: `_process_exchange()` method (55 lines)
   - Legacy memory/hook extraction consolidated into Director
   - Duplicate extraction calls removed from send_message() and send_message_stream()
+
+- **[DirectorActions]**: Obsolete fields removed
+  - `save_memory`, `memory_content` (moved to process_exchange v2.3)
+  - `execute_actions()` method (dead code, counter moved to generation path)
+
+- **[Stream Events]**: Legacy spark-charging fields removed
+  - `sparks_deducted` field from visual_pending events
+  - `needs_sparks` event type (Ticket + Moments has no per-gen charging)
 
 ---
 
