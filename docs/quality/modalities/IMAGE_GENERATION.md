@@ -1,6 +1,6 @@
 # Image Generation Quality Specification
 
-> **Version**: 1.0.0
+> **Version**: 1.1.0
 > **Status**: Active
 > **Updated**: 2024-12-24
 
@@ -507,6 +507,7 @@ else:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2024-12-24 | Added provider configuration section. Fixed manual generation 500 error (Phase 1E). Updated cost analysis with FLUX Schnell. |
 | 1.0.0 | 2024-12-24 | Initial specification. Two-track strategy, Phase 1C improved prompting, cost analysis, quality anti-patterns. |
 
 ---
@@ -526,9 +527,20 @@ else:
 - `substrate-api/api/src/app/services/scene.py` - SceneService with all generation methods
 - `substrate-api/api/src/app/services/conversation.py` - Auto-gen trigger logic
 - `substrate-api/api/src/app/services/director.py` - Visual type evaluation
+- `substrate-api/api/src/app/services/image.py` - ImageService with provider configuration
+- `substrate-api/api/src/app/routes/scenes.py` - Manual generation API endpoints
+
+**Provider Configuration:**
+- Default T2I provider: **Replicate** (FLUX Schnell)
+- Default T2I model: `black-forest-labs/flux-schnell`
+- Kontext provider: **Replicate** (FLUX Kontext Pro)
+- Kontext model: `black-forest-labs/flux-kontext-pro`
+- Cost per T2I: ~$0.003 (FLUX Schnell)
+- Cost per Kontext: ~$0.15 (FLUX Kontext Pro)
 
 **Commits:**
 - Phase 1A: `061ba034` - Fixed auto-gen trigger
 - Phase 1B: `c8019196` - Cinematic insert implementation
 - Phase 1C: `34ed14b2` - Improved manual prompting
 - Phase 1D: `ff463857` - Documentation
+- Phase 1E: `4182b8c2` - Fixed manual generation 500 error (provider + templates)

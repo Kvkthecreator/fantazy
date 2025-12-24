@@ -24,7 +24,7 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Cost reduction: $0.05 vs $0.15 per auto-gen (67% savings)
   - Improved manual prompting: facial expressions, body language, composition
 
-- **[modalities/IMAGE_GENERATION.md]** v1.0.0 - Image generation quality specification
+- **[modalities/IMAGE_GENERATION.md]** v1.1.0 - Image generation quality specification
   - Strategic philosophy: Two-track generation approach
   - Track 1 (Auto-gen): Cinematic insert shot standards, prompting templates, quality checklist
   - Track 2 (Manual): Kontext Pro and T2I mode specifications with Phase 1C improvements
@@ -32,6 +32,7 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Quality anti-patterns catalog with fixes
   - Cost analysis and economics
   - Evolution tracking with open questions
+  - Provider configuration documentation (Phase 1E)
 
 ### Changed
 - **[DIRECTOR_PROTOCOL.md]** v2.3.0 - Memory & Hook Extraction Ownership
@@ -50,12 +51,26 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
   - Added extraction ownership flow diagram
   - Design decision: Callbacks are personal, not narrative-bounded
 
-- **[SceneService]** Image generation refactoring (Phase 1A/1B/1C)
+- **[ImageService]** Default provider changed from Gemini Flash to FLUX Schnell (Phase 1E)
+  - DEFAULT_PROVIDER: "gemini" → "replicate"
+  - DEFAULT_MODEL: "gemini-3-flash-preview" → "black-forest-labs/flux-schnell"
+  - Rationale: FLUX Schnell properly supports negative prompts, Gemini Flash doesn't
+  - Cost improvement: Auto-gen now $0.003 vs intended $0.05 (94% cheaper!)
+  - Fixed manual T2I generation 500 error
+
+- **[SceneService]** Image generation refactoring (Phase 1A/1B/1C/1E)
   - Phase 1A: Fixed broken auto-gen trigger, added subscription gating
   - Phase 1B: Added `_generate_cinematic_insert()` for Director auto-gen
-  - Phase 1C: Improved `KONTEXT_PROMPT_TEMPLATE` and `T2I_PROMPT_TEMPLATE`
+  - Phase 1C: Improved `KONTEXT_PROMPT_TEMPLATE` and `T2I_PROMPT_TEMPLATE` in services/scene.py
+  - Phase 1E: Applied Phase 1C improvements to routes/scenes.py (manual generation)
   - Auto-gen now T2I only (no avatar kit lookup, simplified pipeline)
   - Manual generation retains dual mode with improved prompting
+
+- **[Manual Generation Routes]** Phase 1C template improvements applied (Phase 1E)
+  - Updated KONTEXT_PROMPT_TEMPLATE with facial expression/composition focus
+  - Updated T2I_PROMPT_TEMPLATE with 6 focus areas (appearance, expression, body language, composition, lighting, camera)
+  - Added good/bad examples to both templates
+  - Fixed 500 error by switching to FLUX Schnell default provider
 
 ### Removed
 - **[ConversationService]**: `_process_exchange()` method (55 lines)
