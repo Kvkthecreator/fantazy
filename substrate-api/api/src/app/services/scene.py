@@ -373,29 +373,27 @@ CRITICAL RULES:
         """Generate a visual based on Director's visual_type classification.
 
         Routes to appropriate generation pipeline based on visual_type:
-        - character: Character in scene (uses Kontext with anchor or T2I)
+        - character: Cinematic insert (T2I environmental shot, Phase 1B strategy)
         - object: Close-up of significant item (no character reference)
         - atmosphere: Setting/mood shot (no character, empty scene)
         - instruction: Not handled here (text card, no image generation)
         - none: Not handled here (no visual needed)
 
+        Phase 1B Strategy: All Director auto-gen uses T2I cinematic inserts.
+        Character consistency de-emphasized in favor of narrative impact.
+
         Returns the generated scene data or None if generation fails.
         """
         if visual_type == "character":
-            # Use existing character scene generation
-            return await self.generate_scene_for_moment(
+            # Phase 1B: Character type now generates cinematic insert (T2I only)
+            # Shifted from character-consistency focus to environmental storytelling
+            return await self._generate_cinematic_insert(
                 episode_id=episode_id,
                 user_id=user_id,
                 character_id=character_id,
-                character_name=character_name,
                 scene_setting=scene_setting,
-                moment_description=visual_hint,
-                trigger_type="director_auto",
-                appearance_prompt=appearance_prompt,
+                visual_hint=visual_hint,
                 style_prompt=style_prompt,
-                negative_prompt=negative_prompt,
-                avatar_kit_id=avatar_kit_id,
-                anchor_image=anchor_image,
             )
 
         elif visual_type == "object":
@@ -420,6 +418,95 @@ CRITICAL RULES:
 
         else:
             log.warning(f"Unknown visual_type '{visual_type}', skipping generation")
+            return None
+
+    async def _generate_cinematic_insert(
+        self,
+        episode_id: UUID,
+        user_id: UUID,
+        character_id: UUID,
+        scene_setting: str,
+        visual_hint: str,
+        style_prompt: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Generate cinematic insert shot (Phase 1B auto-gen strategy).
+
+        Anime insert shot philosophy: Environmental storytelling that captures
+        the emotional beat of the moment without character likeness focus.
+
+        Examples:
+        - Rain streaking down a window while a silhouette sits alone
+        - Two coffee cups on a table, one still steaming, one untouched
+        - Sunset light filtering through curtains onto an empty couch
+        - Hands exchanging a note, faces out of frame
+        - Footsteps in snow leading to a closed door
+
+        These shots capture narrative tension through composition, not character consistency.
+        """
+        try:
+            # Generate cinematic insert prompt
+            prompt_request = f"""Create a cinematic insert shot prompt for this moment:
+
+Setting: {scene_setting or "An intimate setting"}
+Emotional beat: {visual_hint}
+
+The image should capture the FEELING of this moment through environmental storytelling.
+Use anime insert shot techniques: focus on details, lighting, composition, symbolic objects.
+
+Visual techniques:
+- Partial framing (hands, silhouettes, backs of heads OK - no face focus)
+- Environmental storytelling (objects, lighting, weather convey emotion)
+- Cinematic composition (dramatic angles, selective focus)
+- Atmospheric mood (color temperature, depth of field, lighting)
+
+Write a detailed image generation prompt (2-3 sentences)."""
+
+            system_prompt = """You are an expert at writing anime-style cinematic insert shot prompts.
+
+These are NOT character portraits. They are environmental storytelling moments.
+
+CRITICAL RULES:
+- NO character faces or detailed appearance descriptions
+- YES to: silhouettes, partial figures, hands, environmental details
+- Focus on: mood, lighting, composition, symbolic objects
+- Style: anime aesthetic, cinematic framing, emotional atmosphere
+
+Think: Makoto Shinkai environmental shots, Cowboy Bebop insert frames."""
+
+            prompt_response = await self.llm_service.generate([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt_request},
+            ], max_tokens=250)
+            scene_prompt = prompt_response.content.strip()
+
+            # Add base anime style if no custom style provided
+            if style_prompt:
+                scene_prompt = f"{scene_prompt}, {style_prompt}"
+            else:
+                scene_prompt = f"{scene_prompt}, anime style, cinematic composition, atmospheric lighting, emotional depth"
+
+            log.info(f"CINEMATIC INSERT: {scene_prompt[:100]}...")
+
+            # Generate using T2I - allowing partial figures but avoiding portrait focus
+            negative = "detailed face, close-up portrait, photorealistic, 3D render, selfie angle, centered character, full body character reference"
+            image_response = await self.image_service.generate(
+                prompt=scene_prompt,
+                negative_prompt=negative,
+                width=1024,
+                height=768,  # 4:3 for insert shots
+            )
+
+            return await self._save_generated_image(
+                image_response=image_response,
+                episode_id=episode_id,
+                user_id=user_id,
+                character_id=character_id,
+                scene_prompt=scene_prompt,
+                trigger_type="director_auto",
+            )
+
+        except Exception as e:
+            log.error(f"Cinematic insert generation failed: {e}")
             return None
 
     async def _generate_object_visual(

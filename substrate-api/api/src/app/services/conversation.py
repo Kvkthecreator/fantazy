@@ -946,55 +946,17 @@ class ConversationService:
     ):
         """Generate a scene image automatically (Director-triggered).
 
+        Phase 1B: All auto-gen uses T2I cinematic inserts. No character reference.
         This runs as a background task and won't block the stream.
+
         Routes to appropriate generation pipeline based on visual_type:
-        - character: Character in scene (Kontext with anchor or T2I)
+        - character: Cinematic insert (environmental storytelling, T2I)
         - object: Close-up of item (no character)
         - atmosphere: Setting/mood shot (no character)
         """
         try:
-            # Get avatar kit for character consistency (only needed for character type)
-            anchor_image = None
-            appearance_prompt = None
-            style_prompt = None
-            negative_prompt = None
-            avatar_kit_id = None
-
-            if visual_type == "character":
-                kit_row = await self.db.fetch_one(
-                    """
-                    SELECT ak.id, ak.appearance_prompt, ak.style_prompt, ak.negative_prompt,
-                           aa.storage_path
-                    FROM avatar_kits ak
-                    LEFT JOIN avatar_assets aa ON aa.avatar_kit_id = ak.id AND aa.asset_type = 'anchor'
-                    WHERE ak.character_id = :character_id
-                    ORDER BY ak.created_at DESC
-                    LIMIT 1
-                    """,
-                    {"character_id": str(character_id)}
-                )
-
-                if kit_row:
-                    # Convert Record to dict for safe .get() access
-                    kit_dict = dict(kit_row)
-                    avatar_kit_id = kit_dict["id"]
-                    appearance_prompt = kit_dict.get("appearance_prompt")
-                    style_prompt = kit_dict.get("style_prompt")
-                    negative_prompt = kit_dict.get("negative_prompt")
-
-                    # Load anchor image if available
-                    if kit_dict.get("storage_path"):
-                        try:
-                            from app.services.storage import StorageService
-                            storage = StorageService.get_instance()
-                            anchor_image = await storage.download(
-                                bucket="avatars",
-                                path=kit_dict["storage_path"]
-                            )
-                        except Exception as e:
-                            log.warning(f"Failed to load anchor image: {e}")
-
-            # Generate the visual using the Director-aware method
+            # Phase 1B: Simplified - no avatar kit lookup for auto-gen
+            # All visual types use T2I without character reference
             result = await self.scene_service.generate_director_visual(
                 visual_type=visual_type,
                 episode_id=episode_id,
@@ -1003,11 +965,11 @@ class ConversationService:
                 character_name=character_name,
                 scene_setting=scene_setting,
                 visual_hint=visual_hint,
-                appearance_prompt=appearance_prompt,
-                style_prompt=style_prompt,
-                negative_prompt=negative_prompt,
-                avatar_kit_id=avatar_kit_id,
-                anchor_image=anchor_image,
+                appearance_prompt=None,  # Not used for cinematic inserts
+                style_prompt=None,  # Method applies default anime style
+                negative_prompt=None,  # Method defines appropriate negatives
+                avatar_kit_id=None,  # No character reference
+                anchor_image=None,  # T2I only
             )
 
             if result:
