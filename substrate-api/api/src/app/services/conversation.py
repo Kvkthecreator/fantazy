@@ -286,33 +286,45 @@ class ConversationService:
                             }) + "\n"
                         else:
                             # Image-based visual - emit pending, then generate async
+                            # Ticket + Moments: No per-generation charging (included in episode_cost)
                             yield json.dumps({
                                 "type": "visual_pending",
                                 "visual_type": actions.visual_type,
                                 "visual_hint": actions.visual_hint,
-                                "sparks_deducted": actions.deduct_sparks,
                             }) + "\n"
 
                             # Actually generate the scene image (async, fire-and-forget)
-                            if ENABLE_AUTO_SCENE_GENERATION and actions.deduct_sparks > 0:
-                                asyncio.create_task(
-                                    self._generate_auto_scene(
-                                        episode_id=episode.id,
-                                        user_id=user_id,
-                                        character_id=character_id,
-                                        character_name=context.character_name,
-                                        scene_setting=episode_template.situation if episode_template else "",
-                                        visual_hint=actions.visual_hint or "the current moment",
-                                        visual_type=actions.visual_type,
-                                    )
+                            # Phase 1A: Fixed auto-gen trigger with subscription gating
+                            if ENABLE_AUTO_SCENE_GENERATION and actions.visual_type not in ("none", "instruction"):
+                                # Check subscription tier (premium only for auto-gen)
+                                user_row = await self.db.fetch_one(
+                                    "SELECT subscription_status FROM users WHERE id = :user_id",
+                                    {"user_id": str(user_id)}
                                 )
+                                is_premium = user_row and user_row["subscription_status"] == "premium"
 
-                    # Needs sparks prompt (first time only)
-                    if actions.needs_sparks:
-                        yield json.dumps({
-                            "type": "needs_sparks",
-                            "message": "You need more Sparks to unlock auto-generated scenes.",
-                        }) + "\n"
+                                if is_premium:
+                                    # Check budget not exhausted
+                                    visual_mode = getattr(episode_template, 'visual_mode', 'none') if episode_template else 'none'
+                                    generation_budget = getattr(episode_template, 'generation_budget', 0) if episode_template else 0
+
+                                    if visual_mode in ("cinematic", "minimal") and refreshed_session.generations_used < generation_budget:
+                                        asyncio.create_task(
+                                            self._generate_auto_scene(
+                                                episode_id=episode.id,
+                                                user_id=user_id,
+                                                character_id=character_id,
+                                                character_name=context.character_name,
+                                                scene_setting=episode_template.situation if episode_template else "",
+                                                visual_hint=actions.visual_hint or "the current moment",
+                                                visual_type=actions.visual_type,
+                                            )
+                                        )
+                                        log.info(f"Auto-gen triggered: {actions.visual_type} (session {refreshed_session.id}, {refreshed_session.generations_used + 1}/{generation_budget})")
+                                    else:
+                                        log.debug(f"Auto-gen skipped: budget exhausted ({refreshed_session.generations_used}/{generation_budget}) or visual_mode={visual_mode}")
+                                else:
+                                    log.debug(f"Auto-gen skipped: user {user_id} not premium")
 
                 # Emit episode_complete event if Director detected completion
                 if director_output.is_complete:
@@ -999,6 +1011,15 @@ class ConversationService:
             )
 
             if result:
+                # Increment generations_used counter
+                await self.db.execute(
+                    """
+                    UPDATE sessions
+                    SET generations_used = generations_used + 1
+                    WHERE id = :episode_id
+                    """,
+                    {"episode_id": str(episode_id)},
+                )
                 log.info(f"Auto-generated {visual_type} scene for episode {episode_id}: {result.get('image_id')}")
             else:
                 log.warning(f"Auto-scene generation returned no result for episode {episode_id}")

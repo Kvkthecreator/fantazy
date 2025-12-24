@@ -227,12 +227,12 @@ class DirectorActions:
 
     These are explicit actions the system should take - no interpretation needed.
     Ticket + Moments model: no per-generation spark charging.
+
+    Note: Memory/hook extraction moved to process_exchange() in Director Protocol v2.3.
     """
     visual_type: str = "none"  # character/object/atmosphere/instruction/none
     visual_hint: Optional[str] = None  # What to show (for image generation)
     suggest_next: bool = False  # Suggest moving to next episode
-    save_memory: bool = False  # Save evaluation as memory
-    memory_content: Optional[str] = None  # Content to save
 
 
 @dataclass
@@ -523,52 +523,12 @@ If visual is not "none", add: [hint: <description>]"""
         elif turn_budget and turn >= turn_budget:
             actions.suggest_next = True
 
-        # --- Memory ---
-        if status in ("closing", "done") and evaluation.get("raw_response"):
-            actions.save_memory = True
-            actions.memory_content = evaluation["raw_response"][:500]
+        # NOTE: Memory/hook extraction now happens in process_exchange() (Director Protocol v2.3)
 
         return actions
 
-    async def execute_actions(
-        self,
-        actions: DirectorActions,
-        session: Session,
-        user_id: UUID,
-        episode: Optional[EpisodeTemplate] = None,
-    ) -> DirectorActions:
-        """Execute actions, handling generation budget tracking.
-
-        Ticket + Moments Model:
-        - visual_mode determines if auto-generation happens (cinematic/minimal/none)
-        - Generations are included in episode_cost (no per-image charging)
-        - We increment generations_used to track against generation_budget
-
-        Returns potentially modified actions.
-        """
-        from app.deps import get_db
-
-        # Skip if no visual action
-        if actions.visual_type == "none" or actions.visual_type == "instruction":
-            return actions
-
-        # Ticket + Moments: Increment generations_used (no spark charge)
-        # The generation is "free" because user paid episode_cost at entry
-        visual_mode = getattr(episode, 'visual_mode', VisualMode.NONE) if episode else VisualMode.NONE
-
-        if visual_mode in (VisualMode.CINEMATIC, VisualMode.MINIMAL):
-            db = await get_db()
-            await db.execute(
-                """
-                UPDATE sessions
-                SET generations_used = generations_used + 1
-                WHERE id = :session_id
-                """,
-                {"session_id": str(session.id)},
-            )
-            log.info(f"Session {session.id}: generation used (included in episode cost)")
-
-        return actions
+    # NOTE: execute_actions() removed - generations_used increment moved to
+    # _generate_auto_scene() in conversation.py (Phase 1A)
 
     async def process_exchange(
         self,
