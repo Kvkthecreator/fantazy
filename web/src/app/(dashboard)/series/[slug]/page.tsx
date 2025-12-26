@@ -13,7 +13,6 @@ import {
   Play,
   ArrowLeft,
   BookOpen,
-  Check,
   Clock,
   MessageSquare,
   Calendar,
@@ -158,11 +157,8 @@ export default function SeriesPage({ params }: PageProps) {
     (a, b) => a.episode_number - b.episode_number
   );
 
-  // Find next episode to continue or first episode
-  const nextEpisode = sortedEpisodes.find((ep) => {
-    const p = progress.get(ep.id);
-    return !p || p.status !== "completed";
-  });
+  // Find the most recently played episode (for "Continue" highlight)
+  const currentEpisodeId = userContext?.current_episode?.episode_id;
 
   const totalEpisodes = series.episodes.length;
   // User has started if they have a current episode from userContext
@@ -243,7 +239,7 @@ export default function SeriesPage({ params }: PageProps) {
                   <div className="flex-1 p-5 bg-primary/5 border-b sm:border-b-0 sm:border-r">
                     <div className="flex items-center gap-2 mb-2">
                       <Badge variant="secondary" className="bg-primary text-primary-foreground">
-                        {userContext.current_episode.status === "in_progress" ? "Continue" : "Up Next"}
+                        Continue
                       </Badge>
                     </div>
                     <h3 className="font-semibold mb-1">
@@ -260,7 +256,7 @@ export default function SeriesPage({ params }: PageProps) {
                       className="gap-2"
                     >
                       <Play className="h-4 w-4" />
-                      {userContext.current_episode.status === "in_progress" ? "Continue Episode" : "Start Episode"}
+                      Continue Episode
                     </Button>
                   </div>
                 )}
@@ -332,9 +328,8 @@ export default function SeriesPage({ params }: PageProps) {
           <div className="space-y-3">
             {sortedEpisodes.map((episode) => {
               const episodeProgress = progress.get(episode.id);
-              const isCompleted = episodeProgress?.status === "completed";
-              const isInProgress = episodeProgress?.status === "in_progress";
-              const isNext = nextEpisode?.id === episode.id;
+              const hasStarted = !!episodeProgress; // Any interaction = started
+              const isCurrent = currentEpisodeId === episode.id; // Most recent episode
 
               return (
                 <Card
@@ -343,8 +338,7 @@ export default function SeriesPage({ params }: PageProps) {
                     "overflow-hidden cursor-pointer transition-all duration-200",
                     "hover:shadow-lg hover:-translate-y-0.5",
                     "group",
-                    isNext && "ring-2 ring-primary/50",
-                    isCompleted && "opacity-75",
+                    isCurrent && "ring-2 ring-primary",
                     startingEpisode === episode.id &&
                       "pointer-events-none opacity-80"
                   )}
@@ -375,17 +369,10 @@ export default function SeriesPage({ params }: PageProps) {
                         </div>
                       </div>
 
-                      {/* Progress indicator */}
-                      {isCompleted && (
+                      {/* Started indicator (clock icon) */}
+                      {hasStarted && (
                         <div className="absolute top-2 right-2">
-                          <div className="h-6 w-6 rounded-full bg-green-500 flex items-center justify-center">
-                            <Check className="h-4 w-4 text-white" />
-                          </div>
-                        </div>
-                      )}
-                      {isInProgress && (
-                        <div className="absolute top-2 right-2">
-                          <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
+                          <div className="h-6 w-6 rounded-full bg-primary/80 flex items-center justify-center">
                             <Clock className="h-3 w-3 text-white" />
                           </div>
                         </div>
@@ -399,33 +386,25 @@ export default function SeriesPage({ params }: PageProps) {
                           variant="secondary"
                           className={cn(
                             "text-[10px]",
-                            isNext && "bg-primary text-primary-foreground"
+                            isCurrent && "bg-primary text-primary-foreground"
                           )}
                         >
                           Episode {episode.episode_number}
                         </Badge>
-                        {isNext && (
+                        {isCurrent && (
                           <Badge
                             variant="outline"
                             className="text-[10px] border-primary text-primary"
                           >
-                            Up Next
+                            Continue
                           </Badge>
                         )}
-                        {isCompleted && (
+                        {hasStarted && !isCurrent && (
                           <Badge
                             variant="outline"
-                            className="text-[10px] border-green-500 text-green-600"
+                            className="text-[10px] border-muted-foreground/50 text-muted-foreground"
                           >
-                            Completed
-                          </Badge>
-                        )}
-                        {isInProgress && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] border-primary text-primary"
-                          >
-                            In Progress
+                            Started
                           </Badge>
                         )}
                       </div>
@@ -441,7 +420,7 @@ export default function SeriesPage({ params }: PageProps) {
                       )}
 
                       <Button
-                        variant={isNext ? "default" : "outline"}
+                        variant={isCurrent ? "default" : "outline"}
                         size="sm"
                         className="mt-3 gap-2 w-fit"
                         disabled={!!startingEpisode}
@@ -449,11 +428,9 @@ export default function SeriesPage({ params }: PageProps) {
                         <Play className="h-4 w-4" />
                         {startingEpisode === episode.id
                           ? "Starting..."
-                          : isCompleted
-                            ? "Replay"
-                            : isInProgress
-                              ? "Continue"
-                              : "Start"}
+                          : hasStarted
+                            ? "Continue"
+                            : "Start"}
                       </Button>
                     </CardContent>
                   </div>
