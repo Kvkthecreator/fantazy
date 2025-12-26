@@ -84,8 +84,29 @@ body {
   text-size-adjust: 100%;
 }
 
+/* Text selection highlight - ensure visibility across all elements */
 ::selection {
-  background: hsla(var(--primary), 0.15);
+  background: hsl(220 80% 60% / 0.35);
+  color: inherit;
+}
+
+/* Stronger selection for inputs/textareas where visibility is critical */
+input::selection,
+textarea::selection,
+[contenteditable]::selection {
+  background: hsl(220 80% 55% / 0.45);
+  color: inherit;
+}
+
+/* Dark mode adjustments */
+.dark ::selection {
+  background: hsl(220 70% 65% / 0.4);
+}
+
+.dark input::selection,
+.dark textarea::selection,
+.dark [contenteditable]::selection {
+  background: hsl(220 70% 65% / 0.5);
 }
 
 /* Subtle background texture for pages */
