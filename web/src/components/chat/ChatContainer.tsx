@@ -443,7 +443,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                     characterId={characterId}
                     characterName={character.name}
                     hasBackground={hasBackground}
-                    variant="compact"
                     onDismiss={dismissSuggestion}
                   />
                 )}
