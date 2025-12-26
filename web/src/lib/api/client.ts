@@ -766,9 +766,9 @@ export const api = {
       request<import("@/types").EpisodeTemplate>(`/episode-templates/${templateId}/activate`, {
         method: "POST",
       }),
-    generateEpisodeBackground: (characterName: string, episodeNumber: number) =>
+    generateEpisodeBackground: (characterName: string, episodeNumber: number, force: boolean = true) =>
       request<{ message: string; generated: number }>(
-        `/studio/admin/generate-episode-backgrounds?character=${encodeURIComponent(characterName)}&episode_number=${episodeNumber}`,
+        `/studio/admin/generate-episode-backgrounds?character=${encodeURIComponent(characterName)}&episode_number=${episodeNumber}&force=${force}`,
         { method: "POST" }
       ),
   },
