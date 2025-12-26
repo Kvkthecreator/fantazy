@@ -650,18 +650,153 @@ SERIES_COVER_PROMPTS = {
 }
 
 
+# =============================================================================
+# Dynamic Prompt Builders - Use Database Metadata
+# =============================================================================
+
+# Genre to visual style mapping (consistent across all dynamic builders)
+GENRE_VISUAL_STYLES = {
+    "romance": "romantic atmosphere, soft warm lighting, emotional depth",
+    "romantic_tension": "romantic tension atmosphere, moody lighting, emotional anticipation",
+    "medical_romance": "medical drama aesthetic, Grey's Anatomy lighting, cinematic emotional depth",
+    "dark_romance": "dark romantic atmosphere, dramatic shadows, intimate tension",
+    "drama": "dramatic cinematic lighting, emotional intensity, storytelling moment",
+    "thriller": "suspenseful atmosphere, dramatic shadows, tension-filled scene",
+    "psychological_thriller": "psychological tension, subtle unease, controlled mood",
+    "mystery": "mysterious atmosphere, intriguing shadows, enigmatic mood",
+    "slice_of_life": "warm cozy atmosphere, natural lighting, everyday beauty",
+    "comedy": "bright cheerful atmosphere, vibrant colors, lighthearted mood",
+    "fantasy": "magical atmosphere, ethereal lighting, fantastical elements",
+    "fantasy_romance": "magical romantic atmosphere, ethereal beauty, fantastical wonder",
+    "action": "dynamic atmosphere, high energy, cinematic action mood",
+}
+
+# World to rendering style mapping
+WORLD_RENDERING_STYLES = {
+    "K-World": {
+        "rendering": "Korean drama aesthetic, soft romantic style, Korean webtoon influence",
+        "quality": "masterpiece, best quality, Korean drama cinematography",
+    },
+    "Real Life": {
+        "rendering": "cinematic photography, film still aesthetic, realistic lighting",
+        "quality": "masterpiece, best quality, cinematic film still, high detail",
+    },
+}
+
+# Default rendering for unknown worlds
+DEFAULT_RENDERING = {
+    "rendering": "cinematic photography, professional quality",
+    "quality": "masterpiece, best quality, highly detailed",
+}
+
+
+def build_dynamic_episode_background_prompt(
+    episode_frame: Optional[str] = None,
+    situation: Optional[str] = None,
+    dramatic_question: Optional[str] = None,
+    genre: Optional[str] = None,
+    world_name: Optional[str] = None,
+    visual_style: Optional[str] = None,
+) -> tuple[str, str]:
+    """
+    Build episode background prompt dynamically from database metadata.
+
+    Uses the rich context available in episode_templates and series to generate
+    appropriate atmospheric backgrounds without requiring hardcoded configs.
+
+    Priority order for building the prompt:
+    1. episode_frame - explicit visual description (best source)
+    2. situation - scene context (extract location/time cues)
+    3. dramatic_question - emotional stakes (inform mood)
+    4. genre + world - styling consistency
+
+    Args:
+        episode_frame: Visual description from episode_templates.episode_frame
+        situation: Scene setup from episode_templates.situation
+        dramatic_question: Stakes from episode_templates.dramatic_question
+        genre: Genre from series.genre or episode.genre
+        world_name: World from worlds.name
+        visual_style: Optional override style (from series.visual_style)
+
+    Returns:
+        Tuple of (positive_prompt, negative_prompt)
+    """
+    # Get world-specific rendering
+    world_style = WORLD_RENDERING_STYLES.get(world_name, DEFAULT_RENDERING)
+    rendering = world_style["rendering"]
+    quality = world_style["quality"]
+
+    # Get genre-specific mood
+    genre_mood = GENRE_VISUAL_STYLES.get(genre, "cinematic atmosphere, emotional depth")
+
+    # Build location from episode_frame (primary) or extract from situation
+    if episode_frame:
+        location = episode_frame
+    elif situation:
+        # Extract scene-setting phrases from situation
+        # Take first sentence or first 150 chars
+        first_sentence = situation.split('.')[0] if '.' in situation else situation[:150]
+        location = f"atmospheric scene, {first_sentence}"
+    else:
+        location = "atmospheric empty scene"
+
+    # Infer time/lighting from content
+    time_hints = ""
+    content_to_check = (episode_frame or "") + " " + (situation or "")
+    content_lower = content_to_check.lower()
+
+    if any(word in content_lower for word in ["night", "midnight", "2am", "3am", "late", "evening", "dark"]):
+        time_hints = "night scene, moody atmospheric lighting"
+    elif any(word in content_lower for word in ["dawn", "sunrise", "morning", "early"]):
+        time_hints = "dawn, golden hour, soft warm light"
+    elif any(word in content_lower for word in ["dusk", "twilight", "sunset"]):
+        time_hints = "dusk, golden hour fading, warm to cool transition"
+    elif any(word in content_lower for word in ["afternoon", "day", "sunny"]):
+        time_hints = "afternoon, natural lighting, warm atmosphere"
+    else:
+        time_hints = "atmospheric lighting, cinematic mood"
+
+    # Extract emotional mood from dramatic_question if available
+    mood = genre_mood
+    if dramatic_question:
+        # Add emotional weight from the dramatic question
+        mood = f"{genre_mood}, {dramatic_question[:80]}"
+
+    # Apply visual_style override if provided
+    if visual_style:
+        rendering = visual_style
+
+    # Build the prompt
+    prompt_parts = [
+        rendering,                                      # 1. STYLE first
+        location,                                       # 2. LOCATION
+        time_hints,                                     # 3. TIME/LIGHTING
+        mood,                                           # 4. MOOD
+        "atmospheric depth, beautiful composition",     # 5. COMPOSITION
+        "empty scene, no people, no characters",        # 6. CONSTRAINTS
+        quality,                                        # 7. QUALITY
+    ]
+
+    prompt = ", ".join(p for p in prompt_parts if p)
+
+    return prompt, BACKGROUND_NEGATIVE
+
+
 def build_dynamic_series_cover_prompt(
     title: str,
     genre: Optional[str] = None,
     tagline: Optional[str] = None,
     description: Optional[str] = None,
     world_name: Optional[str] = None,
+    character_name: Optional[str] = None,
+    character_backstory: Optional[str] = None,
+    episode_frame: Optional[str] = None,
 ) -> tuple[str, str]:
     """
-    Build a dynamic series cover prompt from series metadata.
+    Build series cover prompt dynamically from database metadata.
 
+    Enhanced version that can include character context and episode 0 scene.
     Used as fallback when no predefined prompt exists for a series.
-    Creates an atmospheric, cinematic cover based on available metadata.
 
     Args:
         title: Series title
@@ -669,51 +804,53 @@ def build_dynamic_series_cover_prompt(
         tagline: Series tagline
         description: Series description
         world_name: World name (e.g., "K-World", "Real Life")
+        character_name: Optional featured character name
+        character_backstory: Optional character backstory for context
+        episode_frame: Optional episode 0 frame for scene context
 
     Returns:
         Tuple of (positive_prompt, negative_prompt)
     """
-    # Genre-based style mapping
-    genre_styles = {
-        "romance": "romantic atmosphere, soft warm lighting, emotional depth",
-        "romantic_tension": "romantic tension atmosphere, moody lighting, emotional anticipation",
-        "drama": "dramatic cinematic lighting, emotional intensity, storytelling moment",
-        "thriller": "suspenseful atmosphere, dramatic shadows, tension-filled scene",
-        "mystery": "mysterious atmosphere, intriguing shadows, enigmatic mood",
-        "slice_of_life": "warm cozy atmosphere, natural lighting, everyday beauty",
-        "comedy": "bright cheerful atmosphere, vibrant colors, lighthearted mood",
-        "fantasy": "magical atmosphere, ethereal lighting, fantastical elements",
-        "action": "dynamic atmosphere, high energy, cinematic action mood",
-    }
+    # Get world-specific rendering
+    world_style = WORLD_RENDERING_STYLES.get(world_name, DEFAULT_RENDERING)
+    rendering = world_style["rendering"]
+    quality = world_style["quality"]
 
-    # World-based rendering style
-    world_styles = {
-        "K-World": "Korean drama aesthetic, soft romantic style, Korean webtoon influence",
-        "Real Life": "cinematic photography, film still aesthetic, realistic lighting",
-    }
+    # Get genre-specific style
+    style = GENRE_VISUAL_STYLES.get(genre, "cinematic atmosphere, professional lighting, emotional depth")
 
-    # Build style from genre
-    style = genre_styles.get(genre, "cinematic atmosphere, professional lighting, emotional depth")
-
-    # Build rendering from world
-    rendering = world_styles.get(world_name, "cinematic photography, professional quality")
-
-    # Extract scene hints from tagline/description
+    # Build scene hints from available sources (priority order)
     scene_hints = ""
-    if tagline:
+    if episode_frame:
+        # Best source: episode 0's visual description
+        scene_hints = episode_frame[:150]
+    elif tagline:
         scene_hints = tagline[:100]
     elif description:
         scene_hints = description[:150]
+    else:
+        scene_hints = "evocative atmospheric scene"
+
+    # Build character hint if available
+    character_hint = ""
+    if character_name:
+        character_hint = f"featuring {character_name}"
+        if character_backstory:
+            # Extract first sentence of backstory for character essence
+            first_line = character_backstory.split('.')[0] if '.' in character_backstory else character_backstory[:100]
+            if len(first_line) < 100:
+                character_hint = f"featuring {character_name}, {first_line}"
 
     # Build the prompt
     prompt_parts = [
         f"cinematic cover art for '{title}'",
-        scene_hints if scene_hints else "evocative atmospheric scene",
+        character_hint if character_hint else None,
+        scene_hints,
         style,
         rendering,
         "wide shot composition, key art poster style",
         "atmospheric depth, professional color grading",
-        "masterpiece, best quality, highly detailed",
+        quality,
     ]
 
     prompt = ", ".join(p for p in prompt_parts if p)

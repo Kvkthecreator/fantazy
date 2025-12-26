@@ -1956,21 +1956,12 @@ async def delete_episode_template(
 # Episode Background Generation
 # =============================================================================
 
-# Import config-based prompt builder for high-quality backgrounds
+# Import prompt builders for high-quality backgrounds
 from app.services.content_image_generation import (
     build_episode_background_prompt,
+    build_dynamic_episode_background_prompt,
     ALL_EPISODE_BACKGROUNDS,
 )
-
-# Fallback style settings for episode backgrounds (used when no config exists)
-BACKGROUND_STYLE = """masterpiece, best quality, highly detailed anime background,
-beautiful atmospheric lighting, cinematic composition,
-professional digital art, immersive environment,
-detailed scenery, mood setting background, no characters, empty scene"""
-
-BACKGROUND_NEGATIVE = """people, person, character, figure, human, face, eyes,
-lowres, bad anatomy, text, watermark, signature, blurry,
-multiple scenes, collage, border, frame"""
 
 
 class BackgroundGenerationResponse(BaseModel):
@@ -2023,11 +2014,17 @@ async def generate_episode_backgrounds(
         conditions.append("et.episode_number = :episode_number")
         params["episode_number"] = episode_number
 
+    # Fetch episode data with series/world context for dynamic prompt building
     query = f"""
         SELECT et.id, et.character_id, et.episode_number, et.title,
-               et.episode_frame, c.name as character_name
+               et.episode_frame, et.situation, et.dramatic_question, et.genre as episode_genre,
+               c.name as character_name,
+               s.genre as series_genre, s.visual_style,
+               w.name as world_name
         FROM episode_templates et
         JOIN characters c ON c.id = et.character_id
+        LEFT JOIN series s ON s.id = et.series_id
+        LEFT JOIN worlds w ON w.id = COALESCE(s.world_id, c.world_id)
         WHERE {' AND '.join(conditions)}
         ORDER BY c.name, et.episode_number
     """
@@ -2046,17 +2043,24 @@ async def generate_episode_backgrounds(
     for i, row in enumerate(rows):
         ep = dict(row)
 
-        # Use config-based prompt if available for this episode title, else fallback
+        # Use config-based prompt if available, else dynamic prompt from metadata
         episode_title = ep["title"]
         if episode_title in ALL_EPISODE_BACKGROUNDS:
+            # Use curated config for known episodes
             full_prompt, negative_prompt = build_episode_background_prompt(
                 episode_title=episode_title,
                 episode_config=ALL_EPISODE_BACKGROUNDS[episode_title],
             )
         else:
-            # Fallback to episode_frame with generic style
-            full_prompt = f"{ep['episode_frame']}, {BACKGROUND_STYLE}"
-            negative_prompt = BACKGROUND_NEGATIVE
+            # Dynamic prompt from database metadata (genre, world, situation, etc.)
+            full_prompt, negative_prompt = build_dynamic_episode_background_prompt(
+                episode_frame=ep.get("episode_frame"),
+                situation=ep.get("situation"),
+                dramatic_question=ep.get("dramatic_question"),
+                genre=ep.get("episode_genre") or ep.get("series_genre"),
+                world_name=ep.get("world_name"),
+                visual_style=ep.get("visual_style"),
+            )
 
         try:
             # Generate 16:9 landscape background

@@ -515,8 +515,10 @@ async def generate_series_cover(
     log = logging.getLogger(__name__)
 
     # Get series data with all metadata for dynamic prompt building
+    # Include featured character and episode 0 for richer cover generation
     query = """
         SELECT s.id, s.title, s.slug, s.cover_image_url, s.genre, s.tagline, s.description, s.world_id,
+               s.visual_style, s.featured_characters,
                w.name as world_name
         FROM series s
         LEFT JOIN worlds w ON w.id = s.world_id
@@ -555,13 +557,50 @@ async def generate_series_cover(
         prompt, negative = cover_builder()
         log.info(f"Using predefined cover prompt for '{series_slug}'")
     else:
-        # Use dynamic prompt from series metadata
+        # For dynamic generation, fetch additional context (character, episode 0)
+        character_name = None
+        character_backstory = None
+        episode_frame = None
+
+        # Get featured character info if available
+        featured_chars = series_data.get("featured_characters")
+        if featured_chars:
+            # Parse JSON array if string
+            if isinstance(featured_chars, str):
+                try:
+                    featured_chars = json.loads(featured_chars)
+                except json.JSONDecodeError:
+                    featured_chars = []
+
+            if featured_chars and len(featured_chars) > 0:
+                char_row = await db.fetch_one(
+                    "SELECT name, backstory FROM characters WHERE id = :id",
+                    {"id": str(featured_chars[0])}
+                )
+                if char_row:
+                    character_name = char_row["name"]
+                    character_backstory = char_row["backstory"]
+
+        # Get episode 0 frame for scene context
+        ep0_row = await db.fetch_one(
+            """SELECT episode_frame FROM episode_templates
+               WHERE series_id = :series_id AND episode_number = 0
+               LIMIT 1""",
+            {"series_id": str(series_id)}
+        )
+        if ep0_row:
+            episode_frame = ep0_row["episode_frame"]
+
+        # Use dynamic prompt from series + character + episode metadata
         prompt, negative = build_dynamic_series_cover_prompt(
             title=series_data["title"],
             genre=series_data.get("genre"),
             tagline=series_data.get("tagline"),
             description=series_data.get("description"),
             world_name=series_data.get("world_name"),
+            character_name=character_name,
+            character_backstory=character_backstory,
+            episode_frame=episode_frame,
         )
         log.info(f"Using dynamic cover prompt for '{series_slug}'")
 

@@ -385,6 +385,36 @@ class PromptAssembly:
     full_prompt: str
 
 
+# =============================================================================
+# World-Specific Style Mapping (for dynamic avatar generation)
+# =============================================================================
+
+WORLD_AVATAR_STYLES = {
+    "K-World": {
+        "style": "Korean webtoon style, soft shading, Korean manhwa aesthetic",
+        "lighting": "soft Korean drama lighting, glamorous editorial feel",
+        "quality": "masterpiece, best quality, Korean webtoon art",
+    },
+    "Real Life": {
+        "style": "semi-realistic digital painting, detailed features, soft rendering",
+        "lighting": "cinematic lighting, soft dramatic shadows",
+        "quality": "masterpiece, best quality, cinematic portrait",
+    },
+}
+
+# Genre-specific mood adjustments for avatars
+GENRE_AVATAR_MOODS = {
+    "romance": "warm romantic atmosphere, soft inviting expression",
+    "romantic_tension": "subtle tension, guarded warmth, emotional depth",
+    "medical_romance": "professional competence, hidden vulnerability",
+    "dark_romance": "intense gaze, dangerous allure, guarded passion",
+    "thriller": "sharp alertness, hidden depths, calculated composure",
+    "psychological_thriller": "intelligent intensity, seeing beneath surfaces",
+    "mystery": "enigmatic presence, secrets held close",
+    "slice_of_life": "warm everyday charm, genuine comfort",
+}
+
+
 def assemble_avatar_prompt(
     name: str,
     archetype: str,
@@ -396,6 +426,10 @@ def assemble_avatar_prompt(
     expression_preset: Optional[str] = None,
     pose_preset: Optional[str] = None,
     style_notes: Optional[str] = None,
+    # New dynamic context parameters
+    world_name: Optional[str] = None,
+    series_genre: Optional[str] = None,
+    backstory: Optional[str] = None,
 ) -> PromptAssembly:
     """Assemble complete avatar generation prompt from character data.
 
@@ -410,6 +444,9 @@ def assemble_avatar_prompt(
         expression_preset: Expression ('warm', 'intense', 'playful', 'mysterious', 'confident')
         pose_preset: Pose ('portrait', 'casual', 'dramatic', 'candid')
         style_notes: Free-text additional style/atmosphere notes (e.g., "sunset lighting", "wearing glasses")
+        world_name: World name for style defaults (e.g., "K-World", "Real Life")
+        series_genre: Series genre for mood defaults (e.g., "romantic_tension", "thriller")
+        backstory: Character backstory for additional context extraction
     """
     effective_role = role_frame or archetype
     role_visual = ROLE_FRAME_VISUALS.get(effective_role, DEFAULT_ROLE_VISUAL)
@@ -448,11 +485,20 @@ def assemble_avatar_prompt(
     composition_parts.append(COMPOSITION_DEFAULTS["lighting"])
     composition_prompt = ", ".join(filter(None, composition_parts))
 
-    # Style: prefer preset, fall back to default fantazy style
+    # Style: prefer preset, then world style, fall back to default fantazy style
     if style_preset and style_preset in STYLE_PRESETS:
         style_prompt = f"{STYLE_PRESETS[style_preset]}, {FANTAZY_STYLE_LOCK}"
+    elif world_name and world_name in WORLD_AVATAR_STYLES:
+        # Use world-specific styling when no explicit preset
+        world_style = WORLD_AVATAR_STYLES[world_name]
+        style_prompt = f"{world_style['style']}, {world_style['lighting']}, {world_style['quality']}"
     else:
         style_prompt = FANTAZY_STYLE_LOCK
+
+    # Add genre-specific mood if available and no expression preset
+    if series_genre and series_genre in GENRE_AVATAR_MOODS and not expression_preset:
+        genre_mood = GENRE_AVATAR_MOODS[series_genre]
+        style_prompt = f"{style_prompt}, {genre_mood}"
 
     negative_prompt = FANTAZY_NEGATIVE_PROMPT
     if content_rating == "sfw":
@@ -462,6 +508,13 @@ def assemble_avatar_prompt(
     full_prompt = f"{appearance_prompt}, {composition_prompt}, {style_prompt}"
     if style_notes and style_notes.strip():
         full_prompt = f"{full_prompt}, {style_notes.strip()}"
+
+    # Extract character essence from backstory if no custom appearance
+    if backstory and not custom_appearance:
+        # Add first sentence of backstory as character context
+        first_line = backstory.split('.')[0] if '.' in backstory else backstory[:80]
+        if len(first_line) < 80:
+            full_prompt = f"{full_prompt}, {first_line}"
 
     return PromptAssembly(
         appearance_prompt=appearance_prompt,
@@ -544,12 +597,16 @@ class AvatarGenerationService:
             style_notes: Free-text additional style/atmosphere notes
         """
         try:
-            # 1. Get character data
+            # 1. Get character data with world and series context for dynamic styling
             character = await db.fetch_one(
-                """SELECT id, name, archetype, role_frame, boundaries, content_rating,
-                          active_avatar_kit_id
-                   FROM characters
-                   WHERE id = :id""",
+                """SELECT c.id, c.name, c.archetype, c.role_frame, c.boundaries, c.content_rating,
+                          c.active_avatar_kit_id, c.backstory, c.world_id, c.primary_series_id,
+                          w.name as world_name,
+                          s.genre as series_genre
+                   FROM characters c
+                   LEFT JOIN worlds w ON w.id = c.world_id
+                   LEFT JOIN series s ON s.id = c.primary_series_id
+                   WHERE c.id = :id""",
                 {"id": str(character_id)}
             )
 
@@ -561,7 +618,7 @@ class AvatarGenerationService:
             if isinstance(boundaries, str):
                 boundaries = json.loads(boundaries)
 
-            # 2. Assemble prompt with optional presets
+            # 2. Assemble prompt with optional presets and dynamic context
             actual_rating = char_dict.get("content_rating", content_rating)
             prompt_assembly = assemble_avatar_prompt(
                 name=char_dict["name"],
@@ -574,6 +631,10 @@ class AvatarGenerationService:
                 expression_preset=expression_preset,
                 pose_preset=pose_preset,
                 style_notes=style_notes,
+                # Pass dynamic context for richer prompts
+                world_name=char_dict.get("world_name"),
+                series_genre=char_dict.get("series_genre"),
+                backstory=char_dict.get("backstory"),
             )
 
             # 3. Ensure avatar kit exists
