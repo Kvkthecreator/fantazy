@@ -116,6 +116,15 @@ export function useChat({
   // Track if we've already loaded for this characterId + episodeTemplateId combo
   const loadedKeyRef = useRef<string | null>(null);
 
+  // Reset suggestion state when episode changes (prevents stale suggestion from previous episode)
+  useEffect(() => {
+    setNextSuggestion(null);
+    setSuggestionDismissed(false);
+    setEvaluation(undefined);
+    setDirectorState(null);
+    setInstructionCards([]);
+  }, [episodeTemplateId]);
+
   // Load active episode and messages
   const loadMessages = useCallback(async () => {
     setIsLoading(true);
