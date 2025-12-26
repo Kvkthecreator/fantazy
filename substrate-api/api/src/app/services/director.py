@@ -576,12 +576,9 @@ STATUS: going/closing/done"""
             log.debug(f"Visual skipped: {trigger_reason}")
 
         # --- Episode Progression (turn-based only) ---
-        # v2.6: Suggest ONCE when turn reaches budget, not on every turn after.
-        # Check session.completion_trigger to avoid re-suggesting.
-        # Default turn_budget = 10 if not set on episode_template.
-        effective_turn_budget = turn_budget or 10
-        already_suggested = getattr(session, 'completion_trigger', None) is not None
-        if turn >= effective_turn_budget and not already_suggested:
+        # v2.6: Suggest ONCE when turn exactly equals budget.
+        # turn_budget is always explicit (NOT NULL DEFAULT 10 in DB).
+        if turn == turn_budget:
             actions.suggest_next = True
 
         # NOTE: Memory/hook extraction now happens in process_exchange() (Director Protocol v2.3)
@@ -632,12 +629,9 @@ STATUS: going/closing/done"""
 
         # 5. Determine if we should suggest next episode (v2.6: decoupled from "completion")
         # Only turn_budget triggers suggestions - see EPISODE_STATUS_MODEL.md
+        # turn_budget is always explicit (NOT NULL DEFAULT 10 in DB).
         suggest_next = actions.suggest_next
-        suggestion_trigger = None
-        if suggest_next:
-            effective_turn_budget = getattr(episode_template, 'turn_budget', None) or 10 if episode_template else 10
-            if new_turn_count >= effective_turn_budget:
-                suggestion_trigger = "turn_limit"
+        suggestion_trigger = "turn_limit" if suggest_next else None
 
         # 7. Update session state (with observability v2.4)
         director_state = dict(session.director_state) if session.director_state else {}
