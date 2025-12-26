@@ -141,6 +141,14 @@ export default async function Home() {
               <Link href="/terms" className="hover:text-foreground">
                 Terms of Service
               </Link>
+              <a
+                href="https://tally.so/r/kd9Xgj"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground"
+              >
+                Contact
+              </a>
             </nav>
           </div>
           <div className="mt-6 border-t pt-6 text-center text-xs text-muted-foreground">

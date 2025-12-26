@@ -13,7 +13,7 @@ import { TopupPacks, TransactionHistory } from "@/components/sparks";
 import { useUser } from "@/hooks/useUser";
 import { useSparks } from "@/hooks/useSparks";
 import { createClient } from "@/lib/supabase/client";
-import { CheckCircle2, Sparkles, CreditCard, User, Mail, Clock, Loader2, History, Settings2, Image, AlertCircle } from "lucide-react";
+import { CheckCircle2, Sparkles, CreditCard, User, Mail, Clock, Loader2, History, Settings2, Image, AlertCircle, HelpCircle, ExternalLink } from "lucide-react";
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
@@ -177,7 +177,7 @@ export default function SettingsPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-4 max-w-lg">
           <TabsTrigger value="billing" className="gap-2">
             <CreditCard className="h-4 w-4" />
             Billing
@@ -189,6 +189,10 @@ export default function SettingsPage() {
           <TabsTrigger value="preferences" className="gap-2">
             <Settings2 className="h-4 w-4" />
             Preferences
+          </TabsTrigger>
+          <TabsTrigger value="help" className="gap-2">
+            <HelpCircle className="h-4 w-4" />
+            Help
           </TabsTrigger>
         </TabsList>
 
@@ -455,6 +459,37 @@ export default function SettingsPage() {
                   <strong>Manual generation:</strong> Always available regardless of this setting. Use the "Capture Moment" button during chat to generate high-quality images on demand.
                 </p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Help Tab */}
+        <TabsContent value="help" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                Contact Us
+              </CardTitle>
+              <CardDescription>
+                Have questions, feedback, or need help? We'd love to hear from you.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Use our contact form to reach our team. We typically respond within 24-48 hours.
+              </p>
+              <Button asChild>
+                <a
+                  href="https://tally.so/r/kd9Xgj"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="gap-2"
+                >
+                  Open Contact Form
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
