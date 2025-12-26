@@ -1,8 +1,8 @@
 # Director Protocol
 
-> **Version**: 2.5.0
+> **Version**: 2.6.0
 > **Status**: Active
-> **Updated**: 2024-12-25
+> **Updated**: 2024-12-26
 
 ---
 
@@ -464,6 +464,7 @@ Director now logs full evaluation context:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.6.0 | 2024-12-26 | **Decouple Suggestion from Completion**: Rename `episode_complete` event to `next_episode_suggestion`. Remove `isEpisodeComplete` from suggestion flow. Suggestion is now purely turn-budget driven, independent of any "completion" state. See `EPISODE_STATUS_MODEL.md` for architectural rationale. |
 | 2.5.0 | 2024-12-25 | **Turn-Based Completion Only**: Remove semantic completion ("status: done" from LLM). Default turn_budget=10. Episodes never marked "complete" - users have full control. EpisodeOpeningCard simplified (no dramatic_question). |
 | 2.4.0 | 2024-12-24 | **Hybrid Visual Triggers**: Replace LLM-driven visual decisions with deterministic turn-based triggers. Add observability (raw_response, visual_decisions history). Simplify LLM to description-only (no SIGNAL parsing). |
 | 2.3.0 | 2024-12-24 | **Memory & Hook Extraction Ownership**: Director orchestrates post-exchange processing (memory/hook extraction, beat classification). Series-scoped memory isolation. |
@@ -479,3 +480,4 @@ Director now logs full evaluation context:
 - `docs/EPISODE-0_CANON.md` - Platform canon with theatrical model
 - `docs/decisions/ADR-002-theatrical-architecture.md` - Architecture decision record
 - `docs/quality/core/GENRE_DOCTRINES.md` - Genre convention definitions
+- `docs/quality/core/EPISODE_STATUS_MODEL.md` - Episode status, suggestion, and gating model

@@ -45,8 +45,9 @@ interface UseChatReturn {
   suggestScene: boolean;
   // Director V2 state
   directorState: StreamDirectorState | null;
-  isEpisodeComplete: boolean;
+  // Next episode suggestion (decoupled from "completion" - see EPISODE_STATUS_MODEL.md)
   nextSuggestion: StreamEpisodeCompleteEvent["next_suggestion"];
+  suggestionDismissed: boolean;  // User dismissed the suggestion card
   evaluation: StreamEpisodeCompleteEvent["evaluation"];  // Games evaluation (optional)
   // Director V2 visual state
   visualPending: VisualPendingState | null;
@@ -58,7 +59,7 @@ interface UseChatReturn {
   startNewEpisode: () => Promise<void>;
   endEpisode: () => Promise<void>;
   clearSceneSuggestion: () => void;
-  clearCompletion: () => void;
+  dismissSuggestion: () => void;  // Hide suggestion card (user can keep chatting)
   clearVisualPending: () => void;
   clearNeedsSparks: () => void;
 }
@@ -84,8 +85,9 @@ export function useChat({
 
   // Director V2 state
   const [directorState, setDirectorState] = useState<StreamDirectorState | null>(null);
-  const [isEpisodeComplete, setIsEpisodeComplete] = useState(false);
+  // Next episode suggestion (decoupled from "completion" - see EPISODE_STATUS_MODEL.md)
   const [nextSuggestion, setNextSuggestion] = useState<StreamEpisodeCompleteEvent["next_suggestion"]>(null);
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false);
   const [evaluation, setEvaluation] = useState<StreamEpisodeCompleteEvent["evaluation"]>(undefined);
 
   // Director V2 visual state
@@ -258,23 +260,24 @@ export function useChat({
           // Director V2: User needs more sparks
           setNeedsSparks(true);
           onNeedsSparksRef.current?.(event);
-        } else if (event.type === "episode_complete") {
-          // Director detected episode completion
-          setIsEpisodeComplete(true);
+        } else if (event.type === "episode_complete" || event.type === "next_episode_suggestion") {
+          // Director suggests moving to next episode (v2.6: decoupled from "completion")
+          // This is just a suggestion - user can dismiss and keep chatting
+          // See docs/quality/core/EPISODE_STATUS_MODEL.md for rationale
           setNextSuggestion(event.next_suggestion);
-          // Set evaluation if provided (Games feature)
+          setSuggestionDismissed(false);  // Reset dismissed state for new suggestion
+
+          // Set evaluation if provided (Games feature - separate concern)
           if (event.evaluation) {
             setEvaluation(event.evaluation);
           }
 
-          // Update director state to show completion
+          // Update director state with turn info (but NOT "completion" status)
           setDirectorState((prev) => ({
             ...(prev || { turn_count: event.turn_count, turns_remaining: 0, pacing: "resolve" }),
             turn_count: event.turn_count,
             turns_remaining: 0,
-            is_complete: true,
-            status: "done",
-            pacing: "resolve",  // Episode complete = resolve phase
+            pacing: "resolve",  // Reached turn budget = resolve phase
           }));
 
           // Call callback if provided
@@ -380,10 +383,10 @@ export function useChat({
     setSuggestScene(false);
   }, []);
 
-  // Clear completion state (for dismissing the completion modal)
-  const clearCompletion = useCallback(() => {
-    setIsEpisodeComplete(false);
-    setNextSuggestion(null);
+  // Dismiss suggestion card (user can keep chatting)
+  // Does NOT clear nextSuggestion - just hides the card
+  const dismissSuggestion = useCallback(() => {
+    setSuggestionDismissed(true);
   }, []);
 
   // Clear visual pending state (after image is rendered or dismissed)
@@ -428,8 +431,9 @@ export function useChat({
     suggestScene,
     // Director V2 state
     directorState,
-    isEpisodeComplete,
+    // Next episode suggestion (decoupled from "completion")
     nextSuggestion,
+    suggestionDismissed,
     evaluation,
     // Director V2 visual state
     visualPending,
@@ -441,7 +445,7 @@ export function useChat({
     startNewEpisode,
     endEpisode,
     clearSceneSuggestion,
-    clearCompletion,
+    dismissSuggestion,
     clearVisualPending,
     clearNeedsSparks,
   };

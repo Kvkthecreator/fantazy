@@ -1314,13 +1314,18 @@ export interface StreamNeedsSparksEvent {
 }
 
 /**
- * Episode complete event - Director detected completion
+ * Next episode suggestion event - Director reached turn budget
+ * v2.6: Renamed from episode_complete - this is a suggestion, not a status change.
+ * User can dismiss and keep chatting. See EPISODE_STATUS_MODEL.md
+ *
+ * NOTE: Games still use "episode_complete" type with evaluation field.
+ * Frontend handles both via: event.type === "episode_complete" || event.type === "next_episode_suggestion"
  */
 export interface StreamEpisodeCompleteEvent {
-  type: "episode_complete";
+  type: "episode_complete" | "next_episode_suggestion";
   turn_count: number;
-  trigger: string;  // V2: "semantic" | "turn_limit" | "unknown"
-  next_suggestion: {
+  trigger?: string;  // V2: "turn_limit" | "unknown" (only on chat flow, not games)
+  next_suggestion?: {
     episode_id: string;
     title: string;
     slug: string;

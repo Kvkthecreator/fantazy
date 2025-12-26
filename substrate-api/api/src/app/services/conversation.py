@@ -326,10 +326,12 @@ class ConversationService:
                                 else:
                                     log.debug(f"Auto-gen skipped: user {user_id} not premium")
 
-                # Emit episode_complete event if Director detected completion
+                # Emit next_episode_suggestion event if Director detected turn budget reached
+                # v2.6: Renamed from episode_complete - this is a suggestion, not a status change
+                # User can dismiss and keep chatting. See EPISODE_STATUS_MODEL.md
                 if director_output.is_complete:
                     yield json.dumps({
-                        "type": "episode_complete",
+                        "type": "next_episode_suggestion",
                         "turn_count": director_output.turn_count,
                         "trigger": director_output.completion_trigger or "unknown",
                         "next_suggestion": await self.director_service.suggest_next_episode(

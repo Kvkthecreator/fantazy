@@ -112,9 +112,10 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     suggestScene,
     // Director state
     directorState,
-    isEpisodeComplete,
     evaluation,
+    // Next episode suggestion (decoupled from "completion" - v2.6)
     nextSuggestion,
+    suggestionDismissed,
     // Director V2 visual state
     visualPending,
     instructionCards,
@@ -122,7 +123,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     // Actions
     sendMessage,
     clearSceneSuggestion,
-    clearCompletion,
+    dismissSuggestion,
   } = useChat({
     characterId,
     episodeTemplateId,
@@ -265,7 +266,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatItems, streamingContent, isGeneratingScene, isEpisodeComplete]);
+  }, [chatItems, streamingContent, isGeneratingScene, nextSuggestion]);
 
   // Background is ALWAYS the episode template background - scene cards stay inline only
   const activeBackgroundUrl = backgroundImageUrl;
@@ -422,26 +423,28 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                   />
                 ))}
 
-                {/* Inline completion card - appears after episode completes */}
-                {isEpisodeComplete && evaluation && (
+                {/* Inline completion card - for Games evaluation (separate concern) */}
+                {evaluation && (
                   <InlineCompletionCard
                     evaluation={evaluation}
                     nextSuggestion={nextSuggestion}
                     characterId={characterId}
                     characterName={character.name}
                     hasBackground={hasBackground}
-                    onDismiss={clearCompletion}
+                    onDismiss={dismissSuggestion}
                   />
                 )}
 
-                {/* Inline suggestion card - for next episode (when not showing completion) */}
-                {!isEpisodeComplete && nextSuggestion && (
+                {/* Inline suggestion card - shows when turn budget reached (v2.6: decoupled from completion)
+                    Only show if: suggestion exists, not dismissed, and no evaluation card showing */}
+                {nextSuggestion && !suggestionDismissed && !evaluation && (
                   <InlineSuggestionCard
                     suggestion={nextSuggestion}
                     characterId={characterId}
                     characterName={character.name}
                     hasBackground={hasBackground}
                     variant="compact"
+                    onDismiss={dismissSuggestion}
                   />
                 )}
               </>
