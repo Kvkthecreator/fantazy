@@ -10,12 +10,11 @@ interface EpisodeOpeningCardProps {
 }
 
 /**
- * EpisodeOpeningCard - Simple scene-setting card at conversation start
+ * EpisodeOpeningCard - Scene-setting card at conversation start
  *
- * v2.5: Simplified design - matches assistant chat bubble aesthetic
- * - Shows episode title and situation only
- * - No dramatic_question (removed for cleaner UX)
- * - Styled to blend with conversation flow, not stand out
+ * v2.6: Centered, prominent design with clean background styling
+ * - Shows episode title and situation
+ * - Centered for visibility, clean aesthetic
  */
 export function EpisodeOpeningCard({
   title,
@@ -24,20 +23,20 @@ export function EpisodeOpeningCard({
   hasBackground = false,
 }: EpisodeOpeningCardProps) {
   return (
-    <div className="flex justify-start mb-4">
+    <div className="flex justify-center my-6">
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-3",
+          "w-full max-w-md rounded-2xl px-5 py-4 text-center",
           hasBackground
             ? "bg-black/40 backdrop-blur-sm"
             : "bg-muted"
         )}
       >
-        {/* Episode title - subtle label */}
+        {/* Episode title */}
         <p
           className={cn(
-            "text-xs font-medium mb-1",
-            hasBackground ? "text-white/60" : "text-muted-foreground"
+            "text-xs font-medium uppercase tracking-wide mb-2",
+            hasBackground ? "text-white/50" : "text-muted-foreground"
           )}
         >
           {title}

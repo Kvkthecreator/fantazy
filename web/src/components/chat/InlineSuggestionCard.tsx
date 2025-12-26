@@ -23,8 +23,8 @@ interface InlineSuggestionCardProps {
 
 /**
  * Inline suggestion card - renders in chat flow to suggest next episode.
- * v2.6: Unified styling with EpisodeOpeningCard - left-aligned chat bubble aesthetic.
- * Blends into conversation flow while providing actionable next episode navigation.
+ * v2.6: Centered, prominent design with clean background styling.
+ * Matches EpisodeOpeningCard aesthetic for visual consistency.
  */
 export function InlineSuggestionCard({
   suggestion,
@@ -40,20 +40,20 @@ export function InlineSuggestionCard({
   };
 
   return (
-    <div className="flex justify-start my-4">
+    <div className="flex justify-center my-6">
       <div
         className={cn(
-          "max-w-[85%] rounded-2xl px-4 py-3",
+          "w-full max-w-md rounded-2xl px-5 py-4 text-center",
           hasBackground
             ? "bg-black/40 backdrop-blur-sm"
             : "bg-muted"
         )}
       >
-        {/* Label - matches EpisodeOpeningCard title style */}
+        {/* Label */}
         <p
           className={cn(
-            "text-xs font-medium mb-1",
-            hasBackground ? "text-white/60" : "text-muted-foreground"
+            "text-xs font-medium uppercase tracking-wide mb-2",
+            hasBackground ? "text-white/50" : "text-muted-foreground"
           )}
         >
           Up next
@@ -73,7 +73,7 @@ export function InlineSuggestionCard({
         {suggestion.situation && (
           <p
             className={cn(
-              "text-xs mt-1 line-clamp-2 leading-relaxed",
+              "text-xs mt-2 line-clamp-2 leading-relaxed",
               hasBackground ? "text-white/60" : "text-muted-foreground"
             )}
           >
@@ -81,14 +81,14 @@ export function InlineSuggestionCard({
           </p>
         )}
 
-        {/* Actions - compact inline buttons */}
-        <div className="flex items-center gap-2 mt-3">
+        {/* Actions - centered buttons */}
+        <div className="flex items-center justify-center gap-2 mt-4">
           <Button
             onClick={handleStart}
             size="sm"
-            className="h-7 px-3 text-xs"
+            className="h-8 px-4 text-xs"
           >
-            Start
+            Start Episode
             <ArrowRightIcon className="ml-1.5 h-3 w-3" />
           </Button>
           {onDismiss && (
@@ -97,7 +97,7 @@ export function InlineSuggestionCard({
               size="sm"
               onClick={onDismiss}
               className={cn(
-                "h-7 px-3 text-xs",
+                "h-8 px-4 text-xs",
                 hasBackground ? "text-white/60 hover:text-white hover:bg-white/10" : ""
               )}
             >
