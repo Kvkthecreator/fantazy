@@ -304,7 +304,10 @@ export function useChat({
 
           // Update director state from done event (for ALL episodes)
           if (event.director) {
+            console.log("[useChat] Director state received:", event.director);
             setDirectorState(event.director);
+          } else {
+            console.warn("[useChat] Done event missing director data:", event);
           }
         }
       }
