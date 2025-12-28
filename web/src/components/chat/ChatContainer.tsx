@@ -352,7 +352,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         </div>
 
         {/* Messages area - single focal point for all content */}
-        <div className="flex-1 overflow-y-auto pt-2 pb-1 sm:pt-4 sm:pb-2">
+        <div className="flex-1 overflow-y-auto pt-2 sm:pt-4">
           <div className="mx-auto max-w-2xl px-3 sm:px-4">
             {isLoadingChat ? (
               <MessagesSkeleton />
@@ -455,7 +455,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         {/* Input bar - just input */}
         <div className={cn(
           "flex-shrink-0 pb-[env(safe-area-inset-bottom)]",
-          hasBackground ? "mx-2 mb-1 sm:mx-3 sm:mb-1.5" : "border-t border-border bg-card"
+          hasBackground ? "mx-2 sm:mx-3" : "border-t border-border bg-card"
         )}>
           <div className={cn(
             "transition-colors",

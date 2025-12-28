@@ -210,7 +210,10 @@ export function MessageInput({
               autoCapitalize="sentences"
               spellCheck={false}
               data-form-type="other"
+              data-lpignore="true"
+              data-1p-ignore="true"
               enterKeyHint="send"
+              inputMode="text"
               className={cn(
                 "w-full resize-none border-none bg-transparent px-2 py-1.5 text-[16px] sm:text-sm shadow-none",
                 hasBackground
