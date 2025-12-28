@@ -55,9 +55,9 @@ export function ChatHeader({
 
   return (
     <>
-      <header className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-4 sm:py-3">
+      <header className="flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-2">
         {/* Left: Back + Avatar + Name */}
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
           <Link href="/dashboard">
             <Button
               variant="ghost"
@@ -72,8 +72,8 @@ export function ChatHeader({
             </Button>
           </Link>
 
-          <Link href={`/characters/${character.slug}`}>
-            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden">
+          <Link href={`/characters/${character.slug}`} className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden flex-shrink-0">
               {character.avatar_url ? (
                 <img
                   src={character.avatar_url}
@@ -84,55 +84,51 @@ export function ChatHeader({
                 character.name[0]
               )}
             </div>
+            <h1
+              className={cn(
+                "font-semibold text-sm truncate",
+                hasBackground && "text-white"
+              )}
+            >
+              {character.name}
+            </h1>
           </Link>
-
-          <h1
-            className={cn(
-              "font-semibold text-sm sm:text-base truncate max-w-[140px] sm:max-w-none",
-              hasBackground && "text-white"
-            )}
-          >
-            {character.name}
-          </h1>
         </div>
 
-        {/* Right: Series Progress + Turn Counter */}
-        <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
-          {/* Series Progress (tappable for episode picker) */}
+        {/* Right: Compact indicators */}
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+          {/* Series Progress - compact on mobile */}
           {seriesProgress && seriesProgress.total > 1 && (
             <button
               onClick={() => setShowEpisodePicker(true)}
               className={cn(
-                "flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium transition-colors",
+                "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium transition-colors",
                 hasBackground
-                  ? "bg-white/10 text-white/90 hover:bg-white/20"
+                  ? "bg-white/10 text-white/80 hover:bg-white/20"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
             >
-              <span>Ep {seriesProgress.current}/{seriesProgress.total}</span>
+              <span>{seriesProgress.current}/{seriesProgress.total}</span>
               <ChevronDownIcon className="h-3 w-3 opacity-60" />
             </button>
           )}
 
-          {/* Turn Counter - always visible */}
+          {/* Turn Counter - minimal on mobile */}
           <div
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-full text-[11px] sm:text-xs font-medium",
-                hasBackground
-                  ? isApproachingEnd
-                    ? "bg-amber-500/20 text-amber-300"
-                    : "bg-white/10 text-white/90"
-                  : isApproachingEnd
-                    ? "bg-amber-500/10 text-amber-600"
-                    : "bg-muted text-muted-foreground"
-              )}
-            >
-              <TurnIcon className="h-3 w-3" />
-              <span className="hidden sm:inline">Turn</span>
-              <span className="sm:hidden">T</span>
-              <span>{turnDisplay}</span>
-            </div>
-
+            className={cn(
+              "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium",
+              hasBackground
+                ? isApproachingEnd
+                  ? "bg-amber-500/20 text-amber-300"
+                  : "bg-white/10 text-white/80"
+                : isApproachingEnd
+                  ? "bg-amber-500/10 text-amber-600"
+                  : "bg-muted text-muted-foreground"
+            )}
+          >
+            <TurnIcon className="h-3 w-3" />
+            <span>{turnDisplay}</span>
+          </div>
         </div>
       </header>
 

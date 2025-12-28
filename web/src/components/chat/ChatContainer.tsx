@@ -338,7 +338,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         <div className={cn(
           "transition-colors pt-[env(safe-area-inset-top)]",
           hasBackground
-            ? "mx-3 mt-2 sm:mt-3 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/30"
+            ? "mx-2 mt-1.5 sm:mx-3 sm:mt-2 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/30"
             : "bg-card border-b border-border"
         )}>
           <ChatHeader
@@ -352,8 +352,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         </div>
 
         {/* Messages area - single focal point for all content */}
-        <div className="flex-1 overflow-y-auto pt-6 pb-10 sm:pb-6">
-          <div className="mx-auto max-w-2xl px-4">
+        <div className="flex-1 overflow-y-auto pt-3 pb-2 sm:pt-6 sm:pb-4">
+          <div className="mx-auto max-w-2xl px-3 sm:px-4">
             {isLoadingChat ? (
               <MessagesSkeleton />
             ) : chatItems.length === 0 ? (
@@ -454,8 +454,8 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
 
         {/* Input bar - just input */}
         <div className={cn(
-          "pb-[calc(env(safe-area-inset-bottom)+8px)]",
-          hasBackground ? "mx-3 mb-3" : "border-t border-border bg-card"
+          "pb-[env(safe-area-inset-bottom)]",
+          hasBackground ? "mx-2 mb-1.5 sm:mx-3 sm:mb-2" : "border-t border-border bg-card"
         )}>
           <div className={cn(
             "transition-colors",
@@ -475,10 +475,10 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
               hasAnchorImage={hasAnchorImage}
             />
           </div>
-          {/* AI disclaimer */}
+          {/* AI disclaimer - hidden on mobile, visible on larger screens */}
           <p className={cn(
-            "text-center text-[10px] mt-2 transition-colors",
-            hasBackground ? "text-white/50" : "text-muted-foreground/60"
+            "text-center text-[10px] mt-1 transition-colors hidden sm:block",
+            hasBackground ? "text-white/40" : "text-muted-foreground/50"
           )}>
             This is A.I. and not a real person. Treat everything it says as fiction.
           </p>
