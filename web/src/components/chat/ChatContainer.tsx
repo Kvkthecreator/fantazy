@@ -333,12 +333,12 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       )}
 
       {/* Content layer */}
-      <div className="relative z-10 flex flex-col h-full">
+      <div className="relative z-10 flex flex-col h-full pt-[env(safe-area-inset-top)]">
         {/* Header - unified info bar */}
         <div className={cn(
-          "flex-shrink-0 transition-colors pt-[env(safe-area-inset-top)]",
+          "flex-shrink-0 transition-colors",
           hasBackground
-            ? "mx-2 mt-1.5 sm:mx-3 sm:mt-2 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/40"
+            ? "mx-2 mt-1 sm:mx-3 sm:mt-1.5 rounded-2xl backdrop-blur-xl backdrop-saturate-150 bg-black/40"
             : "bg-card border-b border-border"
         )}>
           <ChatHeader
