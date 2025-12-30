@@ -40,7 +40,15 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
   if (collapsed) {
     return (
       <DropdownMenu>
-        <DropdownMenuContent align="center" side="top" className="w-48">
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors"
+            title={displayEmail}
+          >
+            {initial}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" side="right" sideOffset={8} className="w-48">
           <div className="px-3 py-2">
             <p className="text-sm font-medium truncate">{displayEmail}</p>
             <p className={cn(
@@ -77,14 +85,6 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
             Sign out
           </DropdownMenuItem>
         </DropdownMenuContent>
-        <DropdownMenuTrigger asChild>
-          <button
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary hover:bg-primary/20 transition-colors"
-            title={displayEmail}
-          >
-            {initial}
-          </button>
-        </DropdownMenuTrigger>
       </DropdownMenu>
     )
   }
