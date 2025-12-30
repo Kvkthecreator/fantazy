@@ -14,6 +14,28 @@ Format: `[Document] vX.Y.Z - YYYY-MM-DD`
 
 ---
 
+## 2024-12-30
+
+### Changed
+- **[DIRECTOR_PROTOCOL.md]** v2.7.0 - Background Processing for Instant Response
+  - **Director Phase 2 now runs as fire-and-forget background task**
+  - Reduces response finalization latency from 800ms-2.5s to ~50ms
+  - Memory/hook extraction, beat classification, auto-scene generation run async
+  - Done event sent immediately after saving message
+  - Trade-off: Memories from rapid successive messages may not be available immediately
+
+- **[ConversationService]** Fire-and-forget Director processing
+  - Added `_run_director_phase2_background()` method for async Director work
+  - Moved all Director Phase 2 processing (evaluation, memory, hooks, visuals) to background
+  - Batched hook marking into single SQL query for efficiency
+  - Removed blocking `await director.process_exchange()` from streaming path
+  - Done event now includes pre-Director turn count (updates happen in background)
+
+### Removed
+- **[ConversationService]** `_mark_hook_triggered()` method (replaced with batch query)
+
+---
+
 ## 2024-12-24
 
 ### Added

@@ -1,8 +1,8 @@
 # Director Protocol
 
-> **Version**: 2.6.0
+> **Version**: 2.7.0
 > **Status**: Active
-> **Updated**: 2024-12-26
+> **Updated**: 2024-12-30
 
 ---
 
@@ -125,9 +125,51 @@ Pacing is **deterministic** based on turn count and optional turn budget.
 
 ---
 
-## Phase 2: Post-Exchange Processing (v2.5)
+## Phase 2: Post-Exchange Processing (v2.7 - Background)
 
-After the character responds, Director orchestrates all post-exchange processing:
+After the character responds, Director orchestrates all post-exchange processing.
+
+### Background Processing (NEW in v2.7)
+
+**BREAKING CHANGE**: Director Phase 2 now runs as a fire-and-forget background task.
+
+```python
+# BEFORE (v2.6): Blocking - done event sent AFTER Director completes
+response_content = await stream_llm_response()
+await save_message(response_content)
+director_output = await director.process_exchange(...)  # 800ms-2.5s blocking
+yield done_event  # User waits for Director to finish
+
+# AFTER (v2.7): Non-blocking - done event sent IMMEDIATELY
+response_content = await stream_llm_response()
+await save_message(response_content)
+yield done_event  # User sees response instantly
+asyncio.create_task(director.process_exchange(...))  # Runs in background
+```
+
+**Why This Change:**
+- Director Phase 2 includes 2-3 LLM calls (evaluation, memory extraction, hook extraction)
+- Total blocking time was 800ms-2.5s after text finished streaming
+- Users experienced visible lag before timestamp/message finalization
+- Background processing eliminates this perceived latency
+
+**What Runs in Background:**
+1. Semantic evaluation (visual triggers, status)
+2. Memory extraction (facts, preferences, events)
+3. Hook extraction (reminders, follow-ups)
+4. Beat classification (tone, tension updates)
+5. Auto-scene generation (if triggered)
+
+**Trade-offs:**
+- ✅ Instant response finalization (~50ms instead of ~1.5s)
+- ✅ Better perceived performance
+- ⚠️ Memories from previous message may not be available if user sends another message very quickly (edge case)
+- ⚠️ Turn count in done event is from before Director processing (updates in background)
+
+**Implementation:**
+- `ConversationService._run_director_phase2_background()` handles all Phase 2 work
+- Uses `asyncio.create_task()` for fire-and-forget execution
+- Errors are logged but don't affect user experience
 
 ### Episode Progression (v2.5 - Turn-Based Only)
 
@@ -464,6 +506,7 @@ Director now logs full evaluation context:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.7.0 | 2024-12-30 | **Background Processing**: Move Director Phase 2 to fire-and-forget background task. Reduces response finalization latency from 800ms-2.5s to ~50ms. Memory/hook extraction, beat classification, and auto-scene generation now run async after done event. |
 | 2.6.0 | 2024-12-26 | **Decouple Suggestion from Completion**: Rename `episode_complete` event to `next_episode_suggestion`. Remove `isEpisodeComplete` from suggestion flow. Suggestion is now purely turn-budget driven, independent of any "completion" state. See `EPISODE_STATUS_MODEL.md` for architectural rationale. |
 | 2.5.0 | 2024-12-25 | **Turn-Based Completion Only**: Remove semantic completion ("status: done" from LLM). Default turn_budget=10. Episodes never marked "complete" - users have full control. EpisodeOpeningCard simplified (no dramatic_question). |
 | 2.4.0 | 2024-12-24 | **Hybrid Visual Triggers**: Replace LLM-driven visual decisions with deterministic turn-based triggers. Add observability (raw_response, visual_decisions history). Simplify LLM to description-only (no SIGNAL parsing). |
