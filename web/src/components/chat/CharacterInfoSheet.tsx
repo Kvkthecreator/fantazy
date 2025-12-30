@@ -131,6 +131,19 @@ export function CharacterInfoSheet({
 
         {/* Content */}
         <div className="overflow-y-auto max-h-[calc(85vh-120px)] sm:max-h-[calc(100vh-120px)] p-4 space-y-4">
+          {/* Large Avatar Image */}
+          {character.avatar_url && (
+            <div className="flex justify-center -mt-2 mb-2">
+              <div className="relative w-48 h-48 rounded-2xl overflow-hidden shadow-lg ring-1 ring-white/10">
+                <img
+                  src={character.avatar_url}
+                  alt={character.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Backstory */}
           {character.backstory && (
             <div>

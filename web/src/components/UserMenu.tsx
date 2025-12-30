@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import type { User } from "@supabase/supabase-js"
-import { LogOut, Settings, Sparkles, ChevronUp } from "lucide-react"
+import { LogOut, Settings, Sparkles, ChevronRight } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -116,10 +116,17 @@ export function UserMenu({ user, collapsed = false }: UserMenuProps) {
               </span>
             </div>
           </div>
-          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side="top" className="w-56">
+      <DropdownMenuContent
+        align="end"
+        side="right"
+        sideOffset={8}
+        collisionPadding={16}
+        avoidCollisions={true}
+        className="w-56"
+      >
         <DropdownMenuItem onClick={() => router.push("/settings?tab=billing")}>
           <Sparkles className={cn(
             "h-4 w-4",
