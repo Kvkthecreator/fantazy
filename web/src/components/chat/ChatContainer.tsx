@@ -324,14 +324,11 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         backgroundPosition: "center",
       } : undefined}
     >
-      {/* Safe area top spacer */}
-      <div className="flex-shrink-0 h-[env(safe-area-inset-top)]" />
-
-      {/* Header */}
+      {/* Header with safe-area padding built in */}
       <div className={cn(
-        "flex-shrink-0",
+        "flex-shrink-0 pt-[env(safe-area-inset-top)]",
         hasBackground
-          ? "mx-2 rounded-xl bg-black/50 backdrop-blur-md"
+          ? "mx-2 mt-2 rounded-xl bg-black/50 backdrop-blur-md"
           : "bg-card border-b border-border"
       )}>
         <ChatHeader
@@ -345,7 +342,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         <div className="mx-auto max-w-2xl px-3 py-2 sm:px-4 sm:py-4">
           {isLoadingChat ? (
             <MessagesSkeleton />
@@ -444,9 +441,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         </div>
       </div>
 
-      {/* Input bar */}
+      {/* Input bar with safe-area padding built in */}
       <div className={cn(
-        "flex-shrink-0",
+        "flex-shrink-0 pb-[env(safe-area-inset-bottom)]",
         hasBackground
           ? "mx-2 mb-2 rounded-xl bg-black/50 backdrop-blur-md"
           : "border-t border-border bg-card"
@@ -463,9 +460,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           hasAnchorImage={hasAnchorImage}
         />
       </div>
-
-      {/* Safe area bottom spacer */}
-      <div className="flex-shrink-0 h-[env(safe-area-inset-bottom)]" style={{ backgroundColor: hasBackground ? "transparent" : undefined }} />
 
       {/* Modals - only for system errors, not for episode completion */}
       <QuotaExceededModal
