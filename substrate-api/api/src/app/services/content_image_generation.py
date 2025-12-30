@@ -52,6 +52,25 @@ KWORLD_ANIME_STYLE = "anime illustration, soft romantic style, Korean webtoon, d
 KWORLD_ANIME_QUALITY = "masterpiece, best quality, highly detailed anime"
 KWORLD_ANIME_NEGATIVE = "photorealistic, 3D render, western cartoon, harsh shadows, dark, horror, blurry, low quality"
 
+# =============================================================================
+# MANHWA STYLE LOCK - Clean Webtoon RENDERING Aesthetic
+# Reference: BabeChat top performers, Korean webtoon apps (Webtoon, Lezhin)
+# Use for school/academy, slice of life, romance settings
+#
+# IMPORTANT: These define RENDERING STYLE only, not character ethnicity.
+# Character appearance (ethnicity, skin tone, features) should be specified
+# separately in the character's appearance_prompt.
+# =============================================================================
+
+MANHWA_STYLE = "webtoon illustration, manhwa art style, clean bold lineart, flat cel shading, soft pastel colors"
+MANHWA_QUALITY = "masterpiece, best quality, professional manhwa art, crisp clean lines, vibrant colors"
+MANHWA_NEGATIVE = "photorealistic, 3D render, hyper-detailed textures, complex shadows, western cartoon style, blurry, painterly, sketch, rough lines, harsh lighting, dark, horror"
+
+# School/Academy specific manhwa style (most popular setting per BabeChat analysis)
+# NOTE: This is RENDERING STYLE for backgrounds, not character ethnicity
+SCHOOL_MANHWA_STYLE = "webtoon illustration, school romance manhwa, clean bold lineart, flat cel shading, soft pastel pink and blue palette, cherry blossom aesthetic"
+SCHOOL_MANHWA_QUALITY = "masterpiece, best quality, professional manhwa art, crisp clean lines, dreamy romantic atmosphere"
+
 STOLEN_MOMENTS_BACKGROUNDS = {
     "3AM": {
         "location": "anime convenience store interior, fluorescent lights casting soft glow, colorful snack packages on shelves, glass doors showing rainy night outside",
@@ -397,6 +416,507 @@ CODE_VIOLET_BACKGROUNDS = {
     },
 }
 
+# Cheerleader Crush (Anime Slice of Life, college romance)
+# 5-day countdown to graduation, college campus aesthetic
+ANIME_CAMPUS_STYLE = "anime illustration, soft cel shading, warm color grading, school romance aesthetic, clean lines"
+ANIME_CAMPUS_QUALITY = "masterpiece, best quality, highly detailed anime, warm atmosphere"
+
+CHEERLEADER_CRUSH_BACKGROUNDS = {
+    "The Ask": {
+        "location": "anime university library interior, tall windows with golden afternoon sunlight streaming through, wooden study tables with scattered books, bookshelves stretching into background, quiet academic atmosphere",
+        "time": "late afternoon golden hour, warm sunlight casting long soft shadows, cozy study atmosphere",
+        "mood": "nervous anticipation, something beginning, quiet before everything changes",
+        "rendering": ANIME_CAMPUS_STYLE,
+        "quality": ANIME_CAMPUS_QUALITY,
+    },
+    "First Session": {
+        "location": "cozy anime apartment living room, soft lamp lighting, textbooks scattered on coffee table next to flickering candles, comfortable couch with throw pillows, rain visible through window",
+        "time": "evening, warm lamp glow creating intimate atmosphere, gentle rain outside",
+        "mood": "pretense crumbling, vulnerability emerging, comfortable intimate tension",
+        "rendering": ANIME_CAMPUS_STYLE,
+        "quality": ANIME_CAMPUS_QUALITY,
+    },
+    "The Game": {
+        "location": "anime football stadium bleachers at night, bright field lights illuminating the scene from below, crowd silhouettes in background, school colors visible, stars in dark sky above",
+        "time": "night game atmosphere, bright stadium lights against dark sky, electric energy",
+        "mood": "excitement and nerves, public declaration, choosing this over everything else",
+        "rendering": ANIME_CAMPUS_STYLE,
+        "quality": ANIME_CAMPUS_QUALITY,
+    },
+    "Your Place": {
+        "location": "anime small college apartment, desk with laptop and programming books stacked, warm evening light through window, comfortable lived-in space with posters, pizza box on counter",
+        "time": "evening, warm golden light fading to soft blue hour, intimate comfortable lighting",
+        "mood": "real connection forming, armor completely off, seeing each other clearly",
+        "rendering": ANIME_CAMPUS_STYLE,
+        "quality": ANIME_CAMPUS_QUALITY,
+    },
+    "Last Night": {
+        "location": "anime campus rooftop at night, panoramic view of lit college campus and distant city below, stars and crescent moon visible in clear sky, graduation gowns draped over railing",
+        "time": "night, soft ambient glow from campus lights below, stars twinkling above, romantic nightscape",
+        "mood": "bittersweet hope, last night before everything changes, refusing to let go",
+        "rendering": ANIME_CAMPUS_STYLE,
+        "quality": ANIME_CAMPUS_QUALITY,
+    },
+}
+
+# K-Campus Encounter (K-World, soft romance, library meet-cute)
+# Pure K-drama aesthetic - soft, romantic, campus settings
+KWORLD_ROMANCE_STYLE = "anime illustration, Korean manhwa style, soft romantic lighting, warm pastel colors, clean lines"
+KWORLD_ROMANCE_QUALITY = "masterpiece, best quality, highly detailed anime, romantic atmosphere, dreamy"
+
+K_CAMPUS_ENCOUNTER_BACKGROUNDS = {
+    "The Collision": {
+        "location": "anime university library exterior stone steps, scattered books on steps, autumn leaves floating gently, warm campus architecture, romantic setting",
+        "time": "late afternoon golden hour, warm soft sunlight, gentle lens flare, dreamy atmosphere",
+        "mood": "fated meeting, heart-skipping moment, the beginning of something beautiful",
+        "rendering": KWORLD_ROMANCE_STYLE,
+        "quality": KWORLD_ROMANCE_QUALITY,
+    },
+    "Same Spot": {
+        "location": "anime library interior, cozy corner table by tall arched window, wooden bookshelves, stacked books on table, soft reading lamps, warm study nook",
+        "time": "afternoon, soft golden window light, dust motes floating in sunbeams, peaceful",
+        "mood": "quiet intimacy, shared space, growing comfort, warmth",
+        "rendering": KWORLD_ROMANCE_STYLE,
+        "quality": KWORLD_ROMANCE_QUALITY,
+    },
+    "The Rain": {
+        "location": "anime campus covered walkway with stone pillars, heavy rain falling beyond the shelter, wet pavement reflecting warm lights, cozy awning",
+        "time": "late afternoon, grey rain light with warm glow from nearby windows, moody romantic",
+        "mood": "unexpected intimacy, shelter together, hearts racing, romantic rain",
+        "rendering": KWORLD_ROMANCE_STYLE,
+        "quality": KWORLD_ROMANCE_QUALITY,
+    },
+    "The Bench": {
+        "location": "anime campus garden, wooden bench under cherry blossom tree, pink petals floating in air, soft dappled sunlight through branches, peaceful romantic setting",
+        "time": "late afternoon, soft golden light filtering through pink blossoms, dreamy magical",
+        "mood": "confession pending, hearts full, the moment before everything changes, hopeful",
+        "rendering": KWORLD_ROMANCE_STYLE,
+        "quality": KWORLD_ROMANCE_QUALITY,
+    },
+    "The Library (Again)": {
+        "location": "anime university library steps at sunset, warm golden orange light, long romantic shadows, same steps as first meeting, full circle moment",
+        "time": "sunset golden hour, warm orange and pink sky, magical romantic lighting",
+        "mood": "confession, vulnerability, the beginning of something real, full circle",
+        "rendering": KWORLD_ROMANCE_STYLE,
+        "quality": KWORLD_ROMANCE_QUALITY,
+    },
+}
+
+# Corner Office (Real Life, corporate romance - CEO/Assistant)
+# Semi-realistic style for workplace romance
+CORPORATE_ROMANCE_STYLE = "digital illustration, modern romance novel aesthetic, cinematic lighting, sophisticated urban setting"
+CORPORATE_ROMANCE_QUALITY = "masterpiece, best quality, highly detailed, professional atmosphere, moody lighting"
+
+CORNER_OFFICE_BACKGROUNDS = {
+    "First Day": {
+        "location": "executive corner office, floor-to-ceiling windows with city skyline view, modern glass and steel architecture, minimalist desk with documents, sleek contemporary furniture",
+        "time": "morning, bright natural light streaming through windows, professional atmosphere, clean shadows",
+        "mood": "intimidating elegance, power and precision, first impression tension",
+        "rendering": CORPORATE_ROMANCE_STYLE,
+        "quality": CORPORATE_ROMANCE_QUALITY,
+    },
+    "Late Night": {
+        "location": "modern office floor at night, empty desks in darkness, single desk lamp casting warm pool of light, takeout containers on desk, city lights twinkling through windows",
+        "time": "after midnight, warm desk lamp against dark office, city lights outside, intimate isolation",
+        "mood": "unexpected care, walls coming down, the intimacy of empty spaces",
+        "rendering": CORPORATE_ROMANCE_STYLE,
+        "quality": CORPORATE_ROMANCE_QUALITY,
+    },
+    "The Gala": {
+        "location": "upscale hotel terrace overlooking city skyline, crystal chandeliers visible through glass doors, elegant balustrade, potted topiaries, distant party glow",
+        "time": "evening, city lights sparkling below, warm interior glow spilling out, romantic night atmosphere",
+        "mood": "escape from performance, vulnerability in elegance, stolen private moment",
+        "rendering": CORPORATE_ROMANCE_STYLE,
+        "quality": CORPORATE_ROMANCE_QUALITY,
+    },
+    "The Rumor": {
+        "location": "executive corner office with blinds partially closed, afternoon light filtering through in strips, leather chairs, private conversation atmosphere, city visible through slats",
+        "time": "afternoon, dramatic light and shadow through blinds, tense atmosphere, private meeting",
+        "mood": "controlled tension, things unsaid, professional masks cracking",
+        "rendering": CORPORATE_ROMANCE_STYLE,
+        "quality": CORPORATE_ROMANCE_QUALITY,
+    },
+    "Resignation": {
+        "location": "apartment doorway at night, warm hallway light spilling into dim corridor, city visible through hallway window, threshold moment, residential building",
+        "time": "night, warm interior light against dark hallway, intimate threshold, pivotal moment lighting",
+        "mood": "everything on the line, walls finally down, the moment of truth",
+        "rendering": CORPORATE_ROMANCE_STYLE,
+        "quality": CORPORATE_ROMANCE_QUALITY,
+    },
+}
+
+# The Competition (Real Life, cozy small town - rival bakeries)
+# Warm, charming aesthetic for enemies-to-lovers bakery romance
+COZY_ROMANCE_STYLE = "digital illustration, cozy romance novel aesthetic, warm inviting lighting, charming small town atmosphere"
+COZY_ROMANCE_QUALITY = "masterpiece, best quality, highly detailed, warm atmosphere, golden hour glow"
+
+THE_COMPETITION_BACKGROUNDS = {
+    "Market Day": {
+        "location": "charming farmers market morning, white canvas tent stalls, fresh baked goods on wooden displays, rustic baskets, small town square with trees and lamp posts",
+        "time": "morning golden hour, soft warm sunlight, fresh market atmosphere, gentle shadows",
+        "mood": "competitive energy, charming rivalry, small town warmth",
+        "rendering": COZY_ROMANCE_STYLE,
+        "quality": COZY_ROMANCE_QUALITY,
+    },
+    "Taste Test": {
+        "location": "cozy bakery kitchen after hours, warm pendant lights over flour-dusted wooden counters, mixing bowls and ingredients, open pastry boxes, intimate workspace",
+        "time": "evening, warm golden pendant light against dark windows, intimate baking atmosphere",
+        "mood": "unexpected honesty, professional respect becoming personal, guard coming down",
+        "rendering": COZY_ROMANCE_STYLE,
+        "quality": COZY_ROMANCE_QUALITY,
+    },
+    "Power Outage": {
+        "location": "charming downtown street at dusk, rain falling softly, shop windows dark, covered awning providing shelter, wet cobblestones reflecting distant lights",
+        "time": "dusk, grey rain light with warm glow from distant windows, romantic storm atmosphere",
+        "mood": "forced proximity, walls down, nowhere to hide behind competition",
+        "rendering": COZY_ROMANCE_STYLE,
+        "quality": COZY_ROMANCE_QUALITY,
+    },
+    "The Festival": {
+        "location": "fall festival at dusk, warm string lights strung between trees, autumn leaves and harvest decorations, shared booth with baked goods, festive atmosphere",
+        "time": "dusk into evening, warm string lights glowing, golden autumn atmosphere, community warmth",
+        "mood": "forced cooperation, proximity tension, the walls finally cracking",
+        "rendering": COZY_ROMANCE_STYLE,
+        "quality": COZY_ROMANCE_QUALITY,
+    },
+    "Closing Time": {
+        "location": "charming bakery exterior at night, warm light glowing through large windows, quiet downtown street, brass doorbell, window displays visible",
+        "time": "night, warm interior glow against dark street, intimate moment lighting, quiet downtown",
+        "mood": "moment of truth, victory hollow, choosing something real over winning",
+        "rendering": COZY_ROMANCE_STYLE,
+        "quality": COZY_ROMANCE_QUALITY,
+    },
+}
+
+# Off Limits (Real Life, hometown / family setting - best friend's brother)
+# Warm, nostalgic aesthetic for forbidden sibling's friend romance
+HOMETOWN_ROMANCE_STYLE = "digital illustration, warm naturalistic romance novel aesthetic, nostalgic golden hour lighting, intimate domestic scenes"
+HOMETOWN_ROMANCE_QUALITY = "masterpiece, best quality, highly detailed, warm atmosphere, soft natural lighting"
+
+OFF_LIMITS_BACKGROUNDS = {
+    "The Return": {
+        "location": "warm family dining room, evening golden light through windows, dinner table set for family meal, comfortable lived-in home interior, cozy domesticity",
+        "time": "evening, warm golden hour light, family dinner atmosphere, intimate home lighting",
+        "mood": "reunion tension, something shifting, the familiar becoming charged",
+        "rendering": HOMETOWN_ROMANCE_STYLE,
+        "quality": HOMETOWN_ROMANCE_QUALITY,
+    },
+    "The Porch": {
+        "location": "family home porch at night, string lights draped along railing, comfortable porch swing, summer night atmosphere, crickets and fireflies suggested",
+        "time": "night, soft string light glow, summer evening warmth, intimate darkness",
+        "mood": "stolen moment, outside the rules, what happens in the dark",
+        "rendering": HOMETOWN_ROMANCE_STYLE,
+        "quality": HOMETOWN_ROMANCE_QUALITY,
+    },
+    "The Backyard": {
+        "location": "backyard at dusk, party string lights in distance, old wooden treehouse visible, fireflies beginning to emerge, summer evening magic",
+        "time": "dusk into twilight, golden hour fading to blue, warm party lights in background, magical summer atmosphere",
+        "mood": "away from everyone, private in public, the moment before admission",
+        "rendering": HOMETOWN_ROMANCE_STYLE,
+        "quality": HOMETOWN_ROMANCE_QUALITY,
+    },
+    "The Kitchen": {
+        "location": "family kitchen at night, soft light over counter, coffee mug steaming, sleeping house atmosphere, intimate 2am quiet",
+        "time": "2 AM, soft kitchen light against dark windows, quiet house energy, vulnerable hour",
+        "mood": "insomnia honesty, walls down, the hours when truth comes easier",
+        "rendering": HOMETOWN_ROMANCE_STYLE,
+        "quality": HOMETOWN_ROMANCE_QUALITY,
+    },
+    "The Line": {
+        "location": "family home hallway at night, party noise distant, dim intimate lighting, private corner away from celebration, doorway and shadows",
+        "time": "night, soft ambient light from party, intimate shadows in hallway, threshold lighting",
+        "mood": "decision point, everything at stake, choosing what matters more",
+        "rendering": HOMETOWN_ROMANCE_STYLE,
+        "quality": HOMETOWN_ROMANCE_QUALITY,
+    },
+}
+
+# Second Chance (Real Life, wedding / reunion - ex-lovers reunited)
+# Bittersweet elegant aesthetic for second chance romance
+REUNION_ROMANCE_STYLE = "digital illustration, elegant romance novel aesthetic, soft romantic lighting, emotional depth, intimate moments"
+REUNION_ROMANCE_QUALITY = "masterpiece, best quality, highly detailed, romantic atmosphere, cinematic mood"
+
+SECOND_CHANCE_BACKGROUNDS = {
+    "The Wedding": {
+        "location": "elegant outdoor wedding venue at golden hour, ceremony just ended, white chairs in rows, flower arrangements, fairy lights beginning to glow, guests mingling in soft focus distance",
+        "time": "golden hour, warm sunset light, romantic evening beginning, soft long shadows",
+        "mood": "bittersweet reunion, years of history in the air, beautiful setting for complicated feelings",
+        "rendering": REUNION_ROMANCE_STYLE,
+        "quality": REUNION_ROMANCE_QUALITY,
+    },
+    "The After-Party": {
+        "location": "wedding reception late evening, dance floor with slow song lighting, fairy lights and candles everywhere, intimate corner by the bar, champagne glasses catching light",
+        "time": "late evening, warm candlelight mixed with fairy lights, romantic haze, slow dance atmosphere",
+        "mood": "inhibitions lowering, old feelings surfacing, the danger of late nights and open bars",
+        "rendering": REUNION_ROMANCE_STYLE,
+        "quality": REUNION_ROMANCE_QUALITY,
+    },
+    "The Rain": {
+        "location": "elegant garden gazebo at night, rain falling softly all around, distant venue lights glowing through rain, covered shelter for two, wet roses and greenery",
+        "time": "night, soft rain, warm distant lights through rainfall, intimate shelter lighting",
+        "mood": "trapped together, nowhere to run from the conversation, rain as emotional release",
+        "rendering": REUNION_ROMANCE_STYLE,
+        "quality": REUNION_ROMANCE_QUALITY,
+    },
+    "The Truth": {
+        "location": "elegant hotel lobby early morning, empty and quiet, tall windows with soft morning light, coffee on small table, plush seating area, the weight of sleepless night",
+        "time": "early morning, soft grey-gold light through tall windows, quiet exhausted intimacy",
+        "mood": "no more hiding, the vulnerability of morning after, truth finally coming out",
+        "rendering": REUNION_ROMANCE_STYLE,
+        "quality": REUNION_ROMANCE_QUALITY,
+    },
+    "The Question": {
+        "location": "hotel hallway morning light, door threshold, suitcase visible, window at end of hall showing new day, intimate corridor, the weight of leaving or staying",
+        "time": "morning, soft hopeful light from window, threshold lighting, moment of decision",
+        "mood": "everything on the line, the last chance, choosing the future",
+        "rendering": REUNION_ROMANCE_STYLE,
+        "quality": REUNION_ROMANCE_QUALITY,
+    },
+}
+
+# The Arrangement (Real Life, social events - fake dating becomes real)
+# Sophisticated elegant aesthetic for fake dating romance
+ARRANGEMENT_ROMANCE_STYLE = "digital illustration, sophisticated romance novel aesthetic, elegant social settings, warm intimate lighting"
+ARRANGEMENT_ROMANCE_QUALITY = "masterpiece, best quality, highly detailed, romantic atmosphere, refined mood"
+
+THE_ARRANGEMENT_BACKGROUNDS = {
+    "The Proposal": {
+        "location": "upscale cozy coffee shop, afternoon light through tall windows, corner table with two drinks, exposed brick and warm wood, intimate but public setting",
+        "time": "afternoon, warm natural light through windows, cozy golden atmosphere",
+        "mood": "the beginning of something strange, negotiating the unusual, possibility in the air",
+        "rendering": ARRANGEMENT_ROMANCE_STYLE,
+        "quality": ARRANGEMENT_ROMANCE_QUALITY,
+    },
+    "The Practice": {
+        "location": "modern apartment living room evening, warm lamp lighting, wine glasses on coffee table, comfortable couch, city view through windows, intimate rehearsal space",
+        "time": "evening, warm ambient lamp light, cozy domestic intimacy, city lights outside",
+        "mood": "practice becoming real, proximity without excuse, the danger of rehearsal",
+        "rendering": ARRANGEMENT_ROMANCE_STYLE,
+        "quality": ARRANGEMENT_ROMANCE_QUALITY,
+    },
+    "The Event": {
+        "location": "elegant family dining room, formal dinner party ending, candlelight and crystal, hallway visible for escape, warm rich atmosphere, the performance space",
+        "time": "evening, warm candlelight, formal dinner atmosphere softening, intimate corner lighting",
+        "mood": "performance becoming truth, family approval complicating everything, the mask slipping",
+        "rendering": ARRANGEMENT_ROMANCE_STYLE,
+        "quality": ARRANGEMENT_ROMANCE_QUALITY,
+    },
+    "The Slip": {
+        "location": "rooftop cocktail party at dusk, city skyline emerging lights, sophisticated crowd in soft focus, private corner at railing, champagne glasses, urban romance",
+        "time": "dusk into evening, city lights emerging, warm party glow, romantic urban twilight",
+        "mood": "truth slipping out, nowhere to hide from what was said, the script abandoned",
+        "rendering": ARRANGEMENT_ROMANCE_STYLE,
+        "quality": ARRANGEMENT_ROMANCE_QUALITY,
+    },
+    "The End": {
+        "location": "wedding venue garden at night, fairy lights strung through trees, reception music distant, secluded bench away from party, the final night of pretending",
+        "time": "night, soft fairy lights in trees, warm distant party glow, intimate garden corner",
+        "mood": "last night of the arrangement, fear of ending, choosing real over safe",
+        "rendering": ARRANGEMENT_ROMANCE_STYLE,
+        "quality": ARRANGEMENT_ROMANCE_QUALITY,
+    },
+}
+
+# =============================================================================
+# FLIRTY SCHOOL SERIES - Manhwa style with sexual tension
+# =============================================================================
+
+# After Class (Yuna - TA) - Forbidden professor-adjacent romance
+AFTER_CLASS_BACKGROUNDS = {
+    "Stay Behind": {
+        "location": "manhwa empty university classroom, late afternoon light through large windows, professor's desk in foreground, empty student desks, chalkboard with equations, intimate empty space",
+        "time": "late afternoon golden hour, warm light slanting through windows, dust motes floating, quiet after-hours atmosphere",
+        "mood": "tension of empty spaces, professional setting becoming intimate, the weight of closed doors",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "Office Hours": {
+        "location": "manhwa small graduate office, cluttered desk with papers, two chairs close together, narrow space, books on shelves, single window with campus view",
+        "time": "afternoon, soft natural light from window, intimate cramped atmosphere, warm academic glow",
+        "mood": "professional pretense cracking, proximity without escape, knees almost touching",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Library": {
+        "location": "manhwa university library back corner at night, hidden study carrel, dim lamp light, books stacked high creating private space, empty quiet atmosphere",
+        "time": "past midnight, soft lamp glow against darkness, exhausted intimate lighting, the world asleep",
+        "mood": "guards down, real person emerging, the vulnerability of exhaustion",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Confession": {
+        "location": "manhwa office at dusk, window with darkening campus view, desk pushed aside, intimate confrontation space, door clearly locked",
+        "time": "dusk, warm interior light against blue hour outside, tension lighting, pivotal moment atmosphere",
+        "mood": "everything on the line, professional walls crumbling, the moment before choosing",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "After Hours": {
+        "location": "manhwa empty classroom at sunset, same room as first meeting, golden light flooding through windows, desk where it started, full circle moment",
+        "time": "late afternoon golden hour, warm nostalgic light, beautiful ending lighting, romantic atmosphere",
+        "mood": "no more barriers, claiming the space, freedom to finally act",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+}
+
+# The Dare (Mina - Queen Bee) - Popular girl dare gone wrong
+THE_DARE_BACKGROUNDS = {
+    "The Kiss": {
+        "location": "manhwa house party corner, dim colorful lighting, crowd blurred in background, intimate corner spotlight, drinks on nearby table",
+        "time": "night, party lighting with warm and cool mix, slightly hazy atmosphere, intimate spotlight",
+        "mood": "game becoming real, public moment feeling private, the world narrowing to two people",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Hallway": {
+        "location": "manhwa empty school hallway, lockers on both sides, afternoon light from far windows, no witnesses, intimate corridor",
+        "time": "afternoon, soft natural light from distant windows, empty echoing atmosphere, private confrontation",
+        "mood": "no audience to perform for, walls cracking, real feelings surfacing",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Rooftop": {
+        "location": "manhwa school rooftop at midnight, city lights below, stars visible above, concrete ledge for sitting, secret refuge",
+        "time": "midnight, city lights glowing below, starlight from above, intimate darkness",
+        "mood": "guards completely down, real vulnerability, a place no one else knows",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Choice": {
+        "location": "manhwa crowded school cafeteria, lunch tables filled with blurred students, center aisle clear, all eyes watching, public arena",
+        "time": "midday, bright cafeteria lighting, exposed atmosphere, moment of truth lighting",
+        "mood": "public declaration, choosing love over status, everyone watching",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Truth": {
+        "location": "manhwa party corner same as first kiss, quieter now, fairy lights glowing, intimate familiar space, full circle",
+        "time": "night, soft fairy light glow, romantic party atmosphere, nostalgic warmth",
+        "mood": "game becoming real, dare becoming love, choosing each other",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+}
+
+# Room 404 (Sora - RA) - Dorm room midnight romance
+ROOM_404_BACKGROUNDS = {
+    "Caught": {
+        "location": "manhwa dorm RA room at 2am, small tidy space, single bed, desk with lamp, tea setup, strict but cozy aesthetic",
+        "time": "2am, soft lamp light against darkness, late night intimate atmosphere, quiet building",
+        "mood": "caught but not punished, rules bending, professional space becoming personal",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Check-In": {
+        "location": "manhwa cozy dorm room, narrow bed with two mugs of tea, window showing campus night, intimate small space",
+        "time": "11pm, warm lamp glow, cozy night atmosphere, regular check-in becoming ritual",
+        "mood": "domesticity as intimacy, guards down, tea as excuse to stay",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Storm": {
+        "location": "manhwa dorm room during storm, power out, flashlight glow, rain on window, blankets visible, forced close quarters",
+        "time": "night, storm dark with flashlight beam, lightning flashes outside, cozy against chaos",
+        "mood": "no excuse to leave, practical proximity becoming intimate, sharing warmth",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Confession": {
+        "location": "manhwa dorm room morning after storm, soft morning light through window, rumpled bed, two coffee mugs, intimate aftermath",
+        "time": "early morning, soft golden light through curtains, vulnerable morning atmosphere, new day new possibilities",
+        "mood": "night survived together, morning vulnerability, truth easier in daylight",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "Home": {
+        "location": "manhwa dorm room with moving boxes, end of semester, fairy lights still up, memories everywhere, last night together",
+        "time": "evening, warm lamp light, bittersweet moving out atmosphere, ending and beginning",
+        "mood": "last night in this room, no more rules, choosing a future together",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+}
+
+# Study Partners (Hana - Rival) - Academic rivals to lovers
+STUDY_PARTNERS_BACKGROUNDS = {
+    "The Assignment": {
+        "location": "manhwa university hallway after class, students passing in background, lockers and classroom doors, confrontation in corridor",
+        "time": "afternoon, bright hallway lighting, busy to empty transition, charged confrontation atmosphere",
+        "mood": "rivalry sparking, challenge accepted, competitive energy becoming attraction",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Bet": {
+        "location": "manhwa library private study room, glass walls looking out to empty library, table with laptops and books, late night study session",
+        "time": "late night, soft study room lighting against dark library, intimate focused atmosphere",
+        "mood": "competition as foreplay, stakes escalating, bets getting personal",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The All-Nighter": {
+        "location": "manhwa library corner at 2am, books and papers scattered, coffee cups, exhaustion visible, intimate study nest",
+        "time": "2am, dim library lighting, exhausted intimate atmosphere, guards lowered by tiredness",
+        "mood": "competition paused, real connection forming, vulnerability in exhaustion",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Stakes": {
+        "location": "manhwa empty classroom after exam results, score sheet on board, desk in center, confrontation space, everything on the line",
+        "time": "afternoon, dramatic classroom lighting, tension-filled atmosphere, moment of truth",
+        "mood": "academic victory hollow, real prize revealed, competition ending for something better",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Win": {
+        "location": "manhwa library regular spot, familiar table by window, finals over atmosphere, summer light through windows, their space",
+        "time": "late afternoon, warm end-of-semester light, hopeful summer atmosphere, new chapter beginning",
+        "mood": "redefining what winning means, choosing same team, future together",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+}
+
+# Academy Secrets (Manhwa style, elite academy - student council president)
+# Clean webtoon aesthetic for school romance (BabeChat-style top performer category)
+ACADEMY_SECRETS_BACKGROUNDS = {
+    "First Day": {
+        "location": "manhwa elite academy entrance gate, cherry blossoms falling, ornate iron gates with school crest, prestigious stone buildings in background, other students in uniform walking past",
+        "time": "morning, soft golden hour sunlight, cherry petals floating in gentle breeze, dreamy spring atmosphere",
+        "mood": "new beginnings, nervous anticipation, the start of something special",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Library": {
+        "location": "manhwa academy library interior, tall arched windows with afternoon light, wooden study tables, towering bookshelves, dust motes floating in sunbeams, quiet secluded corner",
+        "time": "afternoon, warm golden light filtering through tall windows, peaceful study atmosphere, soft shadows",
+        "mood": "quiet intimacy, shared secrets, the magic of being noticed",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "Rooftop": {
+        "location": "manhwa school rooftop at sunset, metal fence with padlock, city skyline visible, scattered cherry petals on concrete, benches along the edge, water tower in distance",
+        "time": "sunset golden hour, warm orange and pink sky, dramatic silhouette lighting, romantic atmosphere",
+        "mood": "stolen moments, confessions waiting, the place where rules don't apply",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "The Festival": {
+        "location": "manhwa school cultural festival at dusk, colorful booth stalls with string lights, paper lanterns glowing, fireworks in distance, crowd silhouettes in soft focus",
+        "time": "dusk into evening, warm festival lights against darkening sky, magical celebration atmosphere",
+        "mood": "excitement and confession, hearts racing, the courage of special nights",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+    "Graduation": {
+        "location": "manhwa academy courtyard, cherry blossoms in full bloom, graduation ceremony just ended, petals covering stone pathways, empty chairs in rows, diploma scroll nearby",
+        "time": "late afternoon, soft dreamy light through cherry blossoms, bittersweet golden atmosphere",
+        "mood": "endings and beginnings, everything on the line, choosing the future together",
+        "rendering": SCHOOL_MANHWA_STYLE,
+        "quality": SCHOOL_MANHWA_QUALITY,
+    },
+}
+
 # Combined lookup for all series
 ALL_EPISODE_BACKGROUNDS = {
     **STOLEN_MOMENTS_BACKGROUNDS,
@@ -407,6 +927,18 @@ ALL_EPISODE_BACKGROUNDS = {
     **PENTHOUSE_SECRETS_BACKGROUNDS,
     **CODE_VIOLET_BACKGROUNDS,
     **FASHION_EMPIRE_CEO_BACKGROUNDS,
+    **CHEERLEADER_CRUSH_BACKGROUNDS,
+    **K_CAMPUS_ENCOUNTER_BACKGROUNDS,
+    **CORNER_OFFICE_BACKGROUNDS,
+    **THE_COMPETITION_BACKGROUNDS,
+    **OFF_LIMITS_BACKGROUNDS,
+    **SECOND_CHANCE_BACKGROUNDS,
+    **THE_ARRANGEMENT_BACKGROUNDS,
+    **AFTER_CLASS_BACKGROUNDS,
+    **THE_DARE_BACKGROUNDS,
+    **ROOM_404_BACKGROUNDS,
+    **STUDY_PARTNERS_BACKGROUNDS,
+    **ACADEMY_SECRETS_BACKGROUNDS,
 }
 
 

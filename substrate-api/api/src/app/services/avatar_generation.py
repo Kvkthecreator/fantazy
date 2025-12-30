@@ -352,8 +352,64 @@ STYLE_PRESETS = {
     "anime": "anime style, cel shading, vibrant colors, clean linework",
     "semi_realistic": "semi-realistic digital painting, detailed features, soft rendering",
     "painterly": "painterly digital art, visible brushstrokes, artistic rendering",
-    "webtoon": "webtoon style, soft shading, Korean manhwa aesthetic",
+    "webtoon": "webtoon style, soft shading, manhwa aesthetic",
+    # Hardened manhwa style lock - clean webtoon RENDERING aesthetic (not ethnicity)
+    "manhwa": "webtoon illustration, clean bold lineart, flat cel shading, stylized features, soft pastel color palette, smooth skin rendering, dreamy soft focus background",
 }
+
+# =============================================================================
+# Hardened Style Locks - Complete Visual Direction
+# These are comprehensive prompt components for consistent visual output
+# Use in scripts AND studio frontend for identical results
+#
+# IMPORTANT: Style locks define RENDERING TECHNIQUE only, not ethnicity.
+# Character appearance (ethnicity, features, skin tone) should be specified
+# separately in the character's appearance_prompt.
+# =============================================================================
+
+# MANHWA STYLE LOCK - Clean Korean webtoon RENDERING aesthetic
+# Reference: BabeChat top performers, Korean webtoon apps
+# NOTE: This is the ART STYLE, not the character ethnicity
+MANHWA_STYLE_LOCK = {
+    "style": "webtoon illustration, manhwa art style, clean bold lineart, flat cel shading",
+    "rendering": "stylized features, soft pastel color palette, smooth skin rendering, dreamy atmosphere",
+    "quality": "masterpiece, best quality, professional manhwa art, crisp clean lines, vibrant colors",
+    "negative": "photorealistic, 3D render, hyper-detailed textures, complex shadows, western cartoon style, blurry, painterly, sketch, rough lines, harsh lighting",
+}
+
+# ANIME STYLE LOCK - Japanese anime aesthetic
+ANIME_STYLE_LOCK = {
+    "style": "anime illustration, cel shading, vibrant saturated colors, clean sharp linework",
+    "rendering": "expressive anime eyes, dynamic poses, colorful hair, detailed clothing folds",
+    "quality": "masterpiece, best quality, highly detailed anime, professional illustration",
+    "negative": "photorealistic, 3D render, western cartoon, blurry, low quality, sketch",
+}
+
+# CINEMATIC STYLE LOCK - Semi-realistic romance novel
+CINEMATIC_STYLE_LOCK = {
+    "style": "digital illustration, cinematic lighting, soft dramatic shadows, warm color grading",
+    "rendering": "semi-realistic features, detailed eyes, natural skin texture, romantic atmosphere",
+    "quality": "masterpiece, best quality, professional digital art, cinematic depth",
+    "negative": "anime, cartoon, 3D render, blurry, low quality, harsh shadows",
+}
+
+# Lookup for style lock by preset name
+STYLE_LOCK_PRESETS = {
+    "manhwa": MANHWA_STYLE_LOCK,
+    "webtoon": MANHWA_STYLE_LOCK,  # Alias
+    "anime": ANIME_STYLE_LOCK,
+    "cinematic": CINEMATIC_STYLE_LOCK,
+    "semi_realistic": CINEMATIC_STYLE_LOCK,  # Alias
+}
+
+
+def get_style_lock(preset: str) -> dict:
+    """Get complete style lock for a preset name.
+
+    Returns dict with 'style', 'rendering', 'quality', 'negative' keys.
+    Use these in scripts and studio for consistent visual output.
+    """
+    return STYLE_LOCK_PRESETS.get(preset, MANHWA_STYLE_LOCK)
 
 EXPRESSION_PRESETS = {
     "warm": "warm gentle smile, kind eyes, inviting expression",
