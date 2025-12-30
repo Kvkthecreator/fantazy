@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCharacterProfile } from "@/hooks/useCharacters";
@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, MessageCircle, Heart, ThumbsDown, Sparkles, Camera, Info } from "lucide-react";
+import { ArrowLeft, MessageCircle, Heart, ThumbsDown, Sparkles, Camera, Info, X, Download, ChevronLeft, ChevronRight } from "lucide-react";
 import { EpisodeSelector } from "@/components/episodes";
 import type { Relationship } from "@/types";
 
@@ -27,6 +27,8 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
   const [relationship, setRelationship] = useState<Relationship | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isStartingChat, setIsStartingChat] = useState(false);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Load relationship if exists
   useEffect(() => {
@@ -51,6 +53,15 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
       setIsStartingChat(false);
     }
   };
+
+  const openLightbox = useCallback((index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    setLightboxOpen(false);
+  }, []);
 
   if (isLoading) {
     return <ProfileSkeleton />;
@@ -96,11 +107,16 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
       <div className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
         <div className="relative h-72 w-full">
           {coverImage ? (
-            <img
-              src={coverImage}
-              alt={profile.name}
-              className="h-full w-full object-cover"
-            />
+            <button
+              onClick={() => openLightbox(0)}
+              className="h-full w-full cursor-zoom-in"
+            >
+              <img
+                src={coverImage}
+                alt={profile.name}
+                className="h-full w-full object-cover"
+              />
+            </button>
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/30 to-accent/30 text-6xl font-bold text-white">
               {profile.name[0]}
@@ -108,7 +124,10 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
           <div className="absolute bottom-4 left-4 flex items-center gap-3">
-            <div className="h-16 w-16 rounded-full border-2 border-white/70 shadow-lg">
+            <button
+              onClick={() => openLightbox(0)}
+              className="h-16 w-16 rounded-full border-2 border-white/70 shadow-lg cursor-zoom-in overflow-hidden"
+            >
               {profile.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -120,7 +139,7 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
                   {profile.name[0]}
                 </div>
               )}
-            </div>
+            </button>
             <div className="text-white">
               <h1 className="text-2xl font-semibold">{profile.name}</h1>
               <p className="text-sm text-white/80 capitalize">{profile.archetype}</p>
@@ -234,7 +253,10 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
             )}
           </div>
           {/* Main image */}
-          <div className="relative aspect-[4/5] overflow-hidden rounded-xl border bg-muted">
+          <button
+            onClick={() => openLightbox(selectedImageIndex)}
+            className="relative aspect-[4/5] w-full overflow-hidden rounded-xl border bg-muted cursor-zoom-in"
+          >
             {currentImage ? (
               <img
                 src={currentImage}
@@ -246,7 +268,7 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
                 {profile.name[0]}
               </div>
             )}
-          </div>
+          </button>
           {/* Thumbnails */}
           {displayImages.length > 1 && (
             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -272,6 +294,175 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
           )}
         </div>
       </div>
+
+      {/* Image Lightbox */}
+      {lightboxOpen && displayImages.length > 0 && (
+        <ImageLightbox
+          images={displayImages}
+          currentIndex={lightboxIndex}
+          onClose={closeLightbox}
+          onIndexChange={setLightboxIndex}
+          characterName={profile.name}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Image Lightbox Modal */
+interface ImageLightboxProps {
+  images: Array<{ url: string; label: string }>;
+  currentIndex: number;
+  onClose: () => void;
+  onIndexChange: (index: number) => void;
+  characterName: string;
+}
+
+function ImageLightbox({
+  images,
+  currentIndex,
+  onClose,
+  onIndexChange,
+  characterName,
+}: ImageLightboxProps) {
+  const currentImage = images[currentIndex];
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "ArrowLeft" && currentIndex > 0) {
+        onIndexChange(currentIndex - 1);
+      } else if (e.key === "ArrowRight" && currentIndex < images.length - 1) {
+        onIndexChange(currentIndex + 1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    // Prevent body scroll when lightbox is open
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [currentIndex, images.length, onClose, onIndexChange]);
+
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(currentImage.url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${characterName.toLowerCase().replace(/\s+/g, "-")}-${currentIndex + 1}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to download image:", err);
+      // Fallback: open in new tab
+      window.open(currentImage.url, "_blank");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/90 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {/* Controls - Top */}
+      <div className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 z-10">
+        <div className="text-white/80 text-sm">
+          {images.length > 1 && `${currentIndex + 1} / ${images.length}`}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleDownload}
+            className="text-white hover:bg-white/20"
+            title="Download image"
+          >
+            <Download className="h-5 w-5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="text-white hover:bg-white/20"
+            title="Close"
+          >
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Main Image */}
+      <div className="relative z-10 max-h-[85vh] max-w-[90vw] flex items-center justify-center">
+        <img
+          src={currentImage.url}
+          alt={currentImage.label}
+          className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg"
+        />
+      </div>
+
+      {/* Navigation Arrows */}
+      {images.length > 1 && (
+        <>
+          {currentIndex > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onIndexChange(currentIndex - 1)}
+              className="absolute left-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </Button>
+          )}
+          {currentIndex < images.length - 1 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onIndexChange(currentIndex + 1)}
+              className="absolute right-4 z-10 h-12 w-12 rounded-full bg-black/50 text-white hover:bg-black/70"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </Button>
+          )}
+        </>
+      )}
+
+      {/* Thumbnails */}
+      {images.length > 1 && (
+        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-10 px-4">
+          <div className="flex gap-2 overflow-x-auto p-2 bg-black/50 rounded-full max-w-full">
+            {images.map((img, index) => (
+              <button
+                key={index}
+                onClick={() => onIndexChange(index)}
+                className={cn(
+                  "h-12 w-12 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all",
+                  index === currentIndex
+                    ? "border-white ring-2 ring-white/50"
+                    : "border-transparent opacity-60 hover:opacity-100"
+                )}
+              >
+                <img
+                  src={img.url}
+                  alt={img.label}
+                  className="h-full w-full object-cover"
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
