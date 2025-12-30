@@ -165,6 +165,9 @@ async def get_character_profile(
 
     Only returns active characters. Drafts are never exposed via public API.
     """
+    import logging
+    log = logging.getLogger(__name__)
+
     # Get character - only active ones
     # NOTE: starter_prompts removed - now on episode_templates (EP-01 Episode-First Pivot)
     # NOTE: short_backstory/full_backstory merged into backstory
@@ -190,43 +193,56 @@ async def get_character_profile(
 
     # Get avatar gallery if character has an active kit
     if active_kit_id:
-        # Get kit with primary anchor
-        kit_query = """
-            SELECT primary_anchor_id FROM avatar_kits
-            WHERE id = :kit_id AND status = 'active'
-        """
-        kit = await db.fetch_one(kit_query, {"kit_id": str(active_kit_id)})
-
-        if kit:
-            primary_anchor_id = kit["primary_anchor_id"]
-
-            # Get all active assets for this kit
-            assets_query = """
-                SELECT id, label, storage_path
-                FROM avatar_assets
-                WHERE avatar_kit_id = :kit_id AND is_active = TRUE
-                ORDER BY is_canonical DESC, created_at ASC
+        try:
+            # Get kit with primary anchor
+            kit_query = """
+                SELECT primary_anchor_id FROM avatar_kits
+                WHERE id = :kit_id AND status = 'active'
             """
-            assets = await db.fetch_all(assets_query, {"kit_id": str(active_kit_id)})
+            kit = await db.fetch_one(kit_query, {"kit_id": str(active_kit_id)})
 
-            if assets:
-                storage = StorageService.get_instance()
-                for asset in assets:
-                    signed_url = await storage.create_signed_url(
-                        "avatars", asset["storage_path"]
-                    )
-                    is_primary = str(asset["id"]) == str(primary_anchor_id) if primary_anchor_id else False
+            if kit:
+                primary_anchor_id = kit["primary_anchor_id"]
 
-                    gallery.append(AvatarGalleryItem(
-                        id=asset["id"],
-                        url=signed_url,
-                        label=asset["label"],
-                        is_primary=is_primary,
-                    ))
+                # Get all active assets for this kit
+                assets_query = """
+                    SELECT id, label, storage_path
+                    FROM avatar_assets
+                    WHERE avatar_kit_id = :kit_id AND is_active = TRUE
+                    ORDER BY is_canonical DESC, created_at ASC
+                """
+                assets = await db.fetch_all(assets_query, {"kit_id": str(active_kit_id)})
 
-                    # Track primary avatar URL
-                    if is_primary:
-                        primary_avatar_url = signed_url
+                if assets:
+                    storage = StorageService.get_instance()
+                    for asset in assets:
+                        # Skip assets without storage_path
+                        if not asset["storage_path"]:
+                            log.warning(f"Asset {asset['id']} has no storage_path, skipping")
+                            continue
+
+                        try:
+                            signed_url = await storage.create_signed_url(
+                                "avatars", asset["storage_path"]
+                            )
+                            is_primary = str(asset["id"]) == str(primary_anchor_id) if primary_anchor_id else False
+
+                            gallery.append(AvatarGalleryItem(
+                                id=asset["id"],
+                                url=signed_url,
+                                label=asset["label"],
+                                is_primary=is_primary,
+                            ))
+
+                            # Track primary avatar URL
+                            if is_primary:
+                                primary_avatar_url = signed_url
+                        except Exception as e:
+                            log.error(f"Failed to create signed URL for asset {asset['id']}: {e}")
+                            continue
+        except Exception as e:
+            log.error(f"Failed to load avatar gallery for character {slug}: {e}")
+            # Continue without gallery - don't fail the whole request
 
     data["gallery"] = gallery
     data["primary_avatar_url"] = primary_avatar_url

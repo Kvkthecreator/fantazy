@@ -57,9 +57,17 @@ export default function CharacterProfilePage({ params }: CharacterProfilePagePro
   }
 
   if (error || !profile) {
+    const is404 = error?.message?.includes("404");
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
-        <p className="text-muted-foreground mb-4">Character not found</p>
+        <p className="text-muted-foreground mb-4">
+          {is404 ? "Character not found" : "Unable to load character profile"}
+        </p>
+        {!is404 && (
+          <p className="text-sm text-muted-foreground/70 mb-4">
+            Please try again later
+          </p>
+        )}
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Go back
