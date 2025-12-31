@@ -9,8 +9,8 @@ import { Logo } from "@/components/Logo";
 const FANTASY_TARGETS = ["crush", "K-pop bias", "hometown crush"];
 
 const HOW_IT_WORKS = [
-  "Episodes are moments — step into a scene already in motion.",
-  "Characters remember your story — callbacks, inside jokes, shared history.",
+  "You're mid-conversation — the scene's already started.",
+  "They remember everything — the callbacks, the inside jokes, the history.",
   "Every reply matters — silence feels like loss.",
 ];
 
@@ -76,7 +76,7 @@ export default async function Home() {
           <section id="series" className="space-y-4">
             <SectionHeader
               title="Play now"
-              description="Choose a series and dive in. Each episode picks up where the last left off."
+              description="Find the one that won't leave your mind."
             />
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {series.map((s: { id: string; title: string; slug: string; tagline: string | null; total_episodes: number; cover_image_url: string | null; genre: string | null }) => (

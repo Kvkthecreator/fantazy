@@ -80,8 +80,8 @@ export function RotatingHero({
         {/* Headline with rotating word */}
         <div className="space-y-3">
           <h1 className="text-3xl font-bold leading-tight sm:text-4xl md:text-5xl">
-            Relive the moment with your{" "}
-            <span className="relative inline-block min-w-[140px] sm:min-w-[180px]">
+            <span className="block sm:inline">Relive the moment with your</span>{" "}
+            <span className="inline-flex items-baseline whitespace-nowrap">
               <span
                 className={cn(
                   "transition-opacity duration-200",
@@ -90,11 +90,11 @@ export function RotatingHero({
               >
                 &ldquo;{currentTarget}&rdquo;
               </span>
+              <span className="ml-0.5">.</span>
             </span>
-            .
           </h1>
           <p className="max-w-2xl text-base sm:text-lg text-white/85">
-            Episode-first chat moments. Enter the scene — your reply changes what happens next.
+            The scene&apos;s already started. You&apos;re already in it.
           </p>
         </div>
 
