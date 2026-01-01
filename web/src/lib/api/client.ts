@@ -329,6 +329,41 @@ export const api = {
       }),
   },
 
+  // Roles endpoints (ADR-004: Character Selection)
+  roles: {
+    list: (params?: { archetype?: string; limit?: number }) => {
+      const searchParams = new URLSearchParams();
+      if (params?.archetype) searchParams.set("archetype", params.archetype);
+      if (params?.limit) searchParams.set("limit", String(params.limit));
+      const query = searchParams.toString();
+      return request<import("@/types").Role[]>(
+        `/roles${query ? `?${query}` : ""}`
+      );
+    },
+    get: (roleId: string) =>
+      request<import("@/types").Role>(`/roles/${roleId}`),
+    getWithCompatibleCharacters: (roleId: string) =>
+      request<import("@/types").Role & {
+        canonical_character: import("@/types").CompatibleCharacter | null;
+        compatible_characters: import("@/types").CompatibleCharacter[];
+      }>(`/roles/${roleId}/compatible-characters`),
+    getCharacterSelectionForSeries: (seriesId: string) =>
+      request<import("@/types").CharacterSelectionContext>(
+        `/roles/series/${seriesId}/character-selection`
+      ),
+    checkCompatibility: (characterId: string, roleId: string) =>
+      request<{
+        compatible: boolean;
+        character_archetype: string;
+        role_archetype: string;
+        role_compatible_archetypes: string[];
+        reason: string | null;
+      }>("/roles/check-compatibility", {
+        method: "POST",
+        body: JSON.stringify({ character_id: characterId, role_id: roleId }),
+      }),
+  },
+
   // Message endpoints
   messages: {
     list: (episode_id: string, params?: { limit?: number; before_id?: string }) => {

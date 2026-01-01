@@ -18,11 +18,13 @@ import {
   Calendar,
   TrendingUp,
 } from "lucide-react";
+import { CharacterSelectionModal } from "@/components/series/CharacterSelectionModal";
 import type {
   SeriesWithEpisodes,
   World,
   EpisodeProgressItem,
   SeriesUserContextResponse,
+  CharacterSelectionContext,
 } from "@/types";
 
 // Genre display labels
@@ -54,6 +56,15 @@ export default function SeriesPage({ params }: PageProps) {
   );
   const [isLoading, setIsLoading] = useState(true);
   const [startingEpisode, setStartingEpisode] = useState<string | null>(null);
+
+  // Character selection modal state (ADR-004)
+  const [characterSelectionOpen, setCharacterSelectionOpen] = useState(false);
+  const [pendingEpisode, setPendingEpisode] = useState<{
+    id: string;
+    title: string;
+    canonicalCharacterId: string | null;
+  } | null>(null);
+  const [characterSelectionContext, setCharacterSelectionContext] = useState<CharacterSelectionContext | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -103,12 +114,48 @@ export default function SeriesPage({ params }: PageProps) {
     loadData();
   }, [slug]);
 
+  // Check if user has compatible custom characters for this series
+  useEffect(() => {
+    async function loadCharacterSelection() {
+      if (!series) return;
+      try {
+        const context = await api.roles.getCharacterSelectionForSeries(series.id);
+        setCharacterSelectionContext(context);
+      } catch {
+        // If no role or error, user will use canonical character
+        setCharacterSelectionContext(null);
+      }
+    }
+    loadCharacterSelection();
+  }, [series?.id]);
+
+  // Determine if we should show character selection
+  const hasUserCharacters = characterSelectionContext && characterSelectionContext.user_characters.length > 0;
+
   const handleStartEpisode = async (
     episodeId: string,
-    characterId: string | null
+    episodeTitle: string,
+    canonicalCharacterId: string | null
   ) => {
-    if (startingEpisode || !characterId) return;
+    if (startingEpisode) return;
+
+    // If user has compatible custom characters, show selection modal
+    if (hasUserCharacters && !userContext?.character_id) {
+      setPendingEpisode({ id: episodeId, title: episodeTitle, canonicalCharacterId });
+      setCharacterSelectionOpen(true);
+      return;
+    }
+
+    // Otherwise, use the character they've been using (or canonical)
+    const characterId = userContext?.character_id || canonicalCharacterId;
+    if (!characterId) return;
+
+    await startWithCharacter(episodeId, characterId);
+  };
+
+  const startWithCharacter = async (episodeId: string, characterId: string) => {
     setStartingEpisode(episodeId);
+    setCharacterSelectionOpen(false);
 
     try {
       await api.relationships.create(characterId).catch(() => {});
@@ -119,9 +166,15 @@ export default function SeriesPage({ params }: PageProps) {
     }
   };
 
+  const handleCharacterSelected = (characterId: string) => {
+    if (!pendingEpisode) return;
+    startWithCharacter(pendingEpisode.id, characterId);
+  };
+
   const handleContinue = () => {
     if (!userContext?.current_episode || !userContext.character_id) return;
-    handleStartEpisode(userContext.current_episode.episode_id, userContext.character_id);
+    // For continue, go directly since they already have a character
+    startWithCharacter(userContext.current_episode.episode_id, userContext.character_id);
   };
 
   if (isLoading) {
@@ -343,7 +396,7 @@ export default function SeriesPage({ params }: PageProps) {
                       "pointer-events-none opacity-80"
                   )}
                   onClick={() =>
-                    handleStartEpisode(episode.id, episode.character_id)
+                    handleStartEpisode(episode.id, episode.title, episode.character_id)
                   }
                 >
                   <div className="flex">
@@ -441,6 +494,17 @@ export default function SeriesPage({ params }: PageProps) {
         </section>
       )}
 
+      {/* Character Selection Modal (ADR-004) */}
+      {series && pendingEpisode && (
+        <CharacterSelectionModal
+          open={characterSelectionOpen}
+          onOpenChange={setCharacterSelectionOpen}
+          seriesId={series.id}
+          episodeId={pendingEpisode.id}
+          episodeTitle={pendingEpisode.title}
+          onSelect={handleCharacterSelected}
+        />
+      )}
     </div>
   );
 }

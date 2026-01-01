@@ -1417,3 +1417,49 @@ export type StreamEvent =
   | StreamInstructionCardEvent
   | StreamNeedsSparksEvent
   | StreamEpisodeCompleteEvent;
+
+// =============================================================================
+// Role types (ADR-004: User Character & Role Abstraction)
+// =============================================================================
+
+/**
+ * Role - the bridge between episodes and characters.
+ * Defines the archetype slot an episode requires.
+ */
+export interface Role {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  archetype: string;
+  compatible_archetypes: string[];
+  scene_objective: string | null;
+  scene_obstacle: string | null;
+  scene_tactic: string | null;
+}
+
+/**
+ * A character that can fill a role.
+ */
+export interface CompatibleCharacter {
+  id: string;
+  name: string;
+  slug: string;
+  archetype: string;
+  mapped_archetype: string | null;
+  avatar_url: string | null;
+  is_user_created: boolean;
+  is_canonical: boolean;
+}
+
+/**
+ * Context for character selection before starting an episode.
+ */
+export interface CharacterSelectionContext {
+  series_id: string;
+  series_title: string;
+  role: Role;
+  canonical_character: CompatibleCharacter | null;
+  user_characters: CompatibleCharacter[];
+  can_use_canonical: boolean;
+}
