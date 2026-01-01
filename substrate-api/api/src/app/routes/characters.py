@@ -107,6 +107,65 @@ async def list_archetypes(
     return [row["archetype"] for row in rows]
 
 
+# =============================================================================
+# User Character CRUD - MUST be before /{character_id} route!
+# =============================================================================
+
+def generate_slug(name: str) -> str:
+    """Generate a URL-safe slug from a name."""
+    # Convert to lowercase and replace spaces/special chars with hyphens
+    slug = re.sub(r'[^a-z0-9]+', '-', name.lower())
+    # Remove leading/trailing hyphens
+    slug = slug.strip('-')
+    # Add timestamp for uniqueness
+    timestamp = int(datetime.utcnow().timestamp())
+    return f"{slug}-{timestamp}"
+
+
+@router.get("/mine", response_model=List[UserCharacterResponse])
+async def list_my_characters(
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """List the current user's created characters.
+
+    Returns all characters created by the authenticated user.
+    """
+    query = """
+        SELECT id, name, slug, archetype, avatar_url,
+               boundaries->>'flirting_level' as flirting_level,
+               is_user_created, created_at, updated_at
+        FROM characters
+        WHERE created_by = :user_id AND is_user_created = TRUE
+        ORDER BY created_at DESC
+    """
+    rows = await db.fetch_all(query, {"user_id": str(user_id)})
+
+    results = []
+    storage = None
+
+    for row in rows:
+        data = dict(row)
+        # Ensure flirting_level has a default
+        if not data.get("flirting_level"):
+            data["flirting_level"] = "playful"
+
+        # Refresh avatar URL if we have one stored
+        if data.get("avatar_url") and "storage_path" in data.get("avatar_url", ""):
+            # Avatar URL is a storage path, generate signed URL
+            if storage is None:
+                storage = StorageService.get_instance()
+            try:
+                # This would need the actual storage path, skip for now
+                pass
+            except Exception as e:
+                log.warning(f"Failed to refresh avatar URL: {e}")
+
+        results.append(UserCharacterResponse(**data))
+
+    return results
+
+
 @router.get("/{character_id}", response_model=Character)
 async def get_character(
     character_id: UUID,
@@ -295,65 +354,6 @@ async def get_character_world(
         )
 
     return World(**dict(row))
-
-
-# =============================================================================
-# User Character CRUD (ADR-004: User Character Customization)
-# =============================================================================
-
-def generate_slug(name: str) -> str:
-    """Generate a URL-safe slug from a name."""
-    # Convert to lowercase and replace spaces/special chars with hyphens
-    slug = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    # Remove leading/trailing hyphens
-    slug = slug.strip('-')
-    # Add timestamp for uniqueness
-    timestamp = int(datetime.utcnow().timestamp())
-    return f"{slug}-{timestamp}"
-
-
-@router.get("/mine", response_model=List[UserCharacterResponse])
-async def list_my_characters(
-    user_id: UUID = Depends(get_current_user_id),
-    db=Depends(get_db),
-):
-    """List the current user's created characters.
-
-    Returns all characters created by the authenticated user.
-    """
-    query = """
-        SELECT id, name, slug, archetype, avatar_url,
-               boundaries->>'flirting_level' as flirting_level,
-               is_user_created, created_at, updated_at
-        FROM characters
-        WHERE created_by = :user_id AND is_user_created = TRUE
-        ORDER BY created_at DESC
-    """
-    rows = await db.fetch_all(query, {"user_id": str(user_id)})
-
-    results = []
-    storage = None
-
-    for row in rows:
-        data = dict(row)
-        # Ensure flirting_level has a default
-        if not data.get("flirting_level"):
-            data["flirting_level"] = "playful"
-
-        # Refresh avatar URL if we have one stored
-        if data.get("avatar_url") and "storage_path" in data.get("avatar_url", ""):
-            # Avatar URL is a storage path, generate signed URL
-            if storage is None:
-                storage = StorageService.get_instance()
-            try:
-                # This would need the actual storage path, skip for now
-                pass
-            except Exception as e:
-                log.warning(f"Failed to refresh avatar URL: {e}")
-
-        results.append(UserCharacterResponse(**data))
-
-    return results
 
 
 @router.post("", response_model=UserCharacterResponse, status_code=status.HTTP_201_CREATED)
