@@ -214,14 +214,6 @@ export default function MyCharactersPage() {
         </div>
       )}
 
-      {/* Limit reached message */}
-      {!canCreateMore && (
-        <div className="bg-muted/50 rounded-lg p-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            You've reached the free character limit. Delete a character to create a new one.
-          </p>
-        </div>
-      )}
 
       {/* Create/Edit Form Modal */}
       <UserCharacterForm
