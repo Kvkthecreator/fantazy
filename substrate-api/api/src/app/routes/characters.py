@@ -31,6 +31,7 @@ from app.models.character import (
 from app.models.world import World
 from app.services.storage import StorageService
 from app.services.avatar_generation import AvatarGenerationService
+from app.services.credits import CreditsService, InsufficientSparksError
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,9 @@ router = APIRouter(prefix="/characters", tags=["Characters"])
 
 # Maximum user characters per user (free tier)
 MAX_USER_CHARACTERS_FREE = 1
+
+# Spark cost for avatar regeneration (first generation is free)
+AVATAR_REGENERATION_COST = 5
 
 
 @router.get("", response_model=List[CharacterSummary])
@@ -716,8 +720,8 @@ async def generate_user_character_avatar(
     """Generate avatar for a user-created character.
 
     Monetization:
-    - First avatar generation is FREE
-    - Subsequent regenerations cost 5 sparks (TODO)
+    - First avatar generation is FREE (bundled with character creation)
+    - Subsequent regenerations cost 5 sparks
 
     Returns the generated avatar URL and updates character.avatar_url.
     """
@@ -741,10 +745,36 @@ async def generate_user_character_avatar(
     existing_data = dict(existing)
     is_first_generation = existing_data.get("avatar_url") is None
 
-    # TODO: If not first generation, check and deduct sparks
-    # if not is_first_generation:
-    #     # Check spark balance, deduct 5 sparks
-    #     pass
+    # If not first generation, check and deduct sparks
+    sparks_spent = 0
+    if not is_first_generation:
+        credits_service = CreditsService.get_instance()
+        try:
+            # Check balance before generation
+            check_result = await credits_service.check_balance(
+                user_id, "avatar_regeneration", explicit_cost=AVATAR_REGENERATION_COST
+            )
+            if not check_result.allowed:
+                raise HTTPException(
+                    status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                    detail={
+                        "error": "insufficient_sparks",
+                        "message": f"Avatar regeneration costs {AVATAR_REGENERATION_COST} sparks. You have {check_result.balance}.",
+                        "balance": check_result.balance,
+                        "cost": AVATAR_REGENERATION_COST,
+                    },
+                )
+            sparks_spent = AVATAR_REGENERATION_COST
+        except InsufficientSparksError as e:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "error": "insufficient_sparks",
+                    "message": e.message,
+                    "balance": e.balance,
+                    "cost": e.cost,
+                },
+            )
 
     # Get appearance prompt from character boundaries if not provided
     if not appearance_prompt:
@@ -770,6 +800,18 @@ async def generate_user_character_avatar(
             detail=result.error or "Failed to generate avatar",
         )
 
+    # Deduct sparks AFTER successful generation (don't charge for failures)
+    if sparks_spent > 0:
+        credits_service = CreditsService.get_instance()
+        await credits_service.spend(
+            user_id=user_id,
+            feature_key="avatar_regeneration",
+            reference_id=str(character_id),
+            metadata={"character_name": existing_data.get("name")},
+            explicit_cost=sparks_spent,
+        )
+        log.info(f"Charged {sparks_spent} sparks for avatar regeneration on character {character_id}")
+
     log.info(f"Generated avatar for user character {character_id}: {result.image_url}")
 
     return {
@@ -778,4 +820,5 @@ async def generate_user_character_avatar(
         "asset_id": str(result.asset_id) if result.asset_id else None,
         "kit_id": str(result.kit_id) if result.kit_id else None,
         "is_first_generation": is_first_generation,
+        "sparks_spent": sparks_spent,
     }

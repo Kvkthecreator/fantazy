@@ -110,6 +110,7 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
   // Avatar generation
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
 
   // Image lightbox
   const [expandedImage, setExpandedImage] = useState<{ url: string; title: string } | null>(null);
@@ -198,9 +199,25 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
     }
   }
 
+  // Cost for avatar regeneration (first generation is free)
+  const AVATAR_REGENERATION_COST = 5;
+
+  function handleRegenerateClick() {
+    if (!character) return;
+
+    // If character already has an avatar, show confirmation modal
+    if (character.avatar_url) {
+      setRegenerateConfirmOpen(true);
+    } else {
+      // First generation - no confirmation needed
+      handleGenerateAvatar();
+    }
+  }
+
   async function handleGenerateAvatar() {
     if (!character) return;
 
+    setRegenerateConfirmOpen(false);
     setIsGeneratingAvatar(true);
     setAvatarError(null);
     try {
@@ -216,8 +233,14 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
     } catch (err) {
       console.error("Failed to generate avatar:", err);
       if (err instanceof APIError) {
-        const data = err.data as { detail?: string } | null;
-        setAvatarError(data?.detail || "Failed to generate avatar");
+        // Handle 402 Payment Required (insufficient sparks)
+        if (err.status === 402) {
+          const data = err.data as { error?: string; message?: string; balance?: number; cost?: number } | null;
+          setAvatarError(data?.message || `Insufficient sparks. You need ${AVATAR_REGENERATION_COST} sparks.`);
+        } else {
+          const data = err.data as { detail?: string } | null;
+          setAvatarError(data?.detail || "Failed to generate avatar");
+        }
       } else {
         setAvatarError("Failed to generate avatar");
       }
@@ -317,7 +340,7 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
                 <Button
                   size="sm"
                   variant={character.avatar_url ? "outline" : "default"}
-                  onClick={handleGenerateAvatar}
+                  onClick={handleRegenerateClick}
                   disabled={isGeneratingAvatar}
                   className="gap-2"
                 >
@@ -469,6 +492,51 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
               className="flex-1"
             >
               {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate Avatar Confirmation Modal */}
+      <Dialog open={regenerateConfirmOpen} onOpenChange={setRegenerateConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogClose />
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Regenerate Avatar
+            </DialogTitle>
+            <DialogDescription>
+              Regenerating the avatar will cost{" "}
+              <span className="font-semibold text-foreground">{AVATAR_REGENERATION_COST} sparks</span>.
+              This will replace the current avatar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setRegenerateConfirmOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGenerateAvatar}
+              disabled={isGeneratingAvatar}
+              className="flex-1"
+            >
+              {isGeneratingAvatar ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Spend {AVATAR_REGENERATION_COST} Sparks
+                </>
+              )}
             </Button>
           </div>
         </DialogContent>
