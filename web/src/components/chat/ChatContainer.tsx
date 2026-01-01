@@ -53,6 +53,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     episode_number: number;
     status: "not_started" | "in_progress" | "completed";
   }>>([]);
+  const [seriesTitle, setSeriesTitle] = useState<string | null>(null);  // ADR-004: Series title for header
   const { character, isLoading: isLoadingCharacter } = useCharacter(characterId);
 
   // Load episode template ONLY if explicitly provided via URL param
@@ -79,6 +80,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         api.series.getProgress(episodeTemplate.series_id),
       ])
         .then(([series, progressResponse]) => {
+          // ADR-004: Capture series title for header display
+          setSeriesTitle(series.title);
+
           const progressMap = new Map(
             progressResponse.progress.map((p) => [p.episode_id, p.status])
           );
@@ -92,9 +96,11 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         })
         .catch((err) => {
           console.error("Failed to load series data:", err);
+          setSeriesTitle(null);
           setSeriesEpisodes([]);
         });
     } else {
+      setSeriesTitle(null);
       setSeriesEpisodes([]);
     }
   }, [episodeTemplate?.series_id]);
@@ -344,6 +350,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           directorState={directorState}
           messageCount={messages.length}
           seriesProgress={seriesProgress}
+          seriesTitle={seriesTitle}
           hasBackground={hasBackground}
         />
       </div>

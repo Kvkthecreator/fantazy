@@ -23,6 +23,7 @@ interface ChatHeaderProps {
       status: "not_started" | "in_progress" | "completed";
     }>;
   } | null;
+  seriesTitle?: string | null;  // ADR-004: Series title for multi-character support
   hasBackground?: boolean;
 }
 
@@ -32,10 +33,14 @@ export function ChatHeader({
   directorState,
   messageCount = 0,
   seriesProgress,
+  seriesTitle,
   hasBackground = false,
 }: ChatHeaderProps) {
   // episodeTemplate reserved for future use (episode title display, etc.)
   void _episodeTemplate;
+
+  // ADR-004: Determine if we're in a series context
+  const isSeriesContext = !!seriesTitle;
   const [showEpisodePicker, setShowEpisodePicker] = useState(false);
   const router = useRouter();
 
@@ -56,7 +61,7 @@ export function ChatHeader({
   return (
     <>
       <header className="flex items-center justify-between gap-2 px-2 py-1.5 sm:px-4 sm:py-2">
-        {/* Left: Back + Avatar + Name */}
+        {/* Left: Back + Character/Series Info */}
         <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
           <Link href="/dashboard">
             <Button
@@ -72,27 +77,65 @@ export function ChatHeader({
             </Button>
           </Link>
 
-          <Link href={`/characters/${character.slug}`} className="flex items-center gap-2 min-w-0">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden flex-shrink-0">
-              {character.avatar_url ? (
-                <img
-                  src={character.avatar_url}
-                  alt={character.name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                character.name[0]
-              )}
+          {/* ADR-004: Two-line layout for series, single line for free chat */}
+          {isSeriesContext ? (
+            <div className="flex items-center gap-2 min-w-0">
+              {/* Character avatar */}
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden flex-shrink-0">
+                {character.avatar_url ? (
+                  <img
+                    src={character.avatar_url}
+                    alt={character.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  character.name[0]
+                )}
+              </div>
+              {/* Two-line text: Series title + Playing as */}
+              <div className="min-w-0 flex flex-col">
+                <h1
+                  className={cn(
+                    "font-semibold text-sm truncate leading-tight",
+                    hasBackground && "text-white"
+                  )}
+                >
+                  {seriesTitle}
+                </h1>
+                <span
+                  className={cn(
+                    "text-[11px] truncate leading-tight",
+                    hasBackground ? "text-white/70" : "text-muted-foreground"
+                  )}
+                >
+                  Playing as {character.name}
+                </span>
+              </div>
             </div>
-            <h1
-              className={cn(
-                "font-semibold text-sm truncate",
-                hasBackground && "text-white"
-              )}
-            >
-              {character.name}
-            </h1>
-          </Link>
+          ) : (
+            /* Original single-line layout for free chat */
+            <Link href={`/characters/${character.slug}`} className="flex items-center gap-2 min-w-0">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center text-white font-medium shadow-sm overflow-hidden flex-shrink-0">
+                {character.avatar_url ? (
+                  <img
+                    src={character.avatar_url}
+                    alt={character.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  character.name[0]
+                )}
+              </div>
+              <h1
+                className={cn(
+                  "font-semibold text-sm truncate",
+                  hasBackground && "text-white"
+                )}
+              >
+                {character.name}
+              </h1>
+            </Link>
+          )}
         </div>
 
         {/* Right: Compact indicators */}
