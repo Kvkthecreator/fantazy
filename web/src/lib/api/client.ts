@@ -561,9 +561,15 @@ export const api = {
       }),
     delete: (id: string) =>
       request<null>(`/characters/${id}`, { method: "DELETE" }),
-    regenerateAvatar: (id: string) =>
-      request<{ message: string; avatar_url: string | null }>(
-        `/characters/${id}/regenerate-avatar`,
+    generateAvatar: (id: string, appearancePrompt?: string) =>
+      request<{
+        success: boolean;
+        avatar_url: string;
+        asset_id: string | null;
+        kit_id: string | null;
+        is_first_generation: boolean;
+      }>(
+        `/characters/mine/${id}/generate-avatar${appearancePrompt ? `?appearance_prompt=${encodeURIComponent(appearancePrompt)}` : ""}`,
         { method: "POST" }
       ),
     getAvailableForEpisode: (templateId: string) =>

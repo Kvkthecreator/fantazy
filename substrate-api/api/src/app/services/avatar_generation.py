@@ -313,6 +313,30 @@ ARCHETYPE_MOOD = {
     },
 }
 
+# User Character Archetypes (ADR-004)
+USER_ARCHETYPE_MOOD = {
+    "warm_supportive": {
+        "expression": "gentle nurturing eyes at viewer, warm caring smile",
+        "mood": "emotionally available, empathetic presence",
+    },
+    "playful_teasing": {
+        "expression": "bright mischievous eyes at viewer, playful smirk",
+        "mood": "witty charm, fun-loving energy",
+    },
+    "mysterious_reserved": {
+        "expression": "deep thoughtful eyes at viewer, subtle enigmatic smile",
+        "mood": "intriguing depth, selectively open",
+    },
+    "intense_passionate": {
+        "expression": "focused intense eyes at viewer, emotionally expressive",
+        "mood": "deep passion, magnetic presence",
+    },
+    "confident_assertive": {
+        "expression": "assured confident eyes at viewer, self-possessed smile",
+        "mood": "natural authority, direct warmth",
+    },
+}
+
 DEFAULT_ARCHETYPE_MOOD = {
     "expression": "attractive warm expression, engaging eyes",
     "mood": "appealing, inviting, emotionally present",
@@ -506,7 +530,12 @@ def assemble_avatar_prompt(
     """
     effective_role = role_frame or archetype
     role_visual = ROLE_FRAME_VISUALS.get(effective_role, DEFAULT_ROLE_VISUAL)
-    archetype_data = ARCHETYPE_MOOD.get(archetype, DEFAULT_ARCHETYPE_MOOD)
+    # Check user archetypes first, then canonical archetypes
+    archetype_data = (
+        USER_ARCHETYPE_MOOD.get(archetype) or
+        ARCHETYPE_MOOD.get(archetype) or
+        DEFAULT_ARCHETYPE_MOOD
+    )
 
     flirting_level = "playful"
     if boundaries:

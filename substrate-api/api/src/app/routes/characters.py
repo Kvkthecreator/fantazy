@@ -30,6 +30,7 @@ from app.models.character import (
 )
 from app.models.world import World
 from app.services.storage import StorageService
+from app.services.avatar_generation import AvatarGenerationService
 
 log = logging.getLogger(__name__)
 
@@ -397,16 +398,17 @@ async def create_user_character(
     user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
-    """Create a new user character.
+    """Create a new user character with avatar.
 
     ADR-004: User characters have simplified creation:
     - Name, appearance prompt, archetype, flirting level
     - System prompt is auto-generated from archetype preset
-    - Avatar is generated separately via regenerate-avatar endpoint
+    - Avatar is generated synchronously during creation (enforced upstream)
 
     Monetization:
-    - First 3 characters are free
-    - Character creation itself is free (avatar regen costs sparks)
+    - First character slot is free
+    - Initial avatar generation is free
+    - Avatar regeneration costs sparks
     """
     # Check character limit
     count_query = """
@@ -445,10 +447,11 @@ async def create_user_character(
         PERSONALITY_PRESETS.get("warm_supportive")
     )
 
-    # Build boundaries
+    # Build boundaries (include appearance_prompt for avatar generation)
     boundaries = {
         "nsfw_allowed": False,  # User characters are SFW only for now
         "flirting_level": data.flirting_level,
+        "appearance_prompt": data.appearance_prompt,
     }
 
     # Generate system prompt from archetype
@@ -501,10 +504,33 @@ async def create_user_character(
     if not result.get("flirting_level"):
         result["flirting_level"] = data.flirting_level
 
-    log.info(f"User {user_id} created character {result['id']} ({data.name})")
+    character_id = result["id"]
+    log.info(f"User {user_id} created character {character_id} ({data.name})")
 
-    # TODO: Trigger avatar generation with data.appearance_prompt
-    # This will be done via the regenerate-avatar endpoint or inline here
+    # Generate avatar synchronously (Option A: enforce complete character at creation)
+    try:
+        service = AvatarGenerationService()
+        avatar_result = await service.generate_portrait(
+            character_id=character_id,
+            user_id=user_id,
+            db=db,
+            appearance_description=data.appearance_prompt,
+            style_preset="manhwa",  # Default style for user characters
+        )
+
+        if avatar_result.success and avatar_result.image_url:
+            result["avatar_url"] = avatar_result.image_url
+            log.info(f"Generated avatar for user character {character_id}")
+        else:
+            # Avatar generation failed - log but don't fail character creation
+            log.warning(f"Avatar generation failed for {character_id}: {avatar_result.error}")
+            # Still return character, user can regenerate from detail page
+    except Exception as e:
+        log.error(f"Avatar generation error for {character_id}: {e}")
+        # Don't fail character creation on avatar error
+
+    # Include appearance_prompt in response
+    result["appearance_prompt"] = data.appearance_prompt
 
     return UserCharacterResponse(**result)
 
@@ -680,24 +706,25 @@ async def delete_user_character(
     return None
 
 
-@router.post("/{character_id}/regenerate-avatar")
-async def regenerate_user_character_avatar(
+@router.post("/mine/{character_id}/generate-avatar")
+async def generate_user_character_avatar(
     character_id: UUID,
     appearance_prompt: Optional[str] = None,
     user_id: UUID = Depends(get_current_user_id),
     db=Depends(get_db),
 ):
-    """Regenerate avatar for a user-created character.
+    """Generate avatar for a user-created character.
 
     Monetization:
-    - First avatar generation (during creation) is FREE
-    - Subsequent regenerations cost 5 sparks
+    - First avatar generation is FREE
+    - Subsequent regenerations cost 5 sparks (TODO)
 
-    TODO: Implement spark deduction and actual avatar generation
+    Returns the generated avatar URL and updates character.avatar_url.
     """
-    # Verify ownership
+    # Verify ownership and get character data
     check_query = """
-        SELECT id, name, avatar_url FROM characters
+        SELECT id, name, archetype, boundaries, avatar_url
+        FROM characters
         WHERE id = :character_id AND created_by = :user_id AND is_user_created = TRUE
     """
     existing = await db.fetch_one(check_query, {
@@ -715,10 +742,40 @@ async def regenerate_user_character_avatar(
     is_first_generation = existing_data.get("avatar_url") is None
 
     # TODO: If not first generation, check and deduct sparks
-    # TODO: Call AvatarGenerationService to generate avatar
-    # TODO: Update character.avatar_url with new signed URL
+    # if not is_first_generation:
+    #     # Check spark balance, deduct 5 sparks
+    #     pass
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Avatar generation not yet implemented. Coming soon!",
+    # Get appearance prompt from character boundaries if not provided
+    if not appearance_prompt:
+        import json
+        boundaries = existing_data.get("boundaries") or {}
+        if isinstance(boundaries, str):
+            boundaries = json.loads(boundaries)
+        appearance_prompt = boundaries.get("appearance_prompt")
+
+    # Generate avatar using the avatar generation service
+    service = AvatarGenerationService()
+    result = await service.generate_portrait(
+        character_id=character_id,
+        user_id=user_id,
+        db=db,
+        appearance_description=appearance_prompt,
+        style_preset="manhwa",  # Default style for user characters
     )
+
+    if not result.success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=result.error or "Failed to generate avatar",
+        )
+
+    log.info(f"Generated avatar for user character {character_id}: {result.image_url}")
+
+    return {
+        "success": True,
+        "avatar_url": result.image_url,
+        "asset_id": str(result.asset_id) if result.asset_id else None,
+        "kit_id": str(result.kit_id) if result.kit_id else None,
+        "is_first_generation": is_first_generation,
+    }

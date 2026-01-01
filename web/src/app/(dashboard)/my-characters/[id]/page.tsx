@@ -26,7 +26,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, UserCircle2, Save, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, UserCircle2, Save, Trash2, Loader2, Sparkles } from "lucide-react";
 import type { UserCharacter, UserArchetype, FlirtingLevel } from "@/types";
 
 interface CharacterDetailPageProps {
@@ -107,6 +107,10 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Avatar generation
+  const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+
   // Load character on mount
   useEffect(() => {
     loadCharacter();
@@ -180,6 +184,34 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
     }
   }
 
+  async function handleGenerateAvatar() {
+    if (!character) return;
+
+    setIsGeneratingAvatar(true);
+    setAvatarError(null);
+    try {
+      const result = await api.userCharacters.generateAvatar(
+        character.id,
+        appearancePrompt || undefined
+      );
+      // Update the character with the new avatar
+      setCharacter({
+        ...character,
+        avatar_url: result.avatar_url,
+      });
+    } catch (err) {
+      console.error("Failed to generate avatar:", err);
+      if (err instanceof APIError) {
+        const data = err.data as { detail?: string } | null;
+        setAvatarError(data?.detail || "Failed to generate avatar");
+      } else {
+        setAvatarError("Failed to generate avatar");
+      }
+    } finally {
+      setIsGeneratingAvatar(false);
+    }
+  }
+
   // Loading state
   if (isLoading) {
     return <DetailSkeleton />;
@@ -224,8 +256,13 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
         <CardContent className="p-6">
           <div className="flex gap-6">
             {/* Avatar */}
-            <div className="w-32 h-40 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-              {character.avatar_url ? (
+            <div className="w-32 h-40 rounded-lg overflow-hidden bg-muted flex-shrink-0 relative">
+              {isGeneratingAvatar ? (
+                <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-muted">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  <span className="text-xs text-muted-foreground">Generating...</span>
+                </div>
+              ) : character.avatar_url ? (
                 <img
                   src={character.avatar_url}
                   alt={character.name}
@@ -254,6 +291,31 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
                   {FLIRTING_LEVELS.find((f) => f.value === character.flirting_level)?.label ||
                     character.flirting_level}
                 </Badge>
+              </div>
+              {/* Generate Avatar Button */}
+              <div className="pt-2">
+                <Button
+                  size="sm"
+                  variant={character.avatar_url ? "outline" : "default"}
+                  onClick={handleGenerateAvatar}
+                  disabled={isGeneratingAvatar}
+                  className="gap-2"
+                >
+                  {isGeneratingAvatar ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      {character.avatar_url ? "Regenerate Avatar" : "Generate Avatar"}
+                    </>
+                  )}
+                </Button>
+                {avatarError && (
+                  <p className="text-xs text-destructive mt-1">{avatarError}</p>
+                )}
               </div>
             </div>
           </div>
