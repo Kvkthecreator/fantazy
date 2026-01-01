@@ -42,12 +42,20 @@ export function UserCharacterCard({
   onDelete,
   className,
 }: UserCharacterCardProps) {
+  const handleCardClick = () => {
+    // Clicking the card opens edit modal
+    if (onEdit) {
+      onEdit(character);
+    }
+  };
+
   return (
     <Card
       className={cn(
-        "overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1 group",
+        "overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1 group cursor-pointer",
         className
       )}
+      onClick={handleCardClick}
     >
       <CardContent className="p-0">
         {/* Image section - full bleed */}
@@ -76,7 +84,7 @@ export function UserCharacterCard({
               <Button
                 size="icon"
                 variant="secondary"
-                className="h-8 w-8 bg-white/90 hover:bg-white"
+                className="h-8 w-8 bg-black/60 hover:bg-black/80 text-white border-0 backdrop-blur-sm"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -90,7 +98,7 @@ export function UserCharacterCard({
               <Button
                 size="icon"
                 variant="secondary"
-                className="h-8 w-8 bg-white/90 hover:bg-red-100 hover:text-red-600"
+                className="h-8 w-8 bg-black/60 hover:bg-red-600 text-white border-0 backdrop-blur-sm"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -113,7 +121,7 @@ export function UserCharacterCard({
               {character.name}
             </h3>
             <p className="text-sm text-white/80">
-              {ARCHETYPE_LABELS[character.archetype]}
+              {ARCHETYPE_LABELS[character.archetype] || character.archetype?.replace(/_/g, " ")}
             </p>
           </div>
         </div>
@@ -124,10 +132,10 @@ export function UserCharacterCard({
             <Badge
               className={cn(
                 "border-0",
-                FLIRTING_COLORS[character.flirting_level]
+                FLIRTING_COLORS[character.flirting_level] || "bg-muted text-muted-foreground"
               )}
             >
-              {FLIRTING_LABELS[character.flirting_level]} flirting
+              {FLIRTING_LABELS[character.flirting_level] || character.flirting_level} flirting
             </Badge>
           </div>
 
