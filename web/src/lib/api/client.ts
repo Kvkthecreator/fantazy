@@ -543,6 +543,33 @@ export const api = {
       request<import("@/types").PortalResponse>("/subscription/portal"),
   },
 
+  // User Characters endpoints (ADR-004: User Character Customization)
+  userCharacters: {
+    list: () =>
+      request<import("@/types").UserCharacter[]>("/characters/mine"),
+    create: (data: import("@/types").UserCharacterCreate) =>
+      request<import("@/types").UserCharacter>("/characters", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: import("@/types").UserCharacterUpdate) =>
+      request<import("@/types").UserCharacter>(`/characters/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    delete: (id: string) =>
+      request<null>(`/characters/${id}`, { method: "DELETE" }),
+    regenerateAvatar: (id: string) =>
+      request<{ message: string; avatar_url: string | null }>(
+        `/characters/${id}/regenerate-avatar`,
+        { method: "POST" }
+      ),
+    getAvailableForEpisode: (templateId: string) =>
+      request<import("@/types").AvailableCharactersResponse>(
+        `/episode-templates/${templateId}/available-characters`
+      ),
+  },
+
   // Credits (Sparks) endpoints
   credits: {
     getBalance: () =>

@@ -1240,6 +1240,71 @@ export interface FlirtArchetypeEvaluation {
 }
 
 // ============================================================================
+// User Character Types (ADR-004: User Character Customization)
+// ============================================================================
+
+/**
+ * User character archetypes (subset for user creation)
+ */
+export type UserArchetype =
+  | "warm_supportive"
+  | "playful_teasing"
+  | "mysterious_reserved"
+  | "intense_passionate"
+  | "confident_assertive";
+
+/**
+ * Flirting level for user characters
+ */
+export type FlirtingLevel = "subtle" | "playful" | "bold" | "intense";
+
+/**
+ * User character - a character created by the user
+ */
+export interface UserCharacter {
+  id: string;
+  name: string;
+  slug: string;
+  archetype: UserArchetype;
+  avatar_url: string | null;
+  appearance_prompt: string | null;
+  flirting_level: FlirtingLevel;
+  is_user_created: true;
+  is_public: boolean;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Input for creating a user character
+ */
+export interface UserCharacterCreate {
+  name: string;
+  archetype: UserArchetype;
+  appearance_prompt?: string;
+  flirting_level?: FlirtingLevel;
+}
+
+/**
+ * Input for updating a user character
+ */
+export interface UserCharacterUpdate {
+  name?: string;
+  archetype?: UserArchetype;
+  appearance_prompt?: string;
+  flirting_level?: FlirtingLevel;
+}
+
+/**
+ * Available characters for an episode (includes canonical + user's compatible)
+ */
+export interface AvailableCharactersResponse {
+  canonical: CharacterSummary | null;
+  user_characters: UserCharacter[];
+}
+
+// ============================================================================
 // Stream Event Types (for conversation streaming with Director V2 integration)
 // ============================================================================
 

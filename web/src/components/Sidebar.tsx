@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import type { User } from "@supabase/supabase-js"
-import { BookOpen, Compass, Images, LayoutDashboard, MessageCircle, ChevronLeft, ChevronRight } from "lucide-react"
+import { BookOpen, Compass, Images, LayoutDashboard, MessageCircle, ChevronLeft, ChevronRight, UserCircle2 } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { UserMenu } from "@/components/UserMenu"
 import { Logo } from "@/components/Logo"
@@ -15,6 +15,7 @@ const navigation = [
   { name: "Discover", href: "/discover", icon: Compass },
   { name: "My Series", href: "/dashboard/series", icon: BookOpen },
   { name: "My Chats", href: "/dashboard/chats", icon: MessageCircle },
+  { name: "My Characters", href: "/my-characters", icon: UserCircle2 },
   { name: "Gallery", href: "/dashboard/story", icon: Images },
   // Memories page still exists at /dashboard/memories for debugging, but hidden from nav
 ]
