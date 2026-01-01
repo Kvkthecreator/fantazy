@@ -161,7 +161,6 @@ class Character(BaseModel):
     # User character flags (ADR-004)
     is_user_created: bool = False  # True for user-created, False for canonical
     is_public: bool = False  # Future: shareable characters (Phase 3)
-    mapped_archetype: Optional[str] = None  # ADR-004 v2: Normalized archetype for casting
 
     # Discovery
     categories: List[str] = Field(default_factory=list)
