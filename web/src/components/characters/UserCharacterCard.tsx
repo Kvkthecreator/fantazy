@@ -1,15 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Pencil, Trash2, UserCircle2 } from "lucide-react";
+import { Trash2, UserCircle2 } from "lucide-react";
 import type { UserCharacter, UserArchetype, FlirtingLevel } from "@/types";
 
 interface UserCharacterCardProps {
   character: UserCharacter;
-  onEdit?: (character: UserCharacter) => void;
   onDelete?: (character: UserCharacter) => void;
   className?: string;
 }
@@ -38,26 +38,18 @@ const FLIRTING_COLORS: Record<FlirtingLevel, string> = {
 
 export function UserCharacterCard({
   character,
-  onEdit,
   onDelete,
   className,
 }: UserCharacterCardProps) {
-  const handleCardClick = () => {
-    // Clicking the card opens edit modal
-    if (onEdit) {
-      onEdit(character);
-    }
-  };
-
   return (
-    <Card
-      className={cn(
-        "overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1 group cursor-pointer",
-        className
-      )}
-      onClick={handleCardClick}
-    >
-      <CardContent className="p-0">
+    <Link href={`/my-characters/${character.id}`}>
+      <Card
+        className={cn(
+          "overflow-hidden hover:shadow-lg transition-all duration-200 hover:-translate-y-1 group cursor-pointer",
+          className
+        )}
+      >
+        <CardContent className="p-0">
         {/* Image section - full bleed */}
         <div className="aspect-[3/4] relative overflow-hidden bg-muted">
           {character.avatar_url ? (
@@ -78,23 +70,9 @@ export function UserCharacterCard({
           {/* Gradient overlay for text readability */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-          {/* Action buttons overlay (top right) */}
-          <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {onEdit && (
-              <Button
-                size="icon"
-                variant="secondary"
-                className="h-8 w-8 bg-black/60 hover:bg-black/80 text-white border-0 backdrop-blur-sm"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onEdit(character);
-                }}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
-            {onDelete && (
+          {/* Delete button overlay (top right) */}
+          {onDelete && (
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
               <Button
                 size="icon"
                 variant="secondary"
@@ -107,8 +85,8 @@ export function UserCharacterCard({
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* "My Character" badge */}
           <Badge className="absolute top-2 left-2 bg-primary/90 text-primary-foreground border-0">
@@ -146,6 +124,7 @@ export function UserCharacterCard({
           )}
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </Link>
   );
 }

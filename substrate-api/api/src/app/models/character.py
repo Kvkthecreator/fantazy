@@ -475,6 +475,7 @@ class UserCharacterResponse(BaseModel):
     slug: str
     archetype: str
     avatar_url: Optional[str] = None
+    appearance_prompt: Optional[str] = None
     flirting_level: str = "playful"
     is_user_created: bool = True
     created_at: datetime

@@ -547,6 +547,8 @@ export const api = {
   userCharacters: {
     list: () =>
       request<import("@/types").UserCharacter[]>("/characters/mine"),
+    get: (id: string) =>
+      request<import("@/types").UserCharacter>(`/characters/mine/${id}`),
     create: (data: import("@/types").UserCharacterCreate) =>
       request<import("@/types").UserCharacter>("/characters", {
         method: "POST",

@@ -134,6 +134,7 @@ async def list_my_characters(
     query = """
         SELECT id, name, slug, archetype, avatar_url,
                boundaries->>'flirting_level' as flirting_level,
+               boundaries->>'appearance_prompt' as appearance_prompt,
                is_user_created, created_at, updated_at
         FROM characters
         WHERE created_by = :user_id AND is_user_created = TRUE
@@ -164,6 +165,40 @@ async def list_my_characters(
         results.append(UserCharacterResponse(**data))
 
     return results
+
+
+@router.get("/mine/{character_id}", response_model=UserCharacterResponse)
+async def get_my_character(
+    character_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Get a single user-created character by ID.
+
+    Only returns characters owned by the authenticated user.
+    """
+    query = """
+        SELECT id, name, slug, archetype, avatar_url,
+               boundaries->>'flirting_level' as flirting_level,
+               boundaries->>'appearance_prompt' as appearance_prompt,
+               is_user_created, created_at, updated_at
+        FROM characters
+        WHERE id = :character_id AND created_by = :user_id AND is_user_created = TRUE
+    """
+    row = await db.fetch_one(query, {"character_id": str(character_id), "user_id": str(user_id)})
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Character not found",
+        )
+
+    data = dict(row)
+    # Ensure flirting_level has a default
+    if not data.get("flirting_level"):
+        data["flirting_level"] = "playful"
+
+    return UserCharacterResponse(**data)
 
 
 @router.get("/{character_id}", response_model=Character)

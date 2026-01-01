@@ -16,7 +16,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Plus, UserCircle2, AlertTriangle } from "lucide-react";
-import type { UserCharacter, UserCharacterCreate, UserCharacterUpdate } from "@/types";
+import type { UserCharacter, UserCharacterCreate } from "@/types";
+import Link from "next/link";
 
 const MAX_FREE_CHARACTERS = 1;
 
@@ -25,9 +26,8 @@ export default function MyCharactersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Form modal state
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingCharacter, setEditingCharacter] = useState<UserCharacter | null>(null);
+  // Create modal state
+  const [createFormOpen, setCreateFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Delete confirmation modal state
@@ -69,18 +69,6 @@ export default function MyCharactersPage() {
     }
   }
 
-  async function handleUpdate(data: UserCharacterUpdate) {
-    if (!editingCharacter) return;
-    setIsSubmitting(true);
-    try {
-      const updated = await api.userCharacters.update(editingCharacter.id, data);
-      setCharacters((prev) =>
-        prev.map((c) => (c.id === updated.id ? updated : c))
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deletingCharacter) return;
@@ -98,13 +86,7 @@ export default function MyCharactersPage() {
   }
 
   function openCreateForm() {
-    setEditingCharacter(null);
-    setFormOpen(true);
-  }
-
-  function openEditForm(character: UserCharacter) {
-    setEditingCharacter(character);
-    setFormOpen(true);
+    setCreateFormOpen(true);
   }
 
   function openDeleteConfirm(character: UserCharacter) {
@@ -196,7 +178,6 @@ export default function MyCharactersPage() {
             <UserCharacterCard
               key={character.id}
               character={character}
-              onEdit={openEditForm}
               onDelete={openDeleteConfirm}
             />
           ))}
@@ -215,17 +196,12 @@ export default function MyCharactersPage() {
       )}
 
 
-      {/* Create/Edit Form Modal */}
+      {/* Create Form Modal */}
       <UserCharacterForm
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        character={editingCharacter}
+        open={createFormOpen}
+        onOpenChange={setCreateFormOpen}
         onSubmit={async (data) => {
-          if (editingCharacter) {
-            await handleUpdate(data as UserCharacterUpdate);
-          } else {
-            await handleCreate(data as UserCharacterCreate);
-          }
+          await handleCreate(data as UserCharacterCreate);
         }}
         isLoading={isSubmitting}
       />
