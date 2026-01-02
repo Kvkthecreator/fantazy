@@ -129,32 +129,22 @@ export function useChat({
   const loadMessages = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Get or create active episode
-      let activeEpisode = await api.episodes.getActive(characterId);
-
-      // Check if the active session matches what we need:
-      // - If episodeTemplateId provided: active session must have matching episode_template_id
-      // - If NO episodeTemplateId (free chat): active session must have NULL episode_template_id
-      const needsNewSession =
-        !activeEpisode ||
-        (episodeTemplateId && activeEpisode.episode_template_id !== episodeTemplateId) ||
-        (!episodeTemplateId && activeEpisode.episode_template_id);
-
-      if (needsNewSession) {
-        // Use conversation.start which properly handles session scoping by episode_template_id
-        // - With episodeTemplateId: creates/reactivates episode session
-        // - Without episodeTemplateId: creates/reactivates free chat session (episode_template_id = NULL)
-        try {
-          activeEpisode = await api.conversation.start(characterId, {
-            episodeTemplateId,
-          });
-        } catch (err) {
-          if (err instanceof APIError && err.status === 409) {
-            // Session might already exist - try fetching again
-            activeEpisode = await api.episodes.getActive(characterId);
-          } else {
-            throw err;
-          }
+      // Use conversation.start to get/create proper session
+      // Backend handles all session routing logic:
+      // - With episodeTemplateId: returns session for that specific episode
+      // - Without episodeTemplateId: returns free chat session (using is_free_chat template)
+      // This unified approach works with both episode and free chat modes
+      let activeEpisode;
+      try {
+        activeEpisode = await api.conversation.start(characterId, {
+          episodeTemplateId,
+        });
+      } catch (err) {
+        if (err instanceof APIError && err.status === 409) {
+          // Session already exists and is active - fetch it
+          activeEpisode = await api.episodes.getActive(characterId);
+        } else {
+          throw err;
         }
       }
 

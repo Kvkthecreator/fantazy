@@ -1267,12 +1267,11 @@ async def reset_series_progress(
         )
 
     # 1. Delete all episode-based sessions for this series (messages cascade automatically)
-    # Only delete sessions with episode_template_id set (excludes free chat)
+    # Free chat is excluded by series_id = :series_id (free chat has series_id = NULL)
     delete_sessions_query = """
         DELETE FROM sessions
         WHERE user_id = :user_id
         AND series_id = :series_id
-        AND episode_template_id IS NOT NULL
     """
     result = await db.execute(
         delete_sessions_query, {"user_id": user_id, "series_id": str(series_id)}

@@ -24,7 +24,7 @@ class ChatItem(BaseModel):
     character_name: str
     character_avatar_url: Optional[str] = None
     character_archetype: Optional[str] = None
-    is_free_chat: bool  # True if episode_template_id is NULL
+    is_free_chat: bool  # True if template has is_free_chat=TRUE (or legacy NULL)
     episode_number: Optional[int] = None
     episode_title: Optional[str] = None
     series_id: Optional[str] = None
