@@ -621,10 +621,13 @@ class ConversationService:
                 "series_id": str(series_id),
             })
         else:
-            # Legacy fallback: character-only scoping (no series)
+            # Legacy fallback: character-only scoping (no series), free chat only
+            # IMPORTANT: Must filter by episode_template_id IS NULL to avoid returning
+            # episode sessions when user navigates to /chat/{character_id} without ?episode=
             query = """
                 SELECT * FROM sessions
                 WHERE user_id = :user_id AND character_id = :character_id
+                AND episode_template_id IS NULL
                 ORDER BY is_active DESC, started_at DESC
                 LIMIT 1
             """
