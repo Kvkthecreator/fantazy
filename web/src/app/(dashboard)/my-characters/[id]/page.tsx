@@ -259,6 +259,9 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
   // Image lightbox
   const [expandedImage, setExpandedImage] = useState<{ url: string; title: string } | null>(null);
 
+  // Avatar regeneration confirmation modal
+  const [avatarConfirmOpen, setAvatarConfirmOpen] = useState(false);
+
   // Build appearance prompt from selections
   const buildAppearancePrompt = (): string => {
     const parts: string[] = [];
@@ -383,7 +386,26 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
     );
   };
 
-  async function handleSave() {
+  // Check if avatar regeneration will cost sparks (not first generation)
+  const willCostSparks = (): boolean => {
+    return !!character?.avatar_url;
+  };
+
+  // Handle save button click - may show confirmation for avatar regeneration
+  function handleSaveClick() {
+    if (!character || !hasChanges) return;
+
+    // If appearance/style changed and will cost sparks, show confirmation
+    if (hasAppearanceOrStyleChanges() && willCostSparks()) {
+      setAvatarConfirmOpen(true);
+    } else {
+      // No confirmation needed - proceed with save
+      performSave();
+    }
+  }
+
+  // Actual save logic
+  async function performSave() {
     if (!character || !hasChanges) return;
 
     const finalAppearance = getFinalAppearancePrompt();
@@ -391,6 +413,7 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
 
     setIsSaving(true);
     setAvatarError(null);
+    setAvatarConfirmOpen(false);
 
     try {
       // 1. Save character data
@@ -760,15 +783,9 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
           </div>
 
           {/* Save Button */}
-          <div className="flex flex-col items-end gap-2">
-            {hasChanges && hasAppearanceOrStyleChanges() && (
-              <p className="text-xs text-muted-foreground">
-                <Sparkles className="inline h-3 w-3 mr-1" />
-                Avatar will be regenerated with new appearance
-              </p>
-            )}
+          <div className="flex justify-end">
             <Button
-              onClick={handleSave}
+              onClick={handleSaveClick}
               disabled={!hasChanges || isSaving || isGeneratingAvatar}
               className="gap-2"
             >
@@ -779,12 +796,8 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
                 </>
               ) : (
                 <>
-                  {hasAppearanceOrStyleChanges() ? (
-                    <Sparkles className="h-4 w-4" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {hasAppearanceOrStyleChanges() ? "Save & Update Avatar" : "Save Changes"}
+                  <Save className="h-4 w-4" />
+                  Save
                 </>
               )}
             </Button>
@@ -821,6 +834,40 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
               className="flex-1"
             >
               {isDeleting ? "Deleting..." : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Avatar Regeneration Confirmation Modal */}
+      <Dialog open={avatarConfirmOpen} onOpenChange={setAvatarConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogClose />
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Update Avatar?
+            </DialogTitle>
+            <DialogDescription>
+              Your appearance or art style changes will regenerate the avatar. This will use{" "}
+              <span className="font-semibold text-foreground">5 sparks</span>.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setAvatarConfirmOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={performSave}
+              className="flex-1 gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Use 5 Sparks
             </Button>
           </div>
         </DialogContent>
