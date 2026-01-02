@@ -135,7 +135,7 @@ async def list_my_characters(
     """List the current user's created characters.
 
     Returns all characters created by the authenticated user.
-    Avatar URLs are refreshed on each request to avoid expiration issues.
+    Uses permanent public URLs for avatars.
     """
     query = """
         SELECT c.id, c.name, c.slug, c.archetype, c.avatar_url,
@@ -162,14 +162,12 @@ async def list_my_characters(
         if not data.get("flirting_level"):
             data["flirting_level"] = "playful"
 
-        # Generate fresh signed URL if we have a storage path
+        # Use permanent public URL if we have a storage path
+        # This fixes old characters with expired signed URLs stored in avatar_url
         if anchor_path:
             if storage is None:
                 storage = StorageService.get_instance()
-            try:
-                data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
-            except Exception as e:
-                log.warning(f"Failed to refresh avatar URL for character {data['id']}: {e}")
+            data["avatar_url"] = storage.get_public_url("avatars", anchor_path)
 
         results.append(UserCharacterResponse(**data))
 
@@ -185,7 +183,7 @@ async def get_my_character(
     """Get a single user-created character by ID.
 
     Only returns characters owned by the authenticated user.
-    Avatar URL is refreshed on each request to avoid expiration issues.
+    Uses permanent public URLs for avatars.
     """
     query = """
         SELECT c.id, c.name, c.slug, c.archetype, c.avatar_url,
@@ -213,13 +211,11 @@ async def get_my_character(
     if not data.get("flirting_level"):
         data["flirting_level"] = "playful"
 
-    # Generate fresh signed URL if we have a storage path
+    # Use permanent public URL if we have a storage path
+    # This fixes old characters with expired signed URLs stored in avatar_url
     if anchor_path:
         storage = StorageService.get_instance()
-        try:
-            data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
-        except Exception as e:
-            log.warning(f"Failed to refresh avatar URL for character {character_id}: {e}")
+        data["avatar_url"] = storage.get_public_url("avatars", anchor_path)
 
     return UserCharacterResponse(**data)
 

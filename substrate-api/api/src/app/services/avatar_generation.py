@@ -803,7 +803,8 @@ class AvatarGenerationService:
                 }
             )
 
-            image_url = await self.storage.create_signed_url("avatars", storage_path)
+            # Use permanent public URL instead of signed URL (avatars bucket is public)
+            image_url = self.storage.get_public_url("avatars", storage_path)
 
             # 7. If first portrait, set as primary
             if is_first_portrait:
@@ -854,7 +855,8 @@ class AvatarGenerationService:
             return False
 
         asset_dict = dict(asset)
-        image_url = await self.storage.create_signed_url("avatars", asset_dict["storage_path"])
+        # Use permanent public URL (avatars bucket is public)
+        image_url = self.storage.get_public_url("avatars", asset_dict["storage_path"])
 
         # Update primary
         await db.execute(
