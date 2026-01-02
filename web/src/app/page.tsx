@@ -109,7 +109,7 @@ export default async function Home() {
         )}
 
         {/* Create Your Character section */}
-        <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+        <section className="relative overflow-hidden rounded-2xl border bg-card">
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-purple-500/10 via-transparent to-transparent" />
           <div className="relative grid gap-6 p-6 sm:p-8 md:grid-cols-2 md:gap-8">
             {/* Left: Copy */}
@@ -122,14 +122,14 @@ export default async function Home() {
               <h2 className="text-2xl font-bold text-foreground sm:text-3xl">
                 Create your own character
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-foreground/70">
                 Design who you want to be. Choose your appearance, pick an archetype,
                 and play any story as <span className="font-medium text-foreground">your</span> character.
               </p>
-              <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+              <ul className="flex flex-col gap-2 text-sm text-foreground/70">
                 <li className="flex items-center gap-2">
                   <svg
-                    className="h-4 w-4 text-purple-500"
+                    className="h-4 w-4 text-purple-500 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -145,7 +145,7 @@ export default async function Home() {
                 </li>
                 <li className="flex items-center gap-2">
                   <svg
-                    className="h-4 w-4 text-purple-500"
+                    className="h-4 w-4 text-purple-500 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -161,7 +161,7 @@ export default async function Home() {
                 </li>
                 <li className="flex items-center gap-2">
                   <svg
-                    className="h-4 w-4 text-purple-500"
+                    className="h-4 w-4 text-purple-500 shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -203,7 +203,7 @@ export default async function Home() {
             <div className="flex items-center justify-center">
               <div className="relative">
                 {/* Character card mock */}
-                <div className="w-64 rounded-2xl border bg-card p-4 shadow-xl">
+                <div className="w-64 rounded-2xl border bg-muted/50 p-4 shadow-xl">
                   {/* Avatar placeholder */}
                   <div className="mx-auto mb-4 h-32 w-32 overflow-hidden rounded-xl bg-gradient-to-br from-purple-400 to-pink-400">
                     <div className="flex h-full w-full items-center justify-center text-4xl text-white/80">
@@ -211,7 +211,7 @@ export default async function Home() {
                     </div>
                   </div>
                   {/* Name input mock */}
-                  <div className="mb-3 rounded-lg border bg-muted/50 px-3 py-2 text-center text-sm text-muted-foreground">
+                  <div className="mb-3 rounded-lg border bg-background px-3 py-2 text-center text-sm text-muted-foreground">
                     Your name here
                   </div>
                   {/* Archetype chips */}
