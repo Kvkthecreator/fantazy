@@ -252,10 +252,9 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Avatar generation
+  // Avatar generation (triggered automatically when saving appearance/style changes)
   const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [regenerateConfirmOpen, setRegenerateConfirmOpen] = useState(false);
 
   // Image lightbox
   const [expandedImage, setExpandedImage] = useState<{ url: string; title: string } | null>(null);
@@ -374,13 +373,27 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
     }
   }
 
+  // Check if appearance or style changed (triggers avatar regeneration)
+  const hasAppearanceOrStyleChanges = (): boolean => {
+    if (!character) return false;
+    const currentAppearance = getFinalAppearancePrompt();
+    return (
+      currentAppearance !== (character.appearance_prompt || "") ||
+      stylePreset !== (character.style_preset || "manhwa")
+    );
+  };
+
   async function handleSave() {
     if (!character || !hasChanges) return;
 
     const finalAppearance = getFinalAppearancePrompt();
+    const needsAvatarRegeneration = hasAppearanceOrStyleChanges();
 
     setIsSaving(true);
+    setAvatarError(null);
+
     try {
+      // 1. Save character data
       const updated = await api.userCharacters.update(character.id, {
         name: name.trim(),
         archetype,
@@ -388,7 +401,43 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
         appearance_prompt: finalAppearance || undefined,
         style_preset: stylePreset,
       });
-      setCharacter(updated);
+
+      // 2. If appearance/style changed, regenerate avatar
+      if (needsAvatarRegeneration) {
+        setIsGeneratingAvatar(true);
+        try {
+          const result = await api.userCharacters.generateAvatar(
+            character.id,
+            finalAppearance || undefined,
+            stylePreset
+          );
+          // Update with new avatar
+          setCharacter({
+            ...updated,
+            avatar_url: result.avatar_url,
+          });
+        } catch (avatarErr) {
+          console.error("Failed to generate avatar:", avatarErr);
+          // Still update character data, just show avatar error
+          setCharacter(updated);
+          if (avatarErr instanceof APIError) {
+            if (avatarErr.status === 402) {
+              const data = avatarErr.data as { message?: string } | null;
+              setAvatarError(data?.message || "Insufficient sparks for avatar regeneration");
+            } else {
+              const data = avatarErr.data as { detail?: string } | null;
+              setAvatarError(data?.detail || "Failed to regenerate avatar");
+            }
+          } else {
+            setAvatarError("Failed to regenerate avatar");
+          }
+        } finally {
+          setIsGeneratingAvatar(false);
+        }
+      } else {
+        setCharacter(updated);
+      }
+
       // Update original appearance after save
       setOriginalAppearancePrompt(finalAppearance);
       setHasChanges(false);
@@ -409,59 +458,6 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
     } catch (err) {
       console.error("Failed to delete:", err);
       setIsDeleting(false);
-    }
-  }
-
-  // Cost for avatar regeneration (first generation is free)
-  const AVATAR_REGENERATION_COST = 5;
-
-  function handleRegenerateClick() {
-    if (!character) return;
-
-    // If character already has an avatar, show confirmation modal
-    if (character.avatar_url) {
-      setRegenerateConfirmOpen(true);
-    } else {
-      // First generation - no confirmation needed
-      handleGenerateAvatar();
-    }
-  }
-
-  async function handleGenerateAvatar() {
-    if (!character) return;
-
-    const finalAppearance = getFinalAppearancePrompt();
-
-    setRegenerateConfirmOpen(false);
-    setIsGeneratingAvatar(true);
-    setAvatarError(null);
-    try {
-      const result = await api.userCharacters.generateAvatar(
-        character.id,
-        finalAppearance || undefined,
-        stylePreset
-      );
-      // Update the character with the new avatar
-      setCharacter({
-        ...character,
-        avatar_url: result.avatar_url,
-      });
-    } catch (err) {
-      console.error("Failed to generate avatar:", err);
-      if (err instanceof APIError) {
-        // Handle 402 Payment Required (insufficient sparks)
-        if (err.status === 402) {
-          const data = err.data as { error?: string; message?: string; balance?: number; cost?: number } | null;
-          setAvatarError(data?.message || `Insufficient sparks. You need ${AVATAR_REGENERATION_COST} sparks.`);
-        } else {
-          const data = err.data as { detail?: string } | null;
-          setAvatarError(data?.detail || "Failed to generate avatar");
-        }
-      } else {
-        setAvatarError("Failed to generate avatar");
-      }
-    } finally {
-      setIsGeneratingAvatar(false);
     }
   }
 
@@ -551,31 +547,14 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
                     character.flirting_level}
                 </Badge>
               </div>
-              {/* Generate Avatar Button */}
-              <div className="pt-2">
-                <Button
-                  size="sm"
-                  variant={character.avatar_url ? "outline" : "default"}
-                  onClick={handleRegenerateClick}
-                  disabled={isGeneratingAvatar}
-                  className="gap-2"
-                >
-                  {isGeneratingAvatar ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      {character.avatar_url ? "Regenerate Avatar" : "Generate Avatar"}
-                    </>
-                  )}
-                </Button>
-                {avatarError && (
-                  <p className="text-xs text-destructive mt-1">{avatarError}</p>
-                )}
-              </div>
+              {avatarError && (
+                <p className="text-xs text-destructive mt-1">{avatarError}</p>
+              )}
+              {!character.avatar_url && (
+                <p className="text-xs text-muted-foreground">
+                  Avatar will be generated when you save appearance changes
+                </p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -781,17 +760,31 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
           </div>
 
           {/* Save Button */}
-          <div className="flex justify-end">
-            <Button onClick={handleSave} disabled={!hasChanges || isSaving}>
-              {isSaving ? (
+          <div className="flex flex-col items-end gap-2">
+            {hasChanges && hasAppearanceOrStyleChanges() && (
+              <p className="text-xs text-muted-foreground">
+                <Sparkles className="inline h-3 w-3 mr-1" />
+                Avatar will be regenerated with new appearance
+              </p>
+            )}
+            <Button
+              onClick={handleSave}
+              disabled={!hasChanges || isSaving || isGeneratingAvatar}
+              className="gap-2"
+            >
+              {isSaving || isGeneratingAvatar ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving...
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {isGeneratingAvatar ? "Generating Avatar..." : "Saving..."}
                 </>
               ) : (
                 <>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Changes
+                  {hasAppearanceOrStyleChanges() ? (
+                    <Sparkles className="h-4 w-4" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  {hasAppearanceOrStyleChanges() ? "Save & Update Avatar" : "Save Changes"}
                 </>
               )}
             </Button>
@@ -828,51 +821,6 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
               className="flex-1"
             >
               {isDeleting ? "Deleting..." : "Delete"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Regenerate Avatar Confirmation Modal */}
-      <Dialog open={regenerateConfirmOpen} onOpenChange={setRegenerateConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogClose />
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Regenerate Avatar
-            </DialogTitle>
-            <DialogDescription>
-              Regenerating the avatar will cost{" "}
-              <span className="font-semibold text-foreground">{AVATAR_REGENERATION_COST} sparks</span>.
-              This will replace the current avatar.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="flex gap-3 mt-4">
-            <Button
-              variant="outline"
-              onClick={() => setRegenerateConfirmOpen(false)}
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleGenerateAvatar}
-              disabled={isGeneratingAvatar}
-              className="flex-1"
-            >
-              {isGeneratingAvatar ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Spend {AVATAR_REGENERATION_COST} Sparks
-                </>
-              )}
             </Button>
           </div>
         </DialogContent>
