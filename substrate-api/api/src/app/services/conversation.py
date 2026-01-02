@@ -335,9 +335,8 @@ class ConversationService:
         if episode_id:
             session_query = "SELECT series_id FROM sessions WHERE id = :episode_id"
             session_row = await self.db.fetch_one(session_query, {"episode_id": str(episode_id)})
-            if session_row:
-                if session_row["series_id"]:
-                    series_id = session_row["series_id"]
+            if session_row and session_row["series_id"]:
+                series_id = session_row["series_id"]
 
                 # Fetch series genre_settings and format as prompt section
                 # Handle case where genre_settings column doesn't exist (migration pending)
@@ -620,10 +619,12 @@ class ConversationService:
             })
         else:
             # No series - look up by character and episode_template_id
+            # Also check for series_id IS NULL to avoid matching sessions with different series
             query = """
                 SELECT * FROM sessions
                 WHERE user_id = :user_id
                 AND character_id = :character_id
+                AND series_id IS NULL
                 AND episode_template_id = :episode_template_id
                 ORDER BY is_active DESC, started_at DESC
                 LIMIT 1
