@@ -246,9 +246,12 @@ async def get_character(
 
     data = dict(row)
     anchor_path = data.pop("anchor_path", None)
+    current_avatar_url = data.get("avatar_url", "")
 
-    # Always prefer fresh signed URL from anchor_path (avoids expired URLs)
-    if anchor_path:
+    # For user-uploaded avatars (public URLs), keep the direct URL
+    # For kit-based avatars, generate fresh signed URL from anchor_path
+    is_uploaded_avatar = current_avatar_url and "user-uploads/" in current_avatar_url
+    if anchor_path and not is_uploaded_avatar:
         storage = StorageService.get_instance()
         data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
 
@@ -281,9 +284,12 @@ async def get_character_by_slug(
 
     data = dict(row)
     anchor_path = data.pop("anchor_path", None)
+    current_avatar_url = data.get("avatar_url", "")
 
-    # Always prefer fresh signed URL from anchor_path (avoids expired URLs)
-    if anchor_path:
+    # For user-uploaded avatars (public URLs), keep the direct URL
+    # For kit-based avatars, generate fresh signed URL from anchor_path
+    is_uploaded_avatar = current_avatar_url and "user-uploads/" in current_avatar_url
+    if anchor_path and not is_uploaded_avatar:
         storage = StorageService.get_instance()
         data["avatar_url"] = await storage.create_signed_url("avatars", anchor_path)
 
