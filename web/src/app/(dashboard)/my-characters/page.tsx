@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, APIError } from "@/lib/api/client";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -15,13 +16,15 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
-import { Plus, UserCircle2, AlertTriangle } from "lucide-react";
+import { Plus, UserCircle2, AlertTriangle, Sparkles, Play } from "lucide-react";
 import type { UserCharacter, UserCharacterCreate } from "@/types";
 import Link from "next/link";
+import Image from "next/image";
 
 const MAX_FREE_CHARACTERS = 1;
 
 export default function MyCharactersPage() {
+  const router = useRouter();
   const [characters, setCharacters] = useState<UserCharacter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +32,10 @@ export default function MyCharactersPage() {
   // Create modal state
   const [createFormOpen, setCreateFormOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Success modal state (post-creation CTA)
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [newlyCreatedCharacter, setNewlyCreatedCharacter] = useState<UserCharacter | null>(null);
 
   // Delete confirmation modal state
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -64,9 +71,18 @@ export default function MyCharactersPage() {
     try {
       const newCharacter = await api.userCharacters.create(data);
       setCharacters((prev) => [...prev, newCharacter]);
+      // Show success modal with CTA
+      setNewlyCreatedCharacter(newCharacter);
+      setSuccessModalOpen(true);
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  function handleStartEpisode() {
+    // Navigate to browse series page where user can pick an episode
+    setSuccessModalOpen(false);
+    router.push("/series");
   }
 
 
@@ -238,6 +254,56 @@ export default function MyCharactersPage() {
             >
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Success Modal - Post-Creation CTA */}
+      <Dialog open={successModalOpen} onOpenChange={setSuccessModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogClose />
+          <div className="flex flex-col items-center text-center py-4">
+            {/* Avatar Preview */}
+            <div className="relative w-32 h-32 rounded-full overflow-hidden mb-4 bg-muted ring-4 ring-primary/20">
+              {newlyCreatedCharacter?.avatar_url ? (
+                <Image
+                  src={newlyCreatedCharacter.avatar_url}
+                  alt={newlyCreatedCharacter.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <UserCircle2 className="w-16 h-16 text-muted-foreground" />
+                </div>
+              )}
+            </div>
+
+            {/* Success Message */}
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-5 h-5 text-primary" />
+              <h3 className="text-xl font-semibold">
+                Meet {newlyCreatedCharacter?.name}!
+              </h3>
+            </div>
+            <p className="text-muted-foreground mb-6">
+              Your character is ready. Take them into a story and see how they handle the drama.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-col gap-3 w-full">
+              <Button onClick={handleStartEpisode} className="w-full gap-2">
+                <Play className="w-4 h-4" />
+                Start an Episode
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setSuccessModalOpen(false)}
+                className="w-full"
+              >
+                Stay Here
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

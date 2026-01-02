@@ -512,6 +512,8 @@ async def create_user_character(
     log.info(f"User {user_id} created character {character_id} ({data.name})")
 
     # Generate avatar synchronously (Option A: enforce complete character at creation)
+    # Use user-selected style preset (default: manhwa)
+    style_preset = data.style_preset if data.style_preset in ("manhwa", "anime", "cinematic") else "manhwa"
     try:
         service = AvatarGenerationService()
         avatar_result = await service.generate_portrait(
@@ -519,7 +521,7 @@ async def create_user_character(
             user_id=user_id,
             db=db,
             appearance_description=data.appearance_prompt,
-            style_preset="manhwa",  # Default style for user characters
+            style_preset=style_preset,
         )
 
         if avatar_result.success and avatar_result.image_url:

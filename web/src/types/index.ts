@@ -1277,6 +1277,11 @@ export type UserArchetype =
 export type FlirtingLevel = "subtle" | "playful" | "bold" | "intense";
 
 /**
+ * Art style preset for avatar generation
+ */
+export type StylePreset = "manhwa" | "anime" | "cinematic";
+
+/**
  * User character - a character created by the user
  */
 export interface UserCharacter {
@@ -1287,6 +1292,7 @@ export interface UserCharacter {
   avatar_url: string | null;
   appearance_prompt: string | null;
   flirting_level: FlirtingLevel;
+  style_preset?: StylePreset;
   is_user_created: true;
   is_public: boolean;
   user_id: string;
@@ -1299,9 +1305,10 @@ export interface UserCharacter {
  */
 export interface UserCharacterCreate {
   name: string;
+  appearance_prompt: string;  // Required (min 10 chars on backend)
   archetype: UserArchetype;
-  appearance_prompt?: string;
   flirting_level?: FlirtingLevel;
+  style_preset?: StylePreset;
 }
 
 /**

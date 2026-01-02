@@ -434,7 +434,7 @@ class UserCharacterCreate(BaseModel):
     """Input for creating a user character (simplified for end users).
 
     ADR-004: User characters have limited customization:
-    - Name, appearance, archetype, flirting level
+    - Name, appearance, archetype, flirting level, style preset
     - No backstory, no system prompt, no genre control
     """
 
@@ -451,7 +451,11 @@ class UserCharacterCreate(BaseModel):
     )
     flirting_level: str = Field(
         default="playful",
-        description="How the character expresses interest (reserved, playful, flirty, bold)"
+        description="How the character expresses interest (subtle, playful, bold, intense)"
+    )
+    style_preset: str = Field(
+        default="manhwa",
+        description="Art style for avatar (manhwa, anime, cinematic)"
     )
 
 
