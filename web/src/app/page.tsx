@@ -148,6 +148,9 @@ export default async function Home() {
               <Link href="/terms" className="hover:text-foreground">
                 Terms of Service
               </Link>
+              <Link href="/dmca" className="hover:text-foreground">
+                DMCA
+              </Link>
               <a
                 href="https://tally.so/r/kd9Xgj"
                 target="_blank"

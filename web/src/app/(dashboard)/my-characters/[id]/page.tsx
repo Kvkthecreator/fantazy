@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { api, APIError } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -1030,6 +1031,15 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
               <p className="text-xs text-amber-800 dark:text-amber-200">
                 <strong>Important:</strong> By uploading, you confirm that you own the rights to this image
                 or have permission to use it. You accept responsibility for any intellectual property claims.
+                See our{" "}
+                <Link
+                  href="/dmca"
+                  target="_blank"
+                  className="underline underline-offset-2 hover:text-amber-900 dark:hover:text-amber-100"
+                >
+                  DMCA Policy
+                </Link>
+                .
               </p>
               <div className="flex items-start gap-2">
                 <Checkbox
