@@ -22,6 +22,14 @@ class MessageCreate(BaseModel):
     content: str = Field(..., min_length=1, max_length=10000)
     episode_template_id: Optional[UUID] = None  # For Director session routing
 
+    @field_validator("episode_template_id", mode="before")
+    @classmethod
+    def coerce_none_string(cls, v):
+        """Handle edge case where 'None' string is sent instead of null."""
+        if v is None or v == "None" or v == "null" or v == "":
+            return None
+        return v
+
 
 class Message(BaseModel):
     """Message model."""
