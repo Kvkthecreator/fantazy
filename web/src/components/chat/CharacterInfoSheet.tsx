@@ -222,7 +222,7 @@ export function CharacterInfoSheet({
           "p-4 border-t pb-[calc(1rem+env(safe-area-inset-bottom))]",
           hasBackground ? "border-white/10" : "border-border"
         )}>
-          <Link href={`/characters/${character.slug}`}>
+          <Link href={character.is_user_created ? `/my-characters/${character.id}` : `/characters/${character.slug}`}>
             <Button
               variant="outline"
               className={cn(
@@ -231,7 +231,7 @@ export function CharacterInfoSheet({
               )}
             >
               <ExternalLink className="h-4 w-4" />
-              View Full Profile
+              {character.is_user_created ? "Edit Character" : "View Full Profile"}
             </Button>
           </Link>
         </div>

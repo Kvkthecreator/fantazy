@@ -88,6 +88,7 @@ export interface Character extends CharacterSummary {
   categories: string[];
   content_rating: string;
   created_by: string | null;
+  is_user_created?: boolean;  // ADR-004: true for user-created characters
   created_at: string;
   updated_at: string;
 }

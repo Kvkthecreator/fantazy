@@ -157,14 +157,16 @@ async def list_my_characters(
     for row in rows:
         data = dict(row)
         anchor_path = data.pop("anchor_path", None)
+        current_avatar_url = data.get("avatar_url", "")
 
         # Ensure flirting_level has a default
         if not data.get("flirting_level"):
             data["flirting_level"] = "playful"
 
-        # Use permanent public URL if we have a storage path
-        # This fixes old characters with expired signed URLs stored in avatar_url
-        if anchor_path:
+        # For user-uploaded avatars (public URLs), keep the direct URL
+        # For kit-based avatars, use permanent public URL from anchor_path
+        is_uploaded_avatar = current_avatar_url and "user-uploads/" in current_avatar_url
+        if anchor_path and not is_uploaded_avatar:
             if storage is None:
                 storage = StorageService.get_instance()
             data["avatar_url"] = storage.get_public_url("avatars", anchor_path)
@@ -206,14 +208,16 @@ async def get_my_character(
 
     data = dict(row)
     anchor_path = data.pop("anchor_path", None)
+    current_avatar_url = data.get("avatar_url", "")
 
     # Ensure flirting_level has a default
     if not data.get("flirting_level"):
         data["flirting_level"] = "playful"
 
-    # Use permanent public URL if we have a storage path
-    # This fixes old characters with expired signed URLs stored in avatar_url
-    if anchor_path:
+    # For user-uploaded avatars (public URLs), keep the direct URL
+    # For kit-based avatars, use permanent public URL from anchor_path
+    is_uploaded_avatar = current_avatar_url and "user-uploads/" in current_avatar_url
+    if anchor_path and not is_uploaded_avatar:
         storage = StorageService.get_instance()
         data["avatar_url"] = storage.get_public_url("avatars", anchor_path)
 

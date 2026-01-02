@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, UserCircle2, Save, Trash2, Loader2, Sparkles, Download, X, Upload, ImagePlus } from "lucide-react";
+import { ArrowLeft, UserCircle2, Save, Trash2, Loader2, Sparkles, Download, X, Upload, ImagePlus, MessageCircle } from "lucide-react";
 import type { UserCharacter, UserArchetype, FlirtingLevel, StylePreset } from "@/types";
 
 // =============================================================================
@@ -591,96 +591,108 @@ export default function CharacterDetailPage({ params }: CharacterDetailPageProps
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/my-characters")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold">{character.name}</h1>
-          <p className="text-sm text-muted-foreground">Edit your character</p>
-        </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => setDeleteConfirmOpen(true)}
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          Delete
-        </Button>
-      </div>
+    <div className="space-y-6">
+      {/* Back button */}
+      <Button variant="ghost" size="sm" onClick={() => router.push("/my-characters")} className="gap-2">
+        <ArrowLeft className="h-4 w-4" />
+        Back
+      </Button>
 
-      {/* Avatar Preview */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex gap-6">
-            {/* Avatar */}
-            <div className="w-32 h-40 rounded-lg overflow-hidden bg-muted flex-shrink-0 relative">
-              {isGeneratingAvatar ? (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-muted">
-                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                  <span className="text-xs text-muted-foreground">Generating...</span>
-                </div>
-              ) : character.avatar_url ? (
-                <button
-                  type="button"
-                  className="w-full h-full cursor-pointer"
-                  onClick={() => setExpandedImage({ url: character.avatar_url!, title: character.name })}
-                >
-                  <img
-                    src={character.avatar_url}
-                    alt={character.name}
-                    className="w-full h-full object-cover"
-                  />
-                </button>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                  <UserCircle2 className="w-12 h-12 text-muted-foreground/40" />
-                  <span className="text-xs text-muted-foreground/60">No avatar</span>
-                </div>
-              )}
+      {/* Hero Section - matching canonical profile style */}
+      <div className="relative overflow-hidden rounded-2xl border bg-card shadow-sm">
+        {/* Cover Image */}
+        <div className="relative h-72 w-full">
+          {isGeneratingAvatar ? (
+            <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-primary/30 to-accent/30 gap-3">
+              <Loader2 className="w-10 h-10 text-white animate-spin" />
+              <span className="text-white/80 text-sm">Generating avatar...</span>
             </div>
+          ) : character.avatar_url ? (
+            <button
+              onClick={() => setExpandedImage({ url: character.avatar_url!, title: character.name })}
+              className="h-full w-full cursor-zoom-in"
+            >
+              <img
+                src={character.avatar_url}
+                alt={character.name}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/30 to-accent/30">
+              <UserCircle2 className="w-24 h-24 text-white/60" />
+            </div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
 
-            {/* Quick info */}
-            <div className="flex-1 space-y-3">
-              <div>
-                <p className="text-sm text-muted-foreground">Archetype</p>
-                <p className="font-medium">
-                  {ARCHETYPES.find((a) => a.value === character.archetype)?.label ||
-                    character.archetype}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Flirting Style</p>
-                <Badge variant="secondary">
-                  {FLIRTING_LEVELS.find((f) => f.value === character.flirting_level)?.label ||
-                    character.flirting_level}
-                </Badge>
-              </div>
-              {avatarError && (
-                <p className="text-xs text-destructive mt-1">{avatarError}</p>
+          {/* Avatar overlay + name */}
+          <div className="absolute bottom-4 left-4 flex items-center gap-3">
+            <button
+              onClick={() => character.avatar_url && setExpandedImage({ url: character.avatar_url, title: character.name })}
+              className="h-16 w-16 rounded-full border-2 border-white/70 shadow-lg overflow-hidden flex-shrink-0"
+              disabled={!character.avatar_url}
+            >
+              {character.avatar_url ? (
+                <img
+                  src={character.avatar_url}
+                  alt={character.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center bg-primary text-white text-2xl font-semibold">
+                  {character.name[0]}
+                </div>
               )}
-              {!character.avatar_url && (
-                <p className="text-xs text-muted-foreground">
-                  Avatar will be generated when you save appearance changes
-                </p>
-              )}
-
-              {/* Upload button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setUploadModalOpen(true)}
-                className="gap-2 mt-2"
-              >
-                <Upload className="h-4 w-4" />
-                Upload Image
-              </Button>
+            </button>
+            <div className="text-white">
+              <h1 className="text-2xl font-semibold">{character.name}</h1>
+              <p className="text-sm text-white/80 capitalize">
+                {ARCHETYPES.find((a) => a.value === character.archetype)?.label || character.archetype}
+              </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          {/* Badges */}
+          <div className="absolute bottom-4 right-4 flex gap-2">
+            <Badge variant="secondary" className="bg-white/80 text-foreground">
+              {FLIRTING_LEVELS.find((f) => f.value === character.flirting_level)?.label || character.flirting_level}
+            </Badge>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-3 border-t bg-card/80 px-4 py-3">
+          <Link href={`/chat/${character.id}`} className="flex-1">
+            <Button size="lg" className="w-full gap-2">
+              <MessageCircle className="h-5 w-5" />
+              Chat with {character.name}
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setUploadModalOpen(true)}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Upload
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={() => setDeleteConfirmOpen(true)}
+            className="text-destructive hover:bg-destructive hover:text-destructive-foreground"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {avatarError && (
+          <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20">
+            <p className="text-xs text-destructive">{avatarError}</p>
+          </div>
+        )}
+      </div>
 
       {/* Edit Form */}
       <Card>
