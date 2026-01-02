@@ -1,8 +1,8 @@
 # Image Generation Quality Specification
 
-> **Version**: 1.3.0
+> **Version**: 1.4.0
 > **Status**: Active
-> **Updated**: 2024-12-24
+> **Updated**: 2025-01-02
 
 ---
 
@@ -620,6 +620,8 @@ else:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.4.0 | 2025-01-02 | **Character Style Presets**: Added `style_preset` support (manhwa/anime/cinematic) for consistent art style across user-created and canonical characters. Character `appearance_prompt` now properly propagated to both manual and auto-gen flows. |
+| 1.3.0 | 2024-12-24 | Manual-first philosophy, experimental auto-gen opt-in. |
 | 1.2.0 | 2024-12-24 | **Hybrid Trigger Model**: Replace LLM-driven visual decisions with deterministic turn-based triggers (25%, 50%, 75% of episode). Simplify LLM to description-only (no SIGNAL parsing). Add observability (raw_response, visual_decisions history). Reference: DIRECTOR_PROTOCOL.md v2.4. |
 | 1.1.0 | 2024-12-24 | Added provider configuration section. Fixed manual generation 500 error (Phase 1E). Updated cost analysis with FLUX Schnell. |
 | 1.0.0 | 2024-12-24 | Initial specification. Two-track strategy, Phase 1C improved prompting, cost analysis, quality anti-patterns. |
@@ -632,6 +634,81 @@ else:
 - [DIRECTOR_PROTOCOL.md](../core/DIRECTOR_PROTOCOL.md)
 - [TEXT_RESPONSES.md](./TEXT_RESPONSES.md)
 - [MONETIZATION_v2.0.md](../../monetization/MONETIZATION_v2.0.md)
+
+---
+
+## Character Style Presets (v1.4)
+
+### Overview
+
+Characters now have a `style_preset` field that controls the art style of generated images. This ensures visual consistency whether the user is generating images manually or Director is auto-generating scenes.
+
+### Available Presets
+
+| Preset | Style Prompt | Use Case |
+|--------|-------------|----------|
+| `manhwa` (default) | "manhwa style, soft colors, elegant features" | Korean webtoon aesthetic, soft and refined |
+| `anime` | "anime style, vibrant colors, expressive features" | Japanese anime aesthetic, vivid and dynamic |
+| `cinematic` | "cinematic style, realistic lighting, dramatic composition" | Semi-realistic, dramatic lighting |
+
+### Data Sources
+
+**User-Created Characters** (ADR-004):
+- `appearance_prompt`: Stored directly on `characters.appearance_prompt`
+- `style_preset`: Stored directly on `characters.style_preset`
+- Set during character creation wizard
+
+**Canonical Characters** (Studio):
+- `appearance_prompt`: May come from `avatar_kits.appearance_prompt`
+- `style_preset`: May come from `characters.style_preset` (if set) or fallback to manhwa
+- Query uses COALESCE: `COALESCE(c.appearance_prompt, ak.appearance_prompt)`
+
+### Resolution Logic
+
+```sql
+-- Manual generation (scenes.py)
+SELECT
+    COALESCE(c.appearance_prompt, ak.appearance_prompt) as appearance_prompt,
+    CASE
+        WHEN c.style_preset = 'anime' THEN 'anime style, vibrant colors, expressive features'
+        WHEN c.style_preset = 'cinematic' THEN 'cinematic style, realistic lighting, dramatic composition'
+        WHEN c.style_preset = 'manhwa' THEN 'manhwa style, soft colors, elegant features'
+        WHEN ak.style_prompt IS NOT NULL THEN ak.style_prompt
+        ELSE 'manhwa style, soft colors, elegant features'
+    END as style_prompt
+FROM characters c
+LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
+```
+
+### Applied In
+
+1. **Manual T2I Generation** (`routes/scenes.py`):
+   - Fetches character's `appearance_prompt` and `style_preset`
+   - Maps `style_preset` to `style_prompt` via SQL CASE
+   - Appends to LLM-generated prompt
+
+2. **Manual Kontext Generation** (`routes/scenes.py`):
+   - Uses same resolution logic
+   - Style prompt appended after scene prompt
+
+3. **Director Auto-Generation** (`services/conversation.py`):
+   - Fetches character appearance data before generating
+   - Maps `style_preset` to `style_prompt` in Python
+   - Passes to SceneService.generate_director_visual()
+
+### Why This Matters
+
+**Before v1.4**:
+- Auto-gen passed `appearance_prompt=None`, `style_prompt=None`
+- Scene service hardcoded "anime style, cinematic composition"
+- User's style choice during character creation was ignored
+- FLUX generations defaulted to realistic style
+
+**After v1.4**:
+- Character's `appearance_prompt` and `style_preset` properly propagated
+- Consistent art style across manual and auto-generated images
+- User-created characters use their chosen style (manhwa/anime/cinematic)
+- Canonical characters can have studio-defined styles
 
 ---
 

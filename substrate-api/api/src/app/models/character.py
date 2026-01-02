@@ -162,6 +162,12 @@ class Character(BaseModel):
     is_user_created: bool = False  # True for user-created, False for canonical
     is_public: bool = False  # Future: shareable characters (Phase 3)
 
+    # Visual generation fields (ADR-004)
+    # For user-created characters, these are set during creation
+    # For canonical characters, these may be derived from avatar_kits
+    appearance_prompt: Optional[str] = None  # Character appearance description
+    style_preset: Optional[str] = "manhwa"  # Art style: manhwa, anime, cinematic
+
     # Discovery
     categories: List[str] = Field(default_factory=list)
     content_rating: str = "sfw"

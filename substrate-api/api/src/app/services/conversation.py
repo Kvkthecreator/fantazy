@@ -946,17 +946,40 @@ class ConversationService:
     ):
         """Generate a scene image automatically (Director-triggered).
 
-        Phase 1B: All auto-gen uses T2I cinematic inserts. No character reference.
-        This runs as a background task and won't block the stream.
-
         Routes to appropriate generation pipeline based on visual_type:
-        - character: Cinematic insert (environmental storytelling, T2I)
+        - character: Character scene using appearance_prompt + style_preset
         - object: Close-up of item (no character)
         - atmosphere: Setting/mood shot (no character)
+
+        This runs as a background task and won't block the stream.
         """
         try:
-            # Phase 1B: Simplified - no avatar kit lookup for auto-gen
-            # All visual types use T2I without character reference
+            # Fetch character appearance data (user-created or from avatar kit)
+            char_query = """
+                SELECT
+                    c.appearance_prompt,
+                    c.style_preset,
+                    c.active_avatar_kit_id,
+                    COALESCE(c.appearance_prompt, ak.appearance_prompt) as resolved_appearance,
+                    ak.negative_prompt
+                FROM characters c
+                LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
+                WHERE c.id = :character_id
+            """
+            char_row = await self.db.fetch_one(char_query, {"character_id": str(character_id)})
+
+            # Map style_preset to style_prompt for generation
+            style_preset = char_row["style_preset"] if char_row else None
+            style_prompt_map = {
+                "anime": "anime style, vibrant colors, expressive features",
+                "cinematic": "cinematic style, realistic lighting, dramatic composition",
+                "manhwa": "manhwa style, soft colors, elegant features",
+            }
+            style_prompt = style_prompt_map.get(style_preset, "manhwa style, soft colors, elegant features")
+
+            appearance_prompt = char_row["resolved_appearance"] if char_row else None
+            negative_prompt = char_row["negative_prompt"] if char_row else None
+
             result = await self.scene_service.generate_director_visual(
                 visual_type=visual_type,
                 episode_id=episode_id,
@@ -965,11 +988,11 @@ class ConversationService:
                 character_name=character_name,
                 scene_setting=scene_setting,
                 visual_hint=visual_hint,
-                appearance_prompt=None,  # Not used for cinematic inserts
-                style_prompt=None,  # Method applies default anime style
-                negative_prompt=None,  # Method defines appropriate negatives
-                avatar_kit_id=None,  # No character reference
-                anchor_image=None,  # T2I only
+                appearance_prompt=appearance_prompt,
+                style_prompt=style_prompt,
+                negative_prompt=negative_prompt,
+                avatar_kit_id=char_row["active_avatar_kit_id"] if char_row else None,
+                anchor_image=None,  # T2I only for auto-gen
             )
 
             if result:

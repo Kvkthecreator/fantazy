@@ -170,14 +170,25 @@ async def generate_scene(
         )
 
     # Verify episode ownership and get character + avatar kit info + relationship context + episode template
+    # NOTE: For appearance/style, we prefer character fields (user-created) over avatar_kit (canonical)
+    # COALESCE prioritizes: character.appearance_prompt > avatar_kit.appearance_prompt
     episode_query = """
         SELECT
             e.id, e.title, e.scene, e.episode_template_id,
             c.name as character_name,
             c.id as character_id,
             c.active_avatar_kit_id,
-            ak.appearance_prompt,
-            ak.style_prompt,
+            c.is_user_created,
+            -- Prefer character-level appearance (user-created) over avatar_kit
+            COALESCE(c.appearance_prompt, ak.appearance_prompt) as appearance_prompt,
+            -- Map style_preset to style_prompt for generation
+            CASE
+                WHEN c.style_preset = 'anime' THEN 'anime style, vibrant colors, expressive features'
+                WHEN c.style_preset = 'cinematic' THEN 'cinematic style, realistic lighting, dramatic composition'
+                WHEN c.style_preset = 'manhwa' THEN 'manhwa style, soft colors, elegant features'
+                WHEN ak.style_prompt IS NOT NULL THEN ak.style_prompt
+                ELSE 'manhwa style, soft colors, elegant features'
+            END as style_prompt,
             ak.negative_prompt,
             ak.primary_anchor_id,
             -- NOTE: relationship_stage removed (EP-01 pivot), using dynamic tone instead
