@@ -611,6 +611,22 @@ async def update_user_character(
         updates.append("boundaries = :boundaries")
         values["boundaries"] = json.dumps(new_boundaries)
 
+    # Handle appearance_prompt update
+    if data.appearance_prompt is not None:
+        updates.append("appearance_prompt = :appearance_prompt")
+        values["appearance_prompt"] = data.appearance_prompt
+
+    # Handle style_preset update
+    if data.style_preset is not None:
+        valid_styles = ("manhwa", "anime", "cinematic")
+        if data.style_preset not in valid_styles:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid style preset. Choose from: {valid_styles}",
+            )
+        updates.append("style_preset = :style_preset")
+        values["style_preset"] = data.style_preset
+
     # Regenerate system prompt if personality-affecting fields changed
     if data.archetype or data.flirting_level or data.name:
         personality = PERSONALITY_PRESETS.get(
@@ -652,7 +668,7 @@ async def update_user_character(
         UPDATE characters
         SET {", ".join(updates)}
         WHERE id = :character_id
-        RETURNING id, name, slug, archetype, avatar_url,
+        RETURNING id, name, slug, archetype, avatar_url, appearance_prompt, style_preset,
                   boundaries->>'flirting_level' as flirting_level,
                   is_user_created, created_at, updated_at
     """

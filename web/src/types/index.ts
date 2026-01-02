@@ -1319,6 +1319,7 @@ export interface UserCharacterUpdate {
   archetype?: UserArchetype;
   appearance_prompt?: string;
   flirting_level?: FlirtingLevel;
+  style_preset?: StylePreset;
 }
 
 /**

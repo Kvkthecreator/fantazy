@@ -468,7 +468,10 @@ class UserCharacterUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=2, max_length=30)
     archetype: Optional[str] = None
     flirting_level: Optional[str] = None
-    # NOTE: appearance_prompt changes require regenerate-avatar endpoint
+    appearance_prompt: Optional[str] = Field(None, min_length=10, max_length=500)
+    style_preset: Optional[str] = Field(
+        None, description="Art style for avatar (manhwa, anime, cinematic)"
+    )
 
 
 class UserCharacterResponse(BaseModel):
@@ -480,6 +483,7 @@ class UserCharacterResponse(BaseModel):
     archetype: str
     avatar_url: Optional[str] = None
     appearance_prompt: Optional[str] = None
+    style_preset: Optional[str] = "manhwa"
     flirting_level: str = "playful"
     is_user_created: bool = True
     created_at: datetime

@@ -607,17 +607,22 @@ export const api = {
       }),
     delete: (id: string) =>
       request<null>(`/characters/${id}`, { method: "DELETE" }),
-    generateAvatar: (id: string, appearancePrompt?: string) =>
-      request<{
+    generateAvatar: (id: string, appearancePrompt?: string, stylePreset?: string) => {
+      const params = new URLSearchParams();
+      if (appearancePrompt) params.append("appearance_prompt", appearancePrompt);
+      if (stylePreset) params.append("style_preset", stylePreset);
+      const queryString = params.toString();
+      return request<{
         success: boolean;
         avatar_url: string;
         asset_id: string | null;
         kit_id: string | null;
         is_first_generation: boolean;
       }>(
-        `/characters/mine/${id}/generate-avatar${appearancePrompt ? `?appearance_prompt=${encodeURIComponent(appearancePrompt)}` : ""}`,
+        `/characters/mine/${id}/generate-avatar${queryString ? `?${queryString}` : ""}`,
         { method: "POST" }
-      ),
+      );
+    },
     getAvailableForEpisode: (templateId: string) =>
       request<import("@/types").AvailableCharactersResponse>(
         `/episode-templates/${templateId}/available-characters`
