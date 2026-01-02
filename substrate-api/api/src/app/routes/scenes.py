@@ -172,6 +172,7 @@ async def generate_scene(
     # Verify episode ownership and get character + avatar kit info + relationship context + episode template
     # NOTE: For appearance/style, we prefer character fields (user-created) over avatar_kit (canonical)
     # COALESCE prioritizes: character.appearance_prompt > avatar_kit.appearance_prompt
+    # For style: canonical characters use avatar_kit.style_prompt, user-created use style_preset mapping
     episode_query = """
         SELECT
             e.id, e.title, e.scene, e.episode_template_id,
@@ -181,12 +182,14 @@ async def generate_scene(
             c.is_user_created,
             -- Prefer character-level appearance (user-created) over avatar_kit
             COALESCE(c.appearance_prompt, ak.appearance_prompt) as appearance_prompt,
-            -- Map style_preset to style_prompt for generation
+            -- Style resolution: canonical chars use ak.style_prompt, user-created use preset mapping
             CASE
+                -- Canonical characters: prefer avatar_kit's rich style prompt
+                WHEN c.is_user_created = false AND ak.style_prompt IS NOT NULL THEN ak.style_prompt
+                -- User-created characters: map style_preset to style_prompt
                 WHEN c.style_preset = 'anime' THEN 'anime style, vibrant colors, expressive features'
                 WHEN c.style_preset = 'cinematic' THEN 'cinematic style, realistic lighting, dramatic composition'
                 WHEN c.style_preset = 'manhwa' THEN 'manhwa style, soft colors, elegant features'
-                WHEN ak.style_prompt IS NOT NULL THEN ak.style_prompt
                 ELSE 'manhwa style, soft colors, elegant features'
             END as style_prompt,
             ak.negative_prompt,

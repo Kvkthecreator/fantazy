@@ -961,17 +961,43 @@ async def upload_user_character_avatar(
     # Get public URL
     public_url = storage.get_public_url("avatars", storage_path)
 
-    # Update character's avatar_url directly (no kit for uploads)
-    update_query = """
-        UPDATE characters
-        SET avatar_url = :avatar_url,
-            updated_at = NOW()
-        WHERE id = :character_id
-    """
-    await db.execute(update_query, {
-        "avatar_url": public_url,
-        "character_id": str(character_id),
-    })
+    # Ensure avatar_kit exists for Kontext support
+    kit_id = existing_data.get("active_avatar_kit_id")
+    if not kit_id:
+        # Create avatar kit if it doesn't exist
+        kit_id = uuid4()
+        await db.execute(
+            """INSERT INTO avatar_kits (id, character_id, created_at, updated_at)
+               VALUES (:kit_id, :character_id, NOW(), NOW())""",
+            {"kit_id": str(kit_id), "character_id": str(character_id)}
+        )
+        await db.execute(
+            "UPDATE characters SET active_avatar_kit_id = :kit_id WHERE id = :id",
+            {"kit_id": str(kit_id), "id": str(character_id)}
+        )
+
+    # Create avatar_asset record for Kontext support
+    await db.execute(
+        """INSERT INTO avatar_assets
+           (id, avatar_kit_id, asset_type, expression, storage_path, is_active, is_canonical, file_size, created_at)
+           VALUES (:asset_id, :kit_id, 'portrait', 'uploaded', :storage_path, TRUE, TRUE, :file_size, NOW())""",
+        {
+            "asset_id": str(asset_id),
+            "kit_id": str(kit_id),
+            "storage_path": storage_path,
+            "file_size": len(file_content),
+        }
+    )
+
+    # Update avatar_kit's primary_anchor_id for Kontext and character's avatar_url
+    await db.execute(
+        "UPDATE avatar_kits SET primary_anchor_id = :asset_id, updated_at = NOW() WHERE id = :kit_id",
+        {"asset_id": str(asset_id), "kit_id": str(kit_id)}
+    )
+    await db.execute(
+        "UPDATE characters SET avatar_url = :avatar_url, updated_at = NOW() WHERE id = :character_id",
+        {"avatar_url": public_url, "character_id": str(character_id)}
+    )
 
     log.info(f"User {user_id} uploaded avatar for character {character_id}: {storage_path}")
 

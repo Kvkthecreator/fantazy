@@ -806,16 +806,16 @@ class AvatarGenerationService:
             # Use permanent public URL instead of signed URL (avatars bucket is public)
             image_url = self.storage.get_public_url("avatars", storage_path)
 
-            # 7. If first portrait, set as primary
-            if is_first_portrait:
-                await db.execute(
-                    "UPDATE avatar_kits SET primary_anchor_id = :asset_id WHERE id = :kit_id",
-                    {"asset_id": str(asset_id), "kit_id": str(kit_id)}
-                )
-                await db.execute(
-                    "UPDATE characters SET avatar_url = :avatar_url WHERE id = :id",
-                    {"avatar_url": image_url, "id": str(character_id)}
-                )
+            # 7. Always set as primary anchor and update avatar_url
+            # This ensures regenerated avatars become the new reference for Kontext
+            await db.execute(
+                "UPDATE avatar_kits SET primary_anchor_id = :asset_id, updated_at = NOW() WHERE id = :kit_id",
+                {"asset_id": str(asset_id), "kit_id": str(kit_id)}
+            )
+            await db.execute(
+                "UPDATE characters SET avatar_url = :avatar_url, updated_at = NOW() WHERE id = :id",
+                {"avatar_url": image_url, "id": str(character_id)}
+            )
 
             log.info(f"Generated portrait {asset_id} for character {character_id}")
 

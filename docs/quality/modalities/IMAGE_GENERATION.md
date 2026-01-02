@@ -1,6 +1,6 @@
 # Image Generation Quality Specification
 
-> **Version**: 1.4.0
+> **Version**: 1.5.0
 > **Status**: Active
 > **Updated**: 2025-01-02
 
@@ -620,6 +620,7 @@ else:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.5.0 | 2025-01-02 | **Canonical Character Style Fix**: Canonical characters now use `avatar_kit.style_prompt` (richer style info) instead of generic preset mapping. Fixed `_generate_cinematic_insert` to use `appearance_prompt` for character visual consistency. Auto-gen system prompts now use dynamic style instead of hardcoded anime. **Avatar Regeneration Fix**: `primary_anchor_id` now updated on every avatar generation (not just first), enabling Character Scene (Kontext) for regenerated avatars. Upload-avatar endpoint now creates proper avatar_kit/asset records for Kontext support. |
 | 1.4.0 | 2025-01-02 | **Character Style Presets**: Added `style_preset` support (manhwa/anime/cinematic) for consistent art style across user-created and canonical characters. Character `appearance_prompt` now properly propagated to both manual and auto-gen flows. |
 | 1.3.0 | 2024-12-24 | Manual-first philosophy, experimental auto-gen opt-in. |
 | 1.2.0 | 2024-12-24 | **Hybrid Trigger Model**: Replace LLM-driven visual decisions with deterministic turn-based triggers (25%, 50%, 75% of episode). Simplify LLM to description-only (no SIGNAL parsing). Add observability (raw_response, visual_decisions history). Reference: DIRECTOR_PROTOCOL.md v2.4. |
@@ -659,21 +660,23 @@ Characters now have a `style_preset` field that controls the art style of genera
 - Set during character creation wizard
 
 **Canonical Characters** (Studio):
-- `appearance_prompt`: May come from `avatar_kits.appearance_prompt`
-- `style_preset`: May come from `characters.style_preset` (if set) or fallback to manhwa
-- Query uses COALESCE: `COALESCE(c.appearance_prompt, ak.appearance_prompt)`
+- `appearance_prompt`: Comes from `avatar_kits.appearance_prompt` (via COALESCE)
+- `style_prompt`: Uses `avatar_kits.style_prompt` directly (rich, character-specific style)
+- Example: Jack uses "grounded cinematic portrait photography, winter small-town bar lighting..."
 
-### Resolution Logic
+### Resolution Logic (v1.5)
 
 ```sql
--- Manual generation (scenes.py)
+-- Manual generation (scenes.py) - canonical chars use ak.style_prompt
 SELECT
     COALESCE(c.appearance_prompt, ak.appearance_prompt) as appearance_prompt,
     CASE
+        -- Canonical characters: prefer avatar_kit's rich style prompt
+        WHEN c.is_user_created = false AND ak.style_prompt IS NOT NULL THEN ak.style_prompt
+        -- User-created characters: map style_preset to style_prompt
         WHEN c.style_preset = 'anime' THEN 'anime style, vibrant colors, expressive features'
         WHEN c.style_preset = 'cinematic' THEN 'cinematic style, realistic lighting, dramatic composition'
         WHEN c.style_preset = 'manhwa' THEN 'manhwa style, soft colors, elegant features'
-        WHEN ak.style_prompt IS NOT NULL THEN ak.style_prompt
         ELSE 'manhwa style, soft colors, elegant features'
     END as style_prompt
 FROM characters c
@@ -683,9 +686,9 @@ LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
 ### Applied In
 
 1. **Manual T2I Generation** (`routes/scenes.py`):
-   - Fetches character's `appearance_prompt` and `style_preset`
-   - Maps `style_preset` to `style_prompt` via SQL CASE
-   - Appends to LLM-generated prompt
+   - Fetches character's `appearance_prompt` (with avatar_kit fallback)
+   - Canonical chars use `ak.style_prompt`, user-created use `style_preset` mapping
+   - Both appearance and style appended to LLM-generated prompt
 
 2. **Manual Kontext Generation** (`routes/scenes.py`):
    - Uses same resolution logic
@@ -693,22 +696,23 @@ LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
 
 3. **Director Auto-Generation** (`services/conversation.py`):
    - Fetches character appearance data before generating
-   - Maps `style_preset` to `style_prompt` in Python
-   - Passes to SceneService.generate_director_visual()
+   - Resolves style: canonical → `ak.style_prompt`, user-created → preset mapping
+   - Passes `appearance_prompt` to cinematic insert for character consistency
+   - System prompts dynamically adapt to style (manhwa/anime/cinematic)
 
 ### Why This Matters
 
-**Before v1.4**:
-- Auto-gen passed `appearance_prompt=None`, `style_prompt=None`
-- Scene service hardcoded "anime style, cinematic composition"
-- User's style choice during character creation was ignored
-- FLUX generations defaulted to realistic style
+**Before v1.5**:
+- Canonical characters always got generic "manhwa style, soft colors"
+- `avatar_kit.style_prompt` was ignored (e.g., Jack's "cinematic photography" was lost)
+- `_generate_cinematic_insert` didn't receive/use `appearance_prompt`
+- System prompts hardcoded "anime aesthetic" regardless of character style
 
-**After v1.4**:
-- Character's `appearance_prompt` and `style_preset` properly propagated
-- Consistent art style across manual and auto-generated images
-- User-created characters use their chosen style (manhwa/anime/cinematic)
-- Canonical characters can have studio-defined styles
+**After v1.5**:
+- Canonical characters use their rich `avatar_kit.style_prompt`
+- User-created characters use their chosen `style_preset` mapping
+- Auto-gen includes character appearance for visual consistency
+- System prompts dynamically match the character's art style
 
 ---
 

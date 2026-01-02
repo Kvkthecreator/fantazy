@@ -955,12 +955,15 @@ class ConversationService:
         """
         try:
             # Fetch character appearance data (user-created or from avatar kit)
+            # For canonical characters, avatar_kit.style_prompt has richer style info
             char_query = """
                 SELECT
                     c.appearance_prompt,
                     c.style_preset,
+                    c.is_user_created,
                     c.active_avatar_kit_id,
                     COALESCE(c.appearance_prompt, ak.appearance_prompt) as resolved_appearance,
+                    ak.style_prompt as ak_style_prompt,
                     ak.negative_prompt
                 FROM characters c
                 LEFT JOIN avatar_kits ak ON ak.id = c.active_avatar_kit_id
@@ -968,14 +971,29 @@ class ConversationService:
             """
             char_row = await self.db.fetch_one(char_query, {"character_id": str(character_id)})
 
-            # Map style_preset to style_prompt for generation
+            # Resolve style_prompt with proper fallback chain:
+            # 1. For canonical characters: prefer avatar_kit.style_prompt (richer style info)
+            # 2. For user-created characters: map style_preset to style_prompt
+            # 3. Default: manhwa style
             style_preset = char_row["style_preset"] if char_row else None
+            is_user_created = char_row["is_user_created"] if char_row else False
+            ak_style_prompt = char_row["ak_style_prompt"] if char_row else None
+
             style_prompt_map = {
                 "anime": "anime style, vibrant colors, expressive features",
                 "cinematic": "cinematic style, realistic lighting, dramatic composition",
                 "manhwa": "manhwa style, soft colors, elegant features",
             }
-            style_prompt = style_prompt_map.get(style_preset, "manhwa style, soft colors, elegant features")
+
+            if not is_user_created and ak_style_prompt:
+                # Canonical character: use avatar_kit's rich style prompt
+                style_prompt = ak_style_prompt
+            elif style_preset in style_prompt_map:
+                # User-created character or canonical without ak style: use preset mapping
+                style_prompt = style_prompt_map[style_preset]
+            else:
+                # Default fallback
+                style_prompt = "manhwa style, soft colors, elegant features"
 
             appearance_prompt = char_row["resolved_appearance"] if char_row else None
             negative_prompt = char_row["negative_prompt"] if char_row else None

@@ -423,14 +423,15 @@ Think cinematically: This is a single frame that must convey an emotional story.
         Returns the generated scene data or None if generation fails.
         """
         if visual_type == "character":
-            # Phase 1B: Character type now generates cinematic insert (T2I only)
-            # Shifted from character-consistency focus to environmental storytelling
+            # Character type generates cinematic insert with appearance context
+            # Uses character's appearance_prompt for visual consistency
             return await self._generate_cinematic_insert(
                 episode_id=episode_id,
                 user_id=user_id,
                 character_id=character_id,
                 scene_setting=scene_setting,
                 visual_hint=visual_hint,
+                appearance_prompt=appearance_prompt,
                 style_prompt=style_prompt,
             )
 
@@ -465,6 +466,7 @@ Think cinematically: This is a single frame that must convey an emotional story.
         character_id: UUID,
         scene_setting: str,
         visual_hint: str,
+        appearance_prompt: Optional[str] = None,
         style_prompt: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Generate narrative moment image (auto-gen, manual T2I quality).
@@ -478,6 +480,10 @@ Think cinematically: This is a single frame that must convey an emotional story.
         - Lighting and mood matching conversation emotion
         - Character presence varies (partial, silhouette, or environmental based on moment)
 
+        Args:
+            appearance_prompt: Character's visual description (from character or avatar_kit)
+            style_prompt: Art style (e.g., "manhwa style, soft colors" or avatar_kit.style_prompt)
+
         Examples:
         - Hand reaching for coffee cup, trembling slightly, warm café lighting, rain outside
         - Character at window, back turned, rain-blurred cityscape, melancholic atmosphere
@@ -490,12 +496,30 @@ Think cinematically: This is a single frame that must convey an emotional story.
             conversation_summary = await self.get_recent_conversation_summary(episode_id, limit=3)
             log.info(f"CINEMATIC INSERT CONTEXT - conversation_summary: {conversation_summary[:200]}...")
 
+            # Determine the art style description for prompting
+            # style_prompt comes from avatar_kit.style_prompt or mapped from style_preset
+            style_description = style_prompt or "manhwa style, soft colors, elegant features"
+            # Extract style keyword for prompt (e.g., "manhwa", "anime", "cinematic")
+            if "manhwa" in style_description.lower() or "webtoon" in style_description.lower():
+                style_keyword = "manhwa/webtoon"
+            elif "anime" in style_description.lower():
+                style_keyword = "anime"
+            elif "cinematic" in style_description.lower() or "realistic" in style_description.lower():
+                style_keyword = "cinematic/semi-realistic"
+            else:
+                style_keyword = "illustrated"
+
+            # Build character appearance context if available
+            appearance_context = ""
+            if appearance_prompt:
+                appearance_context = f"\nCHARACTER APPEARANCE: {appearance_prompt}"
+
             # Generate narrative moment prompt (similar to manual T2I, but auto-generated)
             prompt_request = f"""Create a narrative moment image prompt for this scene.
 
 SETTING/LOCATION: {scene_setting or "An intimate setting"}
 EMOTIONAL BEAT: {visual_hint}
-CONVERSATION CONTEXT: {conversation_summary}
+CONVERSATION CONTEXT: {conversation_summary}{appearance_context}
 
 Write a detailed prompt (60-80 words) that captures the emotional beat through composition.
 
@@ -508,20 +532,21 @@ Focus on:
 
 STYLE GUIDE:
 - Character presence allowed (partial, silhouette, or environmental focus - varies by moment)
+- If character is visible, use provided appearance details for consistency
 - Emphasize COMPOSITION over character detail
 - Location-specific environmental details (penthouse cityscape, café ambiance, etc.)
 - Lighting must match both location AND emotional tone
-- Anime aesthetic, cinematic framing
+- Art style: {style_keyword} aesthetic, cinematic framing
 
 FORMAT: Descriptive paragraph focusing on the MOMENT and COMPOSITION
 
-GOOD EXAMPLE: "Character's hand reaching for coffee cup on weathered wooden table, fingers trembling slightly, warm amber light from café window casting long afternoon shadows, rain visible through glass behind, steam rising from untouched cup, medium close-up with selective focus, melancholic atmosphere, anime style, cinematic depth of field"
+GOOD EXAMPLE: "Character's hand reaching for coffee cup on weathered wooden table, fingers trembling slightly, warm amber light from café window casting long afternoon shadows, rain visible through glass behind, steam rising from untouched cup, medium close-up with selective focus, melancholic atmosphere"
 
 BAD EXAMPLE: "Person in café" ← Too vague, no emotional detail
 
 Your prompt:"""
 
-            system_prompt = """You are an expert at writing narrative moment prompts for anime-style scenes.
+            system_prompt = f"""You are an expert at writing narrative moment prompts for {style_keyword} style scenes.
 
 These are MOMENTS IN TIME - capturing the emotional beat through composition, action, and atmosphere.
 
@@ -531,8 +556,9 @@ CRITICAL RULES:
 - Location specificity: Extract setting details (café, penthouse, farm, etc.) and ground the moment there
 - Emotional resonance: Lighting, weather, atmosphere must match the conversation's mood
 - Character presence varies by moment: Sometimes partial/silhouette, sometimes environmental only
+- If character appearance is provided, incorporate key visual traits when character is visible
 - Avoid generic portraits: Every shot should have narrative purpose
-- Style: Anime aesthetic, cinematic framing, atmospheric mood
+- Style: {style_keyword} aesthetic, cinematic framing, atmospheric mood
 
 Think: Narrative moments that ground emotion in physical space and action."""
 
@@ -603,8 +629,9 @@ NEVER include people or faces in your prompt."""
             ], max_tokens=200)
             scene_prompt = prompt_response.content.strip()
 
-            if style_prompt:
-                scene_prompt = f"{scene_prompt}, {style_prompt}"
+            # Apply style (from avatar_kit or preset mapping)
+            style_to_apply = style_prompt or "manhwa style, soft colors, elegant features"
+            scene_prompt = f"{scene_prompt}, {style_to_apply}"
 
             log.info(f"OBJECT MODE: {scene_prompt[:100]}...")
 
@@ -657,8 +684,9 @@ Focus on the feeling of the space itself."""
             ], max_tokens=200)
             scene_prompt = prompt_response.content.strip()
 
-            if style_prompt:
-                scene_prompt = f"{scene_prompt}, {style_prompt}"
+            # Apply style (from avatar_kit or preset mapping)
+            style_to_apply = style_prompt or "manhwa style, soft colors, elegant features"
+            scene_prompt = f"{scene_prompt}, {style_to_apply}"
 
             log.info(f"ATMOSPHERE MODE: {scene_prompt[:100]}...")
 
