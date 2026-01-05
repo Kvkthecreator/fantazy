@@ -385,3 +385,253 @@ async def end_session(
         )
 
     return Session(**dict(row))
+
+
+# =============================================================================
+# Props API (ADR-005: Canonical Story Objects)
+# =============================================================================
+
+class SessionProp(BaseModel):
+    """Prop with revelation state for a session."""
+    id: str
+    name: str
+    slug: str
+    prop_type: str
+    description: str
+    content: Optional[str] = None
+    content_format: Optional[str] = None
+    image_url: Optional[str] = None
+    reveal_mode: str
+    reveal_turn_hint: Optional[int] = None
+    is_key_evidence: bool
+    evidence_tags: List[str] = []
+    display_order: int
+    # Revelation state
+    is_revealed: bool
+    revealed_at: Optional[str] = None
+    revealed_turn: Optional[int] = None
+
+
+class SessionPropsResponse(BaseModel):
+    """Props for a session with revelation state."""
+    session_id: str
+    props: List[SessionProp]
+    current_turn: int
+
+
+class PropRevealResponse(BaseModel):
+    """Response after revealing a prop."""
+    prop_id: str
+    revealed_at: str
+    revealed_turn: int
+    prop: SessionProp
+
+
+@router.get("/{session_id}/props", response_model=SessionPropsResponse)
+async def get_session_props(
+    session_id: UUID,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Get all props for a session with revelation state.
+
+    ADR-005: Props are canonical story objects with exact, immutable content.
+    Returns props from the episode template associated with this session,
+    along with whether each prop has been revealed to the user.
+    """
+    # Get session and verify ownership
+    session_query = """
+        SELECT id, episode_template_id, turn_count, user_id
+        FROM sessions
+        WHERE id = :session_id AND user_id = :user_id
+    """
+    session = await db.fetch_one(session_query, {
+        "session_id": str(session_id),
+        "user_id": str(user_id),
+    })
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    if not session["episode_template_id"]:
+        # No episode template = no props
+        return SessionPropsResponse(
+            session_id=str(session_id),
+            props=[],
+            current_turn=session["turn_count"] or 0,
+        )
+
+    # Fetch props with revelation state
+    props_query = """
+        SELECT
+            p.id, p.name, p.slug, p.prop_type, p.description,
+            p.content, p.content_format, p.image_url,
+            p.reveal_mode, p.reveal_turn_hint, p.is_key_evidence,
+            p.evidence_tags, p.display_order,
+            sp.revealed_at,
+            sp.revealed_turn
+        FROM props p
+        LEFT JOIN session_props sp ON sp.prop_id = p.id AND sp.session_id = :session_id
+        WHERE p.episode_template_id = :template_id
+        ORDER BY p.display_order
+    """
+    prop_rows = await db.fetch_all(props_query, {
+        "session_id": str(session_id),
+        "template_id": str(session["episode_template_id"]),
+    })
+
+    props = []
+    for row in prop_rows:
+        # Parse evidence_tags if needed
+        evidence_tags = row["evidence_tags"] or []
+        if isinstance(evidence_tags, str):
+            import json
+            evidence_tags = json.loads(evidence_tags)
+
+        props.append(SessionProp(
+            id=str(row["id"]),
+            name=row["name"],
+            slug=row["slug"],
+            prop_type=row["prop_type"],
+            description=row["description"],
+            content=row["content"],
+            content_format=row["content_format"],
+            image_url=row["image_url"],
+            reveal_mode=row["reveal_mode"],
+            reveal_turn_hint=row["reveal_turn_hint"],
+            is_key_evidence=row["is_key_evidence"],
+            evidence_tags=evidence_tags,
+            display_order=row["display_order"],
+            is_revealed=row["revealed_at"] is not None,
+            revealed_at=row["revealed_at"].isoformat() if row["revealed_at"] else None,
+            revealed_turn=row["revealed_turn"],
+        ))
+
+    return SessionPropsResponse(
+        session_id=str(session_id),
+        props=props,
+        current_turn=session["turn_count"] or 0,
+    )
+
+
+@router.post("/{session_id}/props/{prop_id}/reveal", response_model=PropRevealResponse)
+async def reveal_prop(
+    session_id: UUID,
+    prop_id: UUID,
+    reveal_trigger: Optional[str] = Query(None, description="How the prop was revealed"),
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Mark a prop as revealed in a session.
+
+    ADR-005: Props are revealed once per session. Subsequent reveals are no-ops
+    that return the existing revelation data.
+
+    reveal_trigger can be:
+    - "character_showed" - Character naturally revealed it
+    - "player_asked" - Player explicitly requested to see it
+    - "automatic" - Revealed based on turn_hint
+    - "gated_unlock" - Prerequisite prop was revealed
+    """
+    # Get session and verify ownership
+    session_query = """
+        SELECT id, episode_template_id, turn_count, user_id
+        FROM sessions
+        WHERE id = :session_id AND user_id = :user_id
+    """
+    session = await db.fetch_one(session_query, {
+        "session_id": str(session_id),
+        "user_id": str(user_id),
+    })
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    # Verify prop belongs to this session's episode
+    prop_query = """
+        SELECT p.*, p.evidence_tags
+        FROM props p
+        WHERE p.id = :prop_id
+        AND p.episode_template_id = :template_id
+    """
+    prop = await db.fetch_one(prop_query, {
+        "prop_id": str(prop_id),
+        "template_id": str(session["episode_template_id"]),
+    })
+
+    if not prop:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Prop not found for this session's episode",
+        )
+
+    current_turn = session["turn_count"] or 0
+
+    # Check if already revealed
+    existing_query = """
+        SELECT * FROM session_props
+        WHERE session_id = :session_id AND prop_id = :prop_id
+    """
+    existing = await db.fetch_one(existing_query, {
+        "session_id": str(session_id),
+        "prop_id": str(prop_id),
+    })
+
+    if existing:
+        # Already revealed - return existing data
+        revealed_at = existing["revealed_at"]
+        revealed_turn = existing["revealed_turn"]
+    else:
+        # Insert new revelation
+        from datetime import datetime, timezone
+        revealed_at = datetime.now(timezone.utc)
+        revealed_turn = current_turn
+
+        insert_query = """
+            INSERT INTO session_props (session_id, prop_id, revealed_turn, reveal_trigger)
+            VALUES (:session_id, :prop_id, :revealed_turn, :reveal_trigger)
+        """
+        await db.execute(insert_query, {
+            "session_id": str(session_id),
+            "prop_id": str(prop_id),
+            "revealed_turn": revealed_turn,
+            "reveal_trigger": reveal_trigger or "character_showed",
+        })
+
+    # Parse evidence_tags
+    evidence_tags = prop["evidence_tags"] or []
+    if isinstance(evidence_tags, str):
+        import json
+        evidence_tags = json.loads(evidence_tags)
+
+    session_prop = SessionProp(
+        id=str(prop["id"]),
+        name=prop["name"],
+        slug=prop["slug"],
+        prop_type=prop["prop_type"],
+        description=prop["description"],
+        content=prop["content"],
+        content_format=prop["content_format"],
+        image_url=prop["image_url"],
+        reveal_mode=prop["reveal_mode"],
+        reveal_turn_hint=prop["reveal_turn_hint"],
+        is_key_evidence=prop["is_key_evidence"],
+        evidence_tags=evidence_tags,
+        display_order=prop["display_order"],
+        is_revealed=True,
+        revealed_at=revealed_at.isoformat() if hasattr(revealed_at, 'isoformat') else str(revealed_at),
+        revealed_turn=revealed_turn,
+    )
+
+    return PropRevealResponse(
+        prop_id=str(prop_id),
+        revealed_at=revealed_at.isoformat() if hasattr(revealed_at, 'isoformat') else str(revealed_at),
+        revealed_turn=revealed_turn,
+        prop=session_prop,
+    )

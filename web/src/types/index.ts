@@ -1494,3 +1494,61 @@ export interface CharacterSelectionContext {
   user_characters: CompatibleCharacter[];  // ALL user characters (no filtering)
   can_use_canonical: boolean;
 }
+
+// =============================================================================
+// Props Types (ADR-005: Canonical Story Objects)
+// =============================================================================
+
+/**
+ * Prop type - what kind of story object this is
+ */
+export type PropType = "document" | "photo" | "object" | "recording" | "digital";
+
+/**
+ * Prop reveal mode - how/when the prop gets revealed
+ */
+export type PropRevealMode = "automatic" | "character_initiated" | "player_requested" | "gated";
+
+/**
+ * Prop with revelation state for a session
+ *
+ * ADR-005: Props are canonical story objects with exact, immutable content.
+ */
+export interface SessionProp {
+  id: string;
+  name: string;
+  slug: string;
+  prop_type: PropType;
+  description: string;
+  content: string | null;  // Exact canonical text (immutable)
+  content_format: string | null;  // handwritten, typed, audio_transcript, etc.
+  image_url: string | null;
+  reveal_mode: PropRevealMode;
+  reveal_turn_hint: number | null;
+  is_key_evidence: boolean;
+  evidence_tags: string[];
+  display_order: number;
+  // Revelation state
+  is_revealed: boolean;
+  revealed_at: string | null;
+  revealed_turn: number | null;
+}
+
+/**
+ * Props response for a session
+ */
+export interface SessionPropsResponse {
+  session_id: string;
+  props: SessionProp[];
+  current_turn: number;
+}
+
+/**
+ * Response after revealing a prop
+ */
+export interface PropRevealResponse {
+  prop_id: string;
+  revealed_at: string;
+  revealed_turn: number;
+  prop: SessionProp;
+}

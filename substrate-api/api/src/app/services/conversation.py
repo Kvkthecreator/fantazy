@@ -9,7 +9,7 @@ from uuid import UUID
 
 from app.models.character import Character
 from app.models.session import Session
-from app.models.message import Message, MessageRole, ConversationContext, MemorySummary, HookSummary
+from app.models.message import Message, MessageRole, ConversationContext, MemorySummary, HookSummary, PropSummary
 from app.models.engagement import Engagement
 from app.models.episode_template import EpisodeTemplate, VisualMode
 from app.services.llm import LLMService
@@ -518,6 +518,60 @@ class ConversationService:
                             user_id, character_id, template_row["series_id"], template_id
                         )
 
+        # Load props for this episode (ADR-005: Layer 2.5)
+        props = []
+        current_turn = 0
+        if episode_id:
+            # Get current turn count from session
+            turn_query = "SELECT turn_count FROM sessions WHERE id = :episode_id"
+            turn_row = await self.db.fetch_one(turn_query, {"episode_id": str(episode_id)})
+            current_turn = turn_row["turn_count"] if turn_row else 0
+
+            # Get episode_template_id from session for prop lookup
+            session_info = await self.db.fetch_one(
+                "SELECT episode_template_id FROM sessions WHERE id = :episode_id",
+                {"episode_id": str(episode_id)}
+            )
+            if session_info and session_info["episode_template_id"]:
+                template_id_for_props = session_info["episode_template_id"]
+
+                # Fetch props for this episode template with revelation state
+                props_query = """
+                    SELECT
+                        p.id, p.name, p.slug, p.prop_type, p.description,
+                        p.content, p.content_format, p.image_url,
+                        p.reveal_mode, p.reveal_turn_hint, p.is_key_evidence,
+                        sp.revealed_at IS NOT NULL as is_revealed,
+                        sp.revealed_turn
+                    FROM props p
+                    LEFT JOIN session_props sp ON sp.prop_id = p.id AND sp.session_id = :session_id
+                    WHERE p.episode_template_id = :template_id
+                    ORDER BY p.display_order
+                """
+                prop_rows = await self.db.fetch_all(props_query, {
+                    "template_id": str(template_id_for_props),
+                    "session_id": str(episode_id),
+                })
+
+                props = [
+                    PropSummary(
+                        id=row["id"],
+                        name=row["name"],
+                        slug=row["slug"],
+                        prop_type=row["prop_type"],
+                        description=row["description"],
+                        content=row["content"],
+                        content_format=row["content_format"],
+                        image_url=row["image_url"],
+                        reveal_mode=row["reveal_mode"],
+                        reveal_turn_hint=row["reveal_turn_hint"],
+                        is_key_evidence=row["is_key_evidence"],
+                        is_revealed=row["is_revealed"] or False,
+                        revealed_turn=row["revealed_turn"],
+                    )
+                    for row in prop_rows
+                ]
+
         return ConversationContext(
             character_system_prompt=character.system_prompt,
             character_name=character.name,
@@ -545,6 +599,9 @@ class ConversationService:
             character_boundaries=character.boundaries,
             # Series genre settings (per GENRE_SETTINGS_ARCHITECTURE)
             series_genre_prompt=series_genre_prompt,
+            # Props (ADR-005: Layer 2.5)
+            props=props,
+            current_turn=current_turn,
         )
 
     async def get_or_create_episode(

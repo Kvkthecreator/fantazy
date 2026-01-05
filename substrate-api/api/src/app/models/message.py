@@ -89,6 +89,28 @@ class HookSummary(BaseModel):
     suggested_opener: Optional[str] = None
 
 
+class PropSummary(BaseModel):
+    """Minimal prop info for context.
+
+    ADR-005: Props are canonical story objects with exact, immutable content.
+    Layer 2.5 in Context Architecture (between Episode and Engagement).
+    """
+
+    id: UUID
+    name: str
+    slug: str
+    prop_type: str  # document, photo, object, recording, digital
+    description: str
+    content: Optional[str] = None  # Exact canonical text (immutable)
+    content_format: Optional[str] = None  # handwritten, typed, audio_transcript, etc.
+    image_url: Optional[str] = None
+    reveal_mode: str = "character_initiated"  # automatic, character_initiated, player_requested, gated
+    reveal_turn_hint: Optional[int] = None
+    is_key_evidence: bool = False
+    is_revealed: bool = False  # Has player seen this prop in current session?
+    revealed_turn: Optional[int] = None  # Turn when revealed (if revealed)
+
+
 class ConversationContext(BaseModel):
     """Context assembled for LLM conversation.
 
@@ -137,6 +159,11 @@ class ConversationContext(BaseModel):
 
     # Series Genre Settings (per GENRE_SETTINGS_ARCHITECTURE)
     series_genre_prompt: Optional[str] = None  # Pre-formatted genre settings section from Series
+
+    # Props (ADR-005: Canonical story objects)
+    # Layer 2.5 in Context Architecture (between Episode and Engagement)
+    props: List["PropSummary"] = Field(default_factory=list)
+    current_turn: int = 0  # Current turn count for prop reveal logic
 
     # NOTE: STAGE_LABELS and stage progression removed - EP-01 pivot
     # Relationship context now uses dynamic (tone, tension, milestones) instead
@@ -224,6 +251,55 @@ Recent beats: {beat_flow}"""
 
         # Just list the milestones - character's system_prompt handles interpretation
         return "Milestones reached: " + ", ".join(self.relationship_milestones)
+
+    def _format_props(self) -> str:
+        """Format props for LLM context.
+
+        ADR-005: Props are canonical story objects with exact, immutable content.
+        Layer 2.5 in Context Architecture (between Episode and Engagement).
+
+        Props are formatted with clear revelation state so the LLM knows:
+        - What props exist in this scene
+        - Which have been revealed to the player
+        - Exact canonical content (for revealed props)
+        - How/when to reveal unrevealed props
+        """
+        if not self.props:
+            return ""
+
+        lines = []
+
+        for prop in self.props:
+            # Header with revelation state
+            state_tag = "[REVEALED]" if prop.is_revealed else "[NOT YET SHOWN]"
+            evidence_tag = " [KEY EVIDENCE]" if prop.is_key_evidence else ""
+            lines.append(f"\nPROP: {prop.name} {state_tag}{evidence_tag}")
+            lines.append(f"Type: {prop.prop_type}")
+            lines.append(f"Description: {prop.description}")
+
+            if prop.is_revealed:
+                # Player has seen this - show full canonical content
+                if prop.content:
+                    format_note = f" ({prop.content_format})" if prop.content_format else ""
+                    lines.append(f"Content{format_note}: {prop.content}")
+                lines.append("[Reference this naturally. Player has seen it.]")
+            else:
+                # Not yet revealed - give guidance on when/how to reveal
+                if prop.reveal_mode == "automatic":
+                    hint = f"turn {prop.reveal_turn_hint}" if prop.reveal_turn_hint else "the right moment"
+                    lines.append(f"[Reveal automatically around {hint}.]")
+                elif prop.reveal_mode == "character_initiated":
+                    lines.append("[You have this but haven't shown it yet. Introduce when dramatically appropriate.]")
+                elif prop.reveal_mode == "player_requested":
+                    lines.append("[Only reveal if player specifically asks to see it.]")
+                elif prop.reveal_mode == "gated":
+                    lines.append("[Requires prior revelation before this can be shown.]")
+
+                # For unrevealed props, don't show exact content - just tease
+                if prop.content and prop.prop_type in ("document", "digital", "recording"):
+                    lines.append("[Exact content available when revealed.]")
+
+        return "\n".join(lines)
 
     def _format_episode_dynamics(self) -> str:
         """Format episode dynamics for LLM context.
@@ -376,6 +452,23 @@ EPISODE DYNAMICS (Director's Notes - interpret authentically)
 {episode_dynamics_text}
 
 Remember: These are soft guidance, not a script. Stay in character.
+"""
+
+        # Add props section (ADR-005: Layer 2.5 between Episode and Engagement)
+        props_text = self._format_props()
+        if props_text:
+            enhanced_context += f"""
+
+═══════════════════════════════════════════════════════════════
+PROPS IN THIS SCENE (Layer 2.5 - canonical story objects)
+═══════════════════════════════════════════════════════════════
+{props_text}
+
+PROP GUIDELINES:
+- Reference revealed props naturally in conversation
+- For unrevealed props, follow the reveal guidance above
+- Prop content is CANONICAL - quote it exactly when shown
+- When revealing a prop, describe it vividly before showing content
 """
 
         moment_layer_text = self._format_moment_layer()

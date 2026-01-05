@@ -7,6 +7,7 @@ export { MessageBubble, StreamingBubble } from "./MessageBubble";
 export { MessageInput } from "./MessageInput";
 export { SceneCard, SceneCardSkeleton } from "./SceneCard";
 export { InstructionCard } from "./InstructionCard";
+export { PropCard, PropCardSkeleton } from "./PropCard";
 export { InlineCompletionCard } from "./InlineCompletionCard";
 export { InlineSuggestionCard } from "./InlineSuggestionCard";
 export { ResetRelationshipModal } from "./ResetRelationshipModal";

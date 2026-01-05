@@ -194,6 +194,16 @@ export const api = {
         `/sessions/user/chats/${characterId}/reset`,
         { method: "DELETE" }
       ),
+    // Props (ADR-005: Canonical Story Objects)
+    getProps: (sessionId: string) =>
+      request<import("@/types").SessionPropsResponse>(
+        `/sessions/${sessionId}/props`
+      ),
+    revealProp: (sessionId: string, propId: string, trigger?: string) =>
+      request<import("@/types").PropRevealResponse>(
+        `/sessions/${sessionId}/props/${propId}/reveal${trigger ? `?reveal_trigger=${trigger}` : ""}`,
+        { method: "POST" }
+      ),
   },
 
   // Episode Template endpoints (pre-defined scenarios)
