@@ -38,7 +38,7 @@ const REVEAL_MODES: { value: PropRevealMode; label: string; description: string 
 ];
 
 const CONTENT_FORMATS = [
-  { value: "", label: "None" },
+  { value: "none", label: "None" },
   { value: "handwritten", label: "Handwritten" },
   { value: "typed", label: "Typed" },
   { value: "printed", label: "Printed" },
@@ -398,8 +398,8 @@ export function PropsEditor({ episodeId, episodeTitle }: PropsEditorProps) {
                 <div className="space-y-1">
                   <Label>Content Format</Label>
                   <Select
-                    value={formData.content_format || ""}
-                    onValueChange={(v) => setFormData({ ...formData, content_format: v })}
+                    value={formData.content_format || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, content_format: v === "none" ? "" : v })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select format" />
