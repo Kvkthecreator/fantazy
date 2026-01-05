@@ -22,6 +22,9 @@ This document defines the **6-layer context architecture** that composes every c
 │  LAYER 2: EPISODE CONTEXT                                       │
 │  Static per episode. Situation, frame, dramatic question.       │
 ├─────────────────────────────────────────────────────────────────┤
+│  LAYER 2.5: PROPS (ADR-005)                                     │
+│  Static per episode. Canonical objects with exact content.      │
+├─────────────────────────────────────────────────────────────────┤
 │  LAYER 3: ENGAGEMENT CONTEXT                                    │
 │  Dynamic per user. Session count, time together, dynamic.       │
 ├─────────────────────────────────────────────────────────────────┤
@@ -158,6 +161,91 @@ How you're playing it: {scene_tactic}
 ```
 
 **Key Principle**: The director doesn't whisper in the actor's ear during the show. The direction was internalized during rehearsal.
+
+---
+
+## Layer 2.5: Props (ADR-005)
+
+**Source**: `props` table (authored), `session_props` table (revelation tracking)
+**Refresh**: Per episode (static), per turn (revelation state)
+**Status**: PROPOSED (ADR-005)
+
+### Purpose
+
+Props are **canonical story objects** with exact, immutable content. They solve the "details don't stick" problem where LLMs improvise inconsistent details for key story elements.
+
+| Problem | Solution |
+|---------|----------|
+| "The note" changes content each mention | Prop has exact `content` field |
+| Evidence can't be tracked cross-episode | Props persist via `session_props` |
+| No visual anchors for key items | Pre-generated prop images |
+
+### Components
+
+| Component | Source | Purpose |
+|-----------|--------|---------|
+| Name | `props.name` | "The Yellow Note" |
+| Description | `props.description` | Physical description |
+| Content | `props.content` | Exact text/transcript (canonical) |
+| Image | `props.image_url` | Pre-generated visual |
+| Reveal State | `session_props` | Has player seen this? |
+
+### Prop Types
+
+| Type | Example | Content Format |
+|------|---------|---------------|
+| `document` | Note, letter, contract | Handwritten/typed text |
+| `photo` | Surveillance photo, yearbook | Image + caption |
+| `object` | Key, mixtape, heirloom | Description only |
+| `recording` | Voicemail, video | Transcript |
+| `digital` | Text message, email | Exact digital content |
+
+### Revelation Mechanics
+
+Props track whether player has "seen" them:
+
+| Mode | Behavior |
+|------|----------|
+| `character_initiated` | Character shows prop naturally in conversation |
+| `player_requested` | Player must ask to see it ("show me the note") |
+| `automatic` | Revealed at specific turn |
+| `gated` | Requires prior prop to be revealed first |
+
+### Format in Prompt
+
+```
+═══════════════════════════════════════════════════════════════
+PROPS IN THIS SCENE
+═══════════════════════════════════════════════════════════════
+
+PROP: The Yellow Note [NOT YET SHOWN]
+Description: A torn piece of yellow legal paper with hasty handwriting
+Reveal mode: character_initiated
+[You have this but haven't shown it yet. Introduce when dramatically appropriate.]
+
+PROP: The Anonymous Text [REVEALED]
+Description: Screenshot of the text message that started everything
+Content: "Don't trust Daniel. Ask him what really happened at 10:47."
+[Reference this naturally. Player has seen it.]
+```
+
+### Quality Impact
+
+- **Consistency**: The note says the same thing every time
+- **Trackability**: System knows what player has discovered
+- **Cross-episode continuity**: Episode 2 can reference Episode 1's evidence
+- **Visual anchors**: Pre-generated images for key items
+
+### Genre Applications
+
+| Genre | Prop Examples |
+|-------|--------------|
+| Mystery | Evidence, documents, photos |
+| Romance | Letters, mementos, shared items |
+| Thriller | Maps, supplies, warning signs |
+| Drama | Heirlooms, contracts, photos |
+
+See: [ADR-005: Props Domain](../../decisions/ADR-005-props-domain.md)
 
 ---
 

@@ -41,6 +41,111 @@ NOIR_QUALITY = "masterpiece, best quality, highly detailed, dramatic lighting, a
 NOIR_NEGATIVE = "anime, cartoon, bright colors, cheerful, sunny, low quality, blurry, text, watermark"
 
 # =============================================================================
+# PROPS DEFINITIONS (ADR-005)
+# =============================================================================
+# Props are canonical story objects with exact, immutable content.
+# They solve the "details don't stick" problem.
+
+EPISODE_PROPS = {
+    # Episode 0: First Contact
+    0: [
+        {
+            "name": "The Anonymous Text",
+            "slug": "anonymous-text",
+            "prop_type": "digital",
+            "description": "A screenshot of the text message you received this morning from your roommate's phone. The message that started everything.",
+            "content": "Don't trust Daniel. Ask him what really happened at 10:47.",
+            "content_format": "typed",
+            "reveal_mode": "automatic",  # Player has this from the start
+            "reveal_turn_hint": 0,
+            "is_key_evidence": True,
+            "evidence_tags": ["inciting_incident", "accusation", "timestamp"],
+            "display_order": 0,
+            "image_prompt": "screenshot of text message on smartphone screen, dark mode interface, ominous message visible, cracked screen edge, noir lighting, dramatic shadows, no readable text",
+        },
+        {
+            "name": "The Yellow Note",
+            "slug": "yellow-note",
+            "prop_type": "document",
+            "description": "A torn piece of yellow legal paper with hasty handwriting. Daniel claims she left this for him the night she disappeared.",
+            "content": "I have to finish this or he'll never stop watching us. Don't go to the police, Daniel - they're already looking for a reason. I'm sorry. I love you. - S",
+            "content_format": "handwritten",
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 3,
+            "is_key_evidence": True,
+            "evidence_tags": ["handwriting", "warning", "apology", "suspect_unknown"],
+            "display_order": 1,
+            "image_prompt": "torn piece of yellow legal paper with handwritten cursive text, creased from folding, slight water stains, dramatic side lighting, on dark wood table, noir mystery aesthetic, no readable text",
+        },
+    ],
+    # Episode 1: The Cracks
+    1: [
+        {
+            "name": "Her Laptop (Missing)",
+            "slug": "missing-laptop",
+            "prop_type": "object",
+            "description": "The charging cable is still plugged in by her desk. The laptop itself is gone. Daniel claims the police didn't take it.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "player_requested",
+            "reveal_turn_hint": 4,
+            "is_key_evidence": True,
+            "evidence_tags": ["missing_item", "investigation", "digital_evidence"],
+            "display_order": 0,
+            "image_prompt": "empty desk with laptop charging cable plugged into wall, dust outline where laptop was, dramatic window light through blinds, noir atmosphere, something missing",
+        },
+        {
+            "name": "The Coffee Mug",
+            "slug": "coffee-mug",
+            "prop_type": "object",
+            "description": "A coffee mug with her lipstick still on the rim. Left on the counter like she just stepped away. Three days ago.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 2,
+            "is_key_evidence": False,
+            "evidence_tags": ["personal_item", "timeline", "presence"],
+            "display_order": 1,
+            "image_prompt": "white coffee mug with lipstick mark on rim, cold coffee inside, on kitchen counter, afternoon light through window, abandoned feeling, noir photography",
+        },
+    ],
+    # Episode 2: The Trade
+    2: [
+        {
+            "name": "The Envelope",
+            "slug": "the-envelope",
+            "prop_type": "document",
+            "description": "A manila envelope, sealed. She gave this to Daniel 'for safekeeping.' He's been carrying it for three days without opening it.",
+            "content": "Contents: Partial printouts of financial records. A company name circled in red: 'Meridian Holdings.' Three photos of a man entering a building at night. A handwritten note: 'Follow the money. It always comes back to him.'",
+            "content_format": "typed",
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 5,
+            "is_key_evidence": True,
+            "evidence_tags": ["investigation", "financial", "suspect_meridian", "photos"],
+            "display_order": 0,
+            "image_prompt": "sealed manila envelope on car hood in parking garage, harsh fluorescent light from above, concrete pillars in shadow, noir thriller aesthetic, something dangerous inside",
+        },
+    ],
+    # Episode 3: The Truth
+    3: [
+        {
+            "name": "Security Footage",
+            "slug": "security-footage",
+            "prop_type": "recording",
+            "description": "Grainy security camera footage from the train station platform. Timestamp: 10:47 PM. She's there - but she's not alone.",
+            "content": "The footage shows her on the platform at 10:47 PM. She's looking around nervously. A figure approaches from off-screen. They speak briefly. She nods. They walk toward the stairs together. The figure turns toward the camera for one frame - a man in his 40s, well-dressed, familiar somehow. She doesn't look scared. She looks relieved.",
+            "content_format": "video_transcript",
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 1,
+            "is_key_evidence": True,
+            "evidence_tags": ["video", "timestamp_1047", "suspect_revealed", "accomplice_or_victim"],
+            "display_order": 0,
+            "image_prompt": "grainy security camera footage on monitor screen, train station platform visible, two figures in frame, timestamp visible, multiple monitors in security office, harsh fluorescent light, noir thriller",
+        },
+    ],
+}
+
+# =============================================================================
 # CHARACTER DEFINITION
 # =============================================================================
 
@@ -488,6 +593,81 @@ async def create_episodes(db: Database, series_id: str, character_id: str) -> li
     return episode_ids
 
 
+async def create_props(db: Database, episode_ids: list) -> int:
+    """Create props for episodes (ADR-005). Returns count of props created."""
+    print("\n[5/5] Creating props (ADR-005)...")
+
+    # Get episode_number -> episode_id mapping
+    episode_map = {}
+    for ep_id in episode_ids:
+        row = await db.fetch_one(
+            "SELECT episode_number FROM episode_templates WHERE id = :id",
+            {"id": ep_id}
+        )
+        if row:
+            episode_map[row["episode_number"]] = ep_id
+
+    props_created = 0
+
+    for ep_num, props in EPISODE_PROPS.items():
+        ep_id = episode_map.get(ep_num)
+        if not ep_id:
+            print(f"  - Episode {ep_num}: not found, skipping props")
+            continue
+
+        for prop in props:
+            # Check if exists
+            existing = await db.fetch_one(
+                """SELECT id FROM props
+                   WHERE episode_template_id = :ep_id AND slug = :slug""",
+                {"ep_id": ep_id, "slug": prop["slug"]}
+            )
+            if existing:
+                print(f"  - Ep {ep_num}: {prop['name']} - exists (skipped)")
+                continue
+
+            prop_id = str(uuid.uuid4())
+
+            await db.execute("""
+                INSERT INTO props (
+                    id, episode_template_id,
+                    name, slug, prop_type, description,
+                    content, content_format,
+                    reveal_mode, reveal_turn_hint,
+                    is_key_evidence, evidence_tags,
+                    display_order, image_prompt
+                ) VALUES (
+                    :id, :episode_template_id,
+                    :name, :slug, :prop_type, :description,
+                    :content, :content_format,
+                    :reveal_mode, :reveal_turn_hint,
+                    :is_key_evidence, CAST(:evidence_tags AS jsonb),
+                    :display_order, :image_prompt
+                )
+            """, {
+                "id": prop_id,
+                "episode_template_id": ep_id,
+                "name": prop["name"],
+                "slug": prop["slug"],
+                "prop_type": prop["prop_type"],
+                "description": prop["description"],
+                "content": prop.get("content"),
+                "content_format": prop.get("content_format"),
+                "reveal_mode": prop.get("reveal_mode", "character_initiated"),
+                "reveal_turn_hint": prop.get("reveal_turn_hint"),
+                "is_key_evidence": prop.get("is_key_evidence", False),
+                "evidence_tags": json.dumps(prop.get("evidence_tags", [])),
+                "display_order": prop.get("display_order", 0),
+                "image_prompt": prop.get("image_prompt"),
+            })
+
+            props_created += 1
+            evidence_marker = " [KEY]" if prop.get("is_key_evidence") else ""
+            print(f"  - Ep {ep_num}: {prop['name']} ({prop['prop_type']}){evidence_marker}: created")
+
+    return props_created
+
+
 async def scaffold_all(dry_run: bool = False):
     """Main scaffold function."""
     print("=" * 60)
@@ -498,16 +678,23 @@ async def scaffold_all(dry_run: bool = False):
     print(f"Genre: mystery")
     print(f"Episodes: {len(EPISODES)}")
 
+    # Count props
+    total_props = sum(len(props) for props in EPISODE_PROPS.values())
+
     if dry_run:
         print("\n[DRY RUN] Would create:")
         print(f"  - 1 character (Daniel)")
         print(f"  - 1 avatar kit")
         print(f"  - 1 series (The Last Message)")
         print(f"  - {len(EPISODES)} episode templates")
+        print(f"  - {total_props} props (ADR-005)")
         print("\nEpisode Arc:")
         for ep in EPISODES:
             print(f"  - Ep {ep['episode_number']}: {ep['title']} ({ep['episode_type']})")
             print(f"    Dramatic Question: {ep['dramatic_question']}")
+            props = EPISODE_PROPS.get(ep['episode_number'], [])
+            if props:
+                print(f"    Props: {', '.join(p['name'] for p in props)}")
         return
 
     db = Database(DATABASE_URL)
@@ -523,6 +710,7 @@ async def scaffold_all(dry_run: bool = False):
         kit_id = await create_avatar_kit(db, character_id, world_id)
         series_id = await create_series(db, world_id, character_id)
         episode_ids = await create_episodes(db, series_id, character_id)
+        props_count = await create_props(db, episode_ids)
 
         # Summary
         print("\n" + "=" * 60)
@@ -532,10 +720,11 @@ async def scaffold_all(dry_run: bool = False):
         print(f"Avatar Kit ID: {kit_id}")
         print(f"Series ID: {series_id}")
         print(f"Episodes: {len(episode_ids)}")
+        print(f"Props: {props_count} (ADR-005)")
 
         print("\n>>> NEXT STEPS:")
-        print("1. Add 'mystery' genre to director.py GENRE_DOCTRINES")
-        print("2. Run: python -m app.scripts.generate_the_last_message_images")
+        print("1. Run: python -m app.scripts.generate_the_last_message_images")
+        print("2. Run: python -m app.scripts.generate_the_last_message_props (TODO)")
         print("3. Activate: UPDATE series SET status = 'active' WHERE slug = 'the-last-message'")
 
     finally:

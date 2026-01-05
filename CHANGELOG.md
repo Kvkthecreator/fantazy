@@ -10,6 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Props Domain (ADR-005)**: Canonical story objects for consistent narrative anchors
+  - New `props` table for authored story objects (documents, photos, items)
+  - Props have exact canonical content (the note always says the same thing)
+  - Revelation tracking via `session_props` (what has player seen)
+  - Pre-generated images for visual consistency
+  - Layer 2.5 in Context Architecture (between Episode and Engagement)
+  - Enables mystery evidence, romance mementos, thriller supplies
+  - See: [ADR-005](docs/decisions/ADR-005-props-domain.md)
+
 - **User Character Customization (ADR-004)**: Users can create their own characters to play in platform-authored episodes
   - New `/my-characters` page for managing user characters
   - Character detail page at `/my-characters/[id]` for editing

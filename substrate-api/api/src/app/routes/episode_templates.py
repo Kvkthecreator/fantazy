@@ -558,3 +558,86 @@ async def get_available_characters_for_episode(
         canonical=canonical,
         user_characters=user_characters,
     )
+
+
+# =============================================================================
+# Props API (ADR-005)
+# =============================================================================
+
+class PropResponse(BaseModel):
+    """Prop response model (ADR-005)."""
+    id: UUID
+    name: str
+    slug: str
+    prop_type: str
+    description: str
+    content: Optional[str] = None
+    content_format: Optional[str] = None
+    image_url: Optional[str] = None
+    reveal_mode: str
+    reveal_turn_hint: Optional[int] = None
+    is_key_evidence: bool
+    evidence_tags: List[str] = []
+    display_order: int
+
+
+class PropsListResponse(BaseModel):
+    """Response for listing props."""
+    props: List[PropResponse]
+    episode_id: UUID
+    episode_title: str
+
+
+@router.get("/{template_id}/props", response_model=PropsListResponse)
+async def get_episode_props(
+    template_id: UUID,
+    db=Depends(get_db),
+):
+    """Get all props for an episode template.
+
+    ADR-005: Props are canonical story objects with exact, immutable content.
+    They solve the "details don't stick" problem.
+
+    Returns all props associated with this episode, ordered by display_order.
+    """
+    # First verify episode exists and get its title
+    episode = await db.fetch_one(
+        "SELECT id, title FROM episode_templates WHERE id = :id",
+        {"id": str(template_id)}
+    )
+
+    if not episode:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Episode template not found"
+        )
+
+    # Get all props for this episode
+    query = """
+        SELECT id, name, slug, prop_type, description,
+               content, content_format, image_url,
+               reveal_mode, reveal_turn_hint,
+               is_key_evidence, evidence_tags, display_order
+        FROM props
+        WHERE episode_template_id = :episode_id
+        ORDER BY display_order, created_at
+    """
+
+    rows = await db.fetch_all(query, {"episode_id": str(template_id)})
+
+    props = []
+    for row in rows:
+        data = dict(row)
+        # Sign image URL if it's a storage path
+        data["image_url"] = await _get_signed_url(data.get("image_url"))
+        # Parse evidence_tags if it's a string
+        if isinstance(data.get("evidence_tags"), str):
+            import json
+            data["evidence_tags"] = json.loads(data["evidence_tags"])
+        props.append(PropResponse(**data))
+
+    return PropsListResponse(
+        props=props,
+        episode_id=episode["id"],
+        episode_title=episode["title"],
+    )
