@@ -47,7 +47,7 @@ export interface CharacterSummary {
   avatar_url: string | null;
   backstory: string | null; // NOTE: short_backstory/full_backstory merged into backstory
   is_premium: boolean;
-  genre?: Genre;
+  // NOTE: genre removed from characters (ADR-001) - lives on Series/Episode now
 }
 
 export interface AvatarGalleryItem {
@@ -69,7 +69,8 @@ export interface CharacterProfile extends CharacterSummary {
 
 export interface Character extends CharacterSummary {
   world_id: string | null;
-  genre: Genre;
+  // NOTE: genre removed from characters table (ADR-001)
+  // Genre now lives on Series/Episode and is injected by Director at runtime
   baseline_personality: Record<string, unknown>;
   tone_style: Record<string, unknown>;
   speech_patterns: Record<string, unknown>;

@@ -273,11 +273,6 @@ export default function StudioPage() {
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{char.name}</p>
                           <p className="text-sm text-muted-foreground capitalize">{char.archetype}</p>
-                          {char.genre && (
-                            <span className="text-xs text-muted-foreground/70">
-                              {char.genre === 'romantic_tension' ? 'Romance' : 'Thriller'}
-                            </span>
-                          )}
                           {char.backstory && (
                             <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                               {char.backstory}

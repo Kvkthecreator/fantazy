@@ -689,17 +689,18 @@ async def scaffold_genre02():
             char_id = str(uuid.uuid4())
             world_id = world_ids.get(char["world_slug"])
 
+            # ADR-001: genre belongs to Series/Episode, not Character
             # JSONB columns need CAST syntax to avoid bind parameter conflicts
             await db.execute("""
                 INSERT INTO characters (
-                    id, name, slug, archetype, status, genre,
+                    id, name, slug, archetype, status,
                     world_id, system_prompt,
                     baseline_personality, boundaries,
                     tone_style, speech_patterns,
                     full_backstory, current_stressor,
                     likes, dislikes
                 ) VALUES (
-                    :id, :name, :slug, :archetype, 'draft', 'psychological_thriller',
+                    :id, :name, :slug, :archetype, 'draft',
                     :world_id, :system_prompt,
                     CAST(:personality AS jsonb), CAST(:boundaries AS jsonb),
                     CAST(:tone_style AS jsonb), CAST(:speech_patterns AS jsonb),

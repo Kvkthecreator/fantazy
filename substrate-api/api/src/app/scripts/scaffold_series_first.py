@@ -915,14 +915,15 @@ async def scaffold_characters(db: Database, world_ids: dict) -> dict:
         char_id = str(uuid.uuid4())
         world_id = world_ids.get(char["world_slug"])
 
+        # ADR-001: genre belongs to Series/Episode, not Character
         await db.execute("""
             INSERT INTO characters (
-                id, name, slug, archetype, status, genre,
+                id, name, slug, archetype, status,
                 world_id, system_prompt,
                 baseline_personality, boundaries,
                 tone_style, full_backstory, current_stressor
             ) VALUES (
-                :id, :name, :slug, :archetype, 'draft', :genre,
+                :id, :name, :slug, :archetype, 'draft',
                 :world_id, :system_prompt,
                 CAST(:personality AS jsonb), CAST(:boundaries AS jsonb),
                 CAST(:tone_style AS jsonb), :backstory, :stressor
@@ -932,7 +933,6 @@ async def scaffold_characters(db: Database, world_ids: dict) -> dict:
             "name": char["name"],
             "slug": char["slug"],
             "archetype": char["archetype"],
-            "genre": char["genre"],
             "world_id": world_id,
             "system_prompt": system_prompt,
             "personality": json.dumps(char["personality"]),

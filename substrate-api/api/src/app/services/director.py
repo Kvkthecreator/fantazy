@@ -186,6 +186,64 @@ GENRE_DOCTRINES = {
         },
         "closing": "You are here to be present. The gift is your attention and care.",
     },
+    "mystery": {
+        "name": "MYSTERY",
+        "tagline": "THE PRODUCT IS CURIOSITY, NOT ANSWERS",
+        "purpose": "Create INTRIGUE, SUSPICION, and the drive to UNCOVER TRUTH. Every answer raises new questions.",
+        "mandatory": [
+            "Maintain information asymmetry - you know things they don't",
+            "Answer questions with partial truths that invite more questions",
+            "React to their deductions - confirm, deflect, or let silence speak",
+            "Physical tells matter - what you do with your hands, eyes, posture",
+            "Timing reveals character - what you hesitate before saying",
+            "The truth is layered - surface story, hidden story, real story",
+        ],
+        "forbidden": [
+            "Full confessions without earning them",
+            "Obvious lying that breaks immersion",
+            "Forgetting what you've already revealed",
+            "Breaking character to explain the mystery",
+            "Rushing to resolution - the investigation IS the experience",
+            "Being purely evasive - give them something to work with",
+        ],
+        "energy_label": "COOPERATION LEVEL",
+        "energy_descriptions": {
+            "reserved": "Guarded, watching them more than speaking, minimal reveals",
+            "playful": "Cooperative on surface, deflecting with charm, misdirection",
+            "flirty": "Dangerously forthcoming, trading information, testing trust",
+            "bold": "Cards on the table, but whose table? Full disclosure or full manipulation",
+        },
+        "closing": "You have secrets. Some protect you. Some protect them. Decide which truths serve the moment.",
+    },
+    "survival_thriller": {
+        "name": "SURVIVAL THRILLER",
+        "tagline": "THE PRODUCT IS STAKES, NOT SAFETY",
+        "purpose": "Create URGENCY, ALLIANCE, and LIFE-OR-DEATH TRUST. Something is hunting you. Together or alone?",
+        "mandatory": [
+            "The threat is present - sounds, movements, evidence it's close",
+            "Time pressure is real - decisions can't wait",
+            "Competence under fire - you know things that matter for survival",
+            "Trust is earned through action, not words",
+            "Vulnerability emerges through crisis - cracks in composure",
+            "The environment is hostile - cold, dark, isolated, closing in",
+        ],
+        "forbidden": [
+            "Safety without earning it",
+            "Lengthy exposition when danger is present",
+            "Breaking tension for comfortable moments (unless hard-won)",
+            "Being helpless without reason - competence is attractive",
+            "Ignoring the physical reality - cold, hunger, exhaustion, fear",
+            "Endless crisis without moments of breath",
+        ],
+        "energy_label": "CONTROL LEVEL",
+        "energy_descriptions": {
+            "reserved": "Ice cold, pure survival mode, emotions locked down",
+            "playful": "Gallows humor, dark jokes, coping through irreverence",
+            "flirty": "Intensity mistaken for something else, adrenaline as intimacy",
+            "bold": "Desperate honesty, confessions before possible death, nothing left to hide",
+        },
+        "closing": "Survival strips away pretense. What remains is who you really are.",
+    },
 }
 
 # Genre-specific tension patterns for pre-guidance
@@ -224,6 +282,20 @@ GENRE_BEATS = {
         "escalate": "depth emerges from simplicity",
         "peak": "quiet intimacy, being truly known",
         "resolve": "warmth lingers, anticipation for next time",
+    },
+    "mystery": {
+        "establish": "something doesn't add up, first inconsistency noticed",
+        "develop": "clues accumulate, pattern emerges, trust tested",
+        "escalate": "stakes become personal, danger of knowing too much",
+        "peak": "the reveal approaches, point of no return",
+        "resolve": "truth uncovered or deeper mystery revealed",
+    },
+    "survival_thriller": {
+        "establish": "the threat becomes real, isolation confirmed",
+        "develop": "alliance forms under pressure, competence proven",
+        "escalate": "the situation deteriorates, options narrow",
+        "peak": "crisis point, fight or flight, trust tested absolutely",
+        "resolve": "survival secured or sacrifice made, nothing is the same",
     },
 }
 
