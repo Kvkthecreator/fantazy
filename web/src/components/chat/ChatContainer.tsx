@@ -10,7 +10,7 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { InstructionCard } from "./InstructionCard";
-import { PropCard } from "./PropCard";
+import { ItemsDrawer } from "./ItemsDrawer";
 import { EpisodeOpeningCard } from "./EpisodeOpeningCard";
 import { RateLimitModal } from "./RateLimitModal";
 import { InlineCompletionCard } from "./InlineCompletionCard";
@@ -47,6 +47,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<RateLimitError | null>(null);
   const [showCharacterInfo, setShowCharacterInfo] = useState(false);
+  const [showItemsDrawer, setShowItemsDrawer] = useState(false);
+  const [hasNewProp, setHasNewProp] = useState(false);
+  const previousPropCountRef = useRef(0);
   const [episodeTemplate, setEpisodeTemplate] = useState<EpisodeTemplate | null>(null);
   const [seriesEpisodes, setSeriesEpisodes] = useState<Array<{
     id: string;
@@ -235,6 +238,17 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     };
   }, []);
 
+  // ADR-006: Detect when new props are revealed to show pulse animation
+  useEffect(() => {
+    if (revealedProps.length > previousPropCountRef.current) {
+      setHasNewProp(true);
+      // Clear the "new" indicator after 3 seconds
+      const timeout = setTimeout(() => setHasNewProp(false), 3000);
+      return () => clearTimeout(timeout);
+    }
+    previousPropCountRef.current = revealedProps.length;
+  }, [revealedProps.length]);
+
   // Build series progress for header
   const seriesProgress = useMemo(() => {
     if (!seriesEpisodes.length || !episodeTemplate) return null;
@@ -354,6 +368,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           seriesProgress={seriesProgress}
           seriesTitle={seriesTitle}
           hasBackground={hasBackground}
+          revealedProps={revealedProps}
+          onItemsClick={() => setShowItemsDrawer(true)}
+          hasNewProp={hasNewProp}
         />
       </div>
 
@@ -431,14 +448,6 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                 />
               ))}
 
-              {/* ADR-005: Revealed props */}
-              {revealedProps.map((prop) => (
-                <PropCard
-                  key={`prop-${prop.id}`}
-                  prop={prop}
-                  hasBackground={hasBackground}
-                />
-              ))}
 
               {/* Completion card */}
               {evaluation && (
@@ -522,6 +531,15 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         isOpen={showCharacterInfo}
         onClose={() => setShowCharacterInfo(false)}
         hasBackground={hasBackground}
+      />
+
+      {/* ADR-006: Items drawer for collected props */}
+      <ItemsDrawer
+        props={revealedProps}
+        isOpen={showItemsDrawer}
+        onClose={() => setShowItemsDrawer(false)}
+        hasBackground={hasBackground}
+        characterName={character.name}
       />
     </div>
   );

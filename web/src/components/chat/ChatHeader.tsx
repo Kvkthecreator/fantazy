@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Character, EpisodeTemplate, StreamDirectorState } from "@/types";
 
+// Minimal prop data for Evidence button display
+interface PropData {
+  id: string;
+  name: string;
+  is_key_evidence: boolean;
+  badge_label?: string | null;
+}
+
 interface ChatHeaderProps {
   character: Character;
   episodeTemplate?: EpisodeTemplate | null;
@@ -25,6 +33,10 @@ interface ChatHeaderProps {
   } | null;
   seriesTitle?: string | null;  // ADR-004: Series title for multi-character support
   hasBackground?: boolean;
+  // ADR-006: Items drawer integration
+  revealedProps?: PropData[];
+  onItemsClick?: () => void;
+  hasNewProp?: boolean;
 }
 
 export function ChatHeader({
@@ -35,6 +47,9 @@ export function ChatHeader({
   seriesProgress,
   seriesTitle,
   hasBackground = false,
+  revealedProps = [],
+  onItemsClick,
+  hasNewProp = false,
 }: ChatHeaderProps) {
   // episodeTemplate reserved for future use (episode title display, etc.)
   void _episodeTemplate;
@@ -140,7 +155,7 @@ export function ChatHeader({
 
         {/* Right: Compact indicators */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          {/* Series Progress - compact on mobile */}
+          {/* Series Progress - shows "Ep 1/4" */}
           {seriesProgress && seriesProgress.total > 1 && (
             <button
               onClick={() => setShowEpisodePicker(true)}
@@ -151,12 +166,33 @@ export function ChatHeader({
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
             >
-              <span>{seriesProgress.current}/{seriesProgress.total}</span>
+              <span>Ep {seriesProgress.current}/{seriesProgress.total}</span>
               <ChevronDownIcon className="h-3 w-3 opacity-60" />
             </button>
           )}
 
-          {/* Turn Counter - minimal on mobile */}
+          {/* ADR-006: Items button - only shows when props exist */}
+          {revealedProps.length > 0 && onItemsClick && (
+            <button
+              onClick={onItemsClick}
+              className={cn(
+                "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium transition-all",
+                hasNewProp && "animate-pulse",
+                revealedProps.some(p => p.is_key_evidence || p.badge_label)
+                  ? hasBackground
+                    ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+                    : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+                  : hasBackground
+                    ? "bg-white/10 text-white/80 hover:bg-white/20"
+                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              <BriefcaseIcon className="h-3 w-3" />
+              <span>{revealedProps.length}</span>
+            </button>
+          )}
+
+          {/* Turn Counter - shows "Turns X" or "Turns X/Y" */}
           <div
             className={cn(
               "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium",
@@ -428,6 +464,24 @@ function PlayIcon({ className }: { className?: string }) {
       className={className}
     >
       <polygon points="5 3 19 12 5 21 5 3" />
+    </svg>
+  );
+}
+
+function BriefcaseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
     </svg>
   );
 }
