@@ -319,6 +319,16 @@ class ConversationService:
             }
             yield json.dumps(suggestion_event)
 
+        # ADR-005: Check for automatic prop revelations
+        # Props with reveal_mode='automatic' are revealed when turn reaches reveal_turn_hint
+        if episode_template:
+            async for prop_event in self._check_automatic_prop_reveals(
+                session_id=episode.id,
+                episode_template_id=episode_template.id,
+                current_turn=next_turn_count,
+            ):
+                yield prop_event
+
         # =====================================================================
         # DIRECTOR PHASE 2: Post-Evaluation (BACKGROUND - fire-and-forget)
         # =====================================================================
@@ -1220,6 +1230,83 @@ class ConversationService:
             "next_number": current_episode_number + 1,
         })
         return dict(row) if row else None
+
+    async def _check_automatic_prop_reveals(
+        self,
+        session_id: UUID,
+        episode_template_id: UUID,
+        current_turn: int,
+    ) -> AsyncIterator[str]:
+        """Check and emit prop_reveal events for automatic props.
+
+        ADR-005: Props with reveal_mode='automatic' are revealed when
+        current_turn >= reveal_turn_hint. This is deterministic (UPSTREAM-DRIVEN
+        per DIRECTOR_UI_TOOLKIT.md), not semantic detection.
+
+        Yields JSON strings for SSE stream.
+        """
+        # Find unrevealed automatic props that are due
+        query = """
+            SELECT p.id, p.name, p.slug, p.prop_type, p.description,
+                   p.content, p.content_format, p.image_url,
+                   p.reveal_mode, p.reveal_turn_hint, p.is_key_evidence,
+                   p.evidence_tags, p.display_order
+            FROM props p
+            LEFT JOIN session_props sp ON sp.prop_id = p.id AND sp.session_id = :session_id
+            WHERE p.episode_template_id = :template_id
+            AND p.reveal_mode = 'automatic'
+            AND p.reveal_turn_hint IS NOT NULL
+            AND p.reveal_turn_hint <= :current_turn
+            AND sp.id IS NULL  -- Not yet revealed
+            ORDER BY p.reveal_turn_hint, p.display_order
+        """
+        rows = await self.db.fetch_all(query, {
+            "session_id": str(session_id),
+            "template_id": str(episode_template_id),
+            "current_turn": current_turn,
+        })
+
+        for row in rows:
+            prop_id = row["id"]
+
+            # Insert revelation record
+            insert_query = """
+                INSERT INTO session_props (session_id, prop_id, revealed_turn, reveal_trigger)
+                VALUES (:session_id, :prop_id, :revealed_turn, :reveal_trigger)
+                ON CONFLICT (session_id, prop_id) DO NOTHING
+            """
+            await self.db.execute(insert_query, {
+                "session_id": str(session_id),
+                "prop_id": str(prop_id),
+                "revealed_turn": current_turn,
+                "reveal_trigger": "automatic",
+            })
+
+            # Parse evidence_tags
+            evidence_tags = row["evidence_tags"] or []
+            if isinstance(evidence_tags, str):
+                evidence_tags = json.loads(evidence_tags)
+
+            # Emit prop_reveal event
+            prop_event = {
+                "type": "prop_reveal",
+                "prop": {
+                    "id": str(prop_id),
+                    "name": row["name"],
+                    "slug": row["slug"],
+                    "prop_type": row["prop_type"],
+                    "description": row["description"],
+                    "content": row["content"],
+                    "content_format": row["content_format"],
+                    "image_url": row["image_url"],
+                    "is_key_evidence": row["is_key_evidence"],
+                    "evidence_tags": evidence_tags,
+                },
+                "turn": current_turn,
+                "trigger": "automatic",
+            }
+            log.debug(f"Prop revealed: {row['name']} at turn {current_turn}")
+            yield json.dumps(prop_event)
 
     async def _get_series_context(
         self,

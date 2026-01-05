@@ -12,6 +12,7 @@ import type {
   StreamVisualPendingEvent,
   StreamInstructionCardEvent,
   StreamNeedsSparksEvent,
+  StreamPropRevealEvent,
   StreamEvent,
   VisualType,
 } from "@/types";
@@ -34,6 +35,7 @@ interface UseChatOptions {
   onVisualPending?: (event: StreamVisualPendingEvent) => void;
   onInstructionCard?: (event: StreamInstructionCardEvent) => void;
   onNeedsSparks?: (event: StreamNeedsSparksEvent) => void;
+  onPropReveal?: (event: StreamPropRevealEvent) => void;
 }
 
 interface UseChatReturn {
@@ -53,6 +55,8 @@ interface UseChatReturn {
   visualPending: VisualPendingState | null;
   instructionCards: string[];  // Accumulated instruction cards for session
   needsSparks: boolean;
+  // ADR-005: Props revealed this session
+  revealedProps: StreamPropRevealEvent["prop"][];
   // Actions
   sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
@@ -75,6 +79,7 @@ export function useChat({
   onVisualPending,
   onInstructionCard,
   onNeedsSparks,
+  onPropReveal,
 }: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -94,6 +99,8 @@ export function useChat({
   const [visualPending, setVisualPending] = useState<VisualPendingState | null>(null);
   const [instructionCards, setInstructionCards] = useState<string[]>([]);
   const [needsSparks, setNeedsSparks] = useState(false);
+  // ADR-005: Props revealed this session
+  const [revealedProps, setRevealedProps] = useState<StreamPropRevealEvent["prop"][]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -112,6 +119,8 @@ export function useChat({
   onInstructionCardRef.current = onInstructionCard;
   const onNeedsSparksRef = useRef(onNeedsSparks);
   onNeedsSparksRef.current = onNeedsSparks;
+  const onPropRevealRef = useRef(onPropReveal);
+  onPropRevealRef.current = onPropReveal;
 
   // Track if we've already loaded for this characterId + episodeTemplateId combo
   const loadedKeyRef = useRef<string | null>(null);
@@ -123,6 +132,7 @@ export function useChat({
     setEvaluation(undefined);
     setDirectorState(null);
     setInstructionCards([]);
+    setRevealedProps([]);  // ADR-005: Reset revealed props for new episode
   }, [episodeTemplateId]);
 
   // Load active episode and messages
@@ -259,6 +269,10 @@ export function useChat({
           // Director V2: User needs more sparks
           setNeedsSparks(true);
           onNeedsSparksRef.current?.(event);
+        } else if (event.type === "prop_reveal") {
+          // ADR-005: Prop revealed (automatic or character-initiated)
+          setRevealedProps((prev) => [...prev, event.prop]);
+          onPropRevealRef.current?.(event);
         } else if (event.type === "episode_complete" || event.type === "next_episode_suggestion") {
           // Director suggests moving to next episode (v2.6: decoupled from "completion")
           // This is just a suggestion - user can dismiss and keep chatting
@@ -438,6 +452,8 @@ export function useChat({
     visualPending,
     instructionCards,
     needsSparks,
+    // ADR-005: Props revealed this session
+    revealedProps,
     // Actions
     sendMessage,
     loadMessages,

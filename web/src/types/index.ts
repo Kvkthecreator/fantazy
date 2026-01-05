@@ -1407,6 +1407,28 @@ export interface StreamNeedsSparksEvent {
 }
 
 /**
+ * Prop reveal event - canonical story object revealed (ADR-005)
+ * Emitted when props with reveal_mode='automatic' reach their reveal_turn_hint.
+ */
+export interface StreamPropRevealEvent {
+  type: "prop_reveal";
+  prop: {
+    id: string;
+    name: string;
+    slug: string;
+    prop_type: PropType;
+    description: string;
+    content: string | null;
+    content_format: string | null;
+    image_url: string | null;
+    is_key_evidence: boolean;
+    evidence_tags: string[];
+  };
+  turn: number;
+  trigger: "automatic" | "character_showed" | "player_asked";
+}
+
+/**
  * Next episode suggestion event - Director reached turn budget
  * v2.6: Renamed from episode_complete - this is a suggestion, not a status change.
  * User can dismiss and keep chatting. See EPISODE_STATUS_MODEL.md
@@ -1444,6 +1466,7 @@ export type StreamEvent =
   | StreamVisualReadyEvent
   | StreamInstructionCardEvent
   | StreamNeedsSparksEvent
+  | StreamPropRevealEvent
   | StreamEpisodeCompleteEvent;
 
 // =============================================================================

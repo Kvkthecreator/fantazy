@@ -1,6 +1,6 @@
 # ADR-005: Props Domain - Canonical Story Objects
 
-> **Status**: Proposed
+> **Status**: Implemented
 > **Date**: 2025-01-05
 > **Deciders**: Architecture Review
 
@@ -323,22 +323,25 @@ Props aren't mandatory but **enhance** any series with tangible story elements.
 
 ## Implementation Phases
 
-### Phase 1: Schema + Scaffold (This PR)
-- [ ] Migration: `props` and `session_props` tables
-- [ ] Add props to scaffold_the_last_message.py (3-4 props)
-- [ ] Generate prop images via existing image scripts
-- [ ] Basic API endpoints: GET /episodes/{id}/props
+### Phase 1: Schema + Scaffold ✅
+- [x] Migration: `props` and `session_props` tables
+- [x] Add props to scaffold_the_last_message.py (5 props)
+- [x] Generate prop images via existing image scripts
+- [x] Basic API endpoints: GET /sessions/{id}/props, POST /sessions/{id}/props/{prop_id}/reveal
 
-### Phase 2: Context Integration
-- [ ] Director injects available props into context
-- [ ] Track prop revelations in session_props
-- [ ] LLM evaluation detects prop mentions (optional)
+### Phase 2: Context Integration ✅
+- [x] Director injects available props into context (via `_format_props_context`)
+- [x] Track prop revelations in session_props
+- [x] Automatic revelation when `reveal_mode='automatic'` and `reveal_turn_hint <= current_turn`
+- [ ] LLM evaluation detects prop mentions (deferred - semantic detection)
 
-### Phase 3: Frontend
-- [ ] `prop_reveal` SSE event handling
-- [ ] PropCard component
-- [ ] Evidence drawer (mystery/thriller)
-- [ ] Prop detail modal
+### Phase 3: Frontend ✅
+- [x] `prop_reveal` SSE event handling (in `useChat.ts`)
+- [x] `StreamPropRevealEvent` type definition
+- [x] PropCard component with image, description, expandable content
+- [x] PropCard rendering in ChatContainer (after instruction cards)
+- [ ] Evidence drawer (mystery/thriller) - future enhancement
+- [ ] Prop detail modal - future enhancement
 
 ### Phase 4: Studio UI
 - [ ] Props editor in episode template form
@@ -398,7 +401,7 @@ Props aren't mandatory but **enhance** any series with tangible story elements.
 
 ## Open Questions
 
-1. **Prop revelation detection**: Should LLM explicitly signal "I showed the note" or detect via text analysis?
+1. **Prop revelation detection**: ✅ Resolved - Using turn-based automatic revelation for `reveal_mode='automatic'`. Semantic detection (LLM analyzes if prop was mentioned) deferred to future audit. See `DIRECTOR_UI_TOOLKIT.md` for UPSTREAM-DRIVEN vs RUNTIME-DRIVEN distinction.
 2. **Cross-series props**: Can the same prop (e.g., character's signature item) appear in multiple series?
 3. **User-created props**: Future consideration - can users add props in user-generated episodes?
 

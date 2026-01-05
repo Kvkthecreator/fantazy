@@ -10,6 +10,7 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { InstructionCard } from "./InstructionCard";
+import { PropCard } from "./PropCard";
 import { EpisodeOpeningCard } from "./EpisodeOpeningCard";
 import { RateLimitModal } from "./RateLimitModal";
 import { InlineCompletionCard } from "./InlineCompletionCard";
@@ -127,6 +128,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     // Director V2 visual state
     visualPending,
     instructionCards,
+    revealedProps,
     clearVisualPending,
     // Actions
     sendMessage,
@@ -425,6 +427,15 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                 <InstructionCard
                   key={`instruction-${index}`}
                   content={content}
+                  hasBackground={hasBackground}
+                />
+              ))}
+
+              {/* ADR-005: Revealed props */}
+              {revealedProps.map((prop) => (
+                <PropCard
+                  key={`prop-${prop.id}`}
+                  prop={prop}
                   hasBackground={hasBackground}
                 />
               ))}
