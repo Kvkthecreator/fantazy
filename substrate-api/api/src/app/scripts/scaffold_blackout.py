@@ -41,6 +41,165 @@ THRILLER_QUALITY = "masterpiece, best quality, highly detailed, dramatic lightin
 THRILLER_NEGATIVE = "anime, cartoon, bright colors, cheerful, sunny, low quality, blurry, text, watermark, multiple people visible"
 
 # =============================================================================
+# PROPS DEFINITIONS (ADR-005 + ADR-006 Option B)
+# =============================================================================
+# Props for survival thriller = supplies, evidence, survival items
+# These create tangible stakes and progression mechanics.
+
+EPISODE_PROPS = {
+    # Episode 0: Discovery
+    # Goal: Establish the threat, prove something is wrong
+    0: [
+        {
+            "name": "The Blood Smear",
+            "slug": "blood-smear",
+            "prop_type": "object",
+            "description": "Fresh blood on the kitchen counter, trailing toward the back door. Still wet. Not yours, not hers.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "automatic",  # Player sees this immediately
+            "reveal_turn_hint": 0,
+            "is_key_evidence": True,
+            "badge_label": "Evidence",
+            "evidence_tags": ["blood", "entry_point", "timeline"],
+            "display_order": 0,
+            "image_prompt": "blood smear on wooden kitchen counter trailing toward door, flashlight beam illuminating it, dark cabin interior, cold blue lighting, horror atmosphere, evidence of intrusion",
+            # ADR-006: This gates Episode 1
+            "is_progression_gate": True,
+            "gates_episode_slug": "the-sound",
+        },
+        {
+            "name": "Emergency Flashlight",
+            "slug": "emergency-flashlight",
+            "prop_type": "object",
+            "description": "A heavy-duty flashlight she knew exactly where to find. Military-grade. The batteries are fresh.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 1,
+            "is_key_evidence": False,
+            "badge_label": "Survival Gear",
+            "evidence_tags": ["equipment", "preparedness", "her_secret"],
+            "display_order": 1,
+            "image_prompt": "tactical military flashlight on wooden shelf, fresh batteries nearby, dust-free compared to surrounding items, someone knew this was here, cold blue lighting",
+            "is_progression_gate": False,
+        },
+    ],
+    # Episode 1: The Sound
+    # Goal: Confirm the threat, build alliance
+    1: [
+        {
+            "name": "The Scratch Marks",
+            "slug": "scratch-marks",
+            "prop_type": "object",
+            "description": "Deep gouges in the wooden porch railing. Fresh. Whatever made them has claws - or wants you to think it does.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 3,
+            "is_key_evidence": True,
+            "badge_label": "Threat Evidence",
+            "evidence_tags": ["creature", "physical_evidence", "pattern"],
+            "display_order": 0,
+            "image_prompt": "deep claw marks gouged into wooden porch railing, splintered wood, moonlight catching the fresh scratches, something was here, survival horror aesthetic",
+            # ADR-006: This gates Episode 2
+            "is_progression_gate": True,
+            "gates_episode_slug": "her-secret",
+        },
+        {
+            "name": "Hunting Knife",
+            "slug": "hunting-knife",
+            "prop_type": "object",
+            "description": "A hunting knife she pulled from behind the bookshelf. The sheath is worn. She's used this before.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 5,
+            "is_key_evidence": False,
+            "badge_label": "Weapon",
+            "evidence_tags": ["weapon", "preparedness", "experience"],
+            "display_order": 1,
+            "image_prompt": "worn hunting knife with leather sheath, pulled from behind books on shelf, blade shows use and careful maintenance, someone keeps this ready, cold lighting",
+            "is_progression_gate": False,
+        },
+    ],
+    # Episode 2: Her Secret
+    # Goal: Truth revealed, alliance tested
+    2: [
+        {
+            "name": "The Old Photo",
+            "slug": "old-photo",
+            "prop_type": "photo",
+            "description": "A faded photograph hidden in the bunker. A family of four at this cabin. She's in it - twelve years old, smiling. The others have been scratched out.",
+            "content": "The photo shows a summer day. Three figures have been deliberately scratched out with something sharp. Only the girl - clearly Mira - remains visible. On the back, in a child's handwriting: 'Last day. July 15.'",
+            "content_format": "handwritten",
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 4,
+            "is_key_evidence": True,
+            "badge_label": "Her Past",
+            "evidence_tags": ["family", "trauma", "origin", "scratched_out"],
+            "display_order": 0,
+            "image_prompt": "faded photograph with three figures scratched out, only young girl visible, summer cabin scene, damage done deliberately with knife or key, haunting quality, cold bunker lighting",
+            # ADR-006: This gates the finale
+            "is_progression_gate": True,
+            "gates_episode_slug": "the-choice",
+        },
+        {
+            "name": "Bunker Supply Manifest",
+            "slug": "supply-manifest",
+            "prop_type": "document",
+            "description": "A handwritten list of supplies, dated entries going back fifteen years. She's been maintaining this bunker since she was a teenager.",
+            "content": "Supplies logged: MREs (24), Water purification (2 units), First aid (complete), Ammunition (.38, 12 rounds), Flares (6). Last restocked: September 14. Note at bottom: 'Enough for two. If needed.'",
+            "content_format": "handwritten",
+            "reveal_mode": "player_requested",
+            "reveal_turn_hint": 2,
+            "is_key_evidence": False,
+            "badge_label": "Survival Intel",
+            "evidence_tags": ["supplies", "preparation", "planning", "fifteen_years"],
+            "display_order": 1,
+            "image_prompt": "handwritten supply manifest on aged paper, multiple dated entries over years, neat feminine handwriting, bunker storage visible behind, battery lantern light",
+            "is_progression_gate": False,
+        },
+    ],
+    # Episode 3: The Choice
+    # Goal: Stakes crystallize, player decides
+    3: [
+        {
+            "name": "Her Father's Revolver",
+            "slug": "fathers-revolver",
+            "prop_type": "object",
+            "description": "A .38 revolver, well-maintained but old. Six rounds in the cylinder. She loads it with hands that don't shake.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "automatic",
+            "reveal_turn_hint": 0,
+            "is_key_evidence": True,
+            "badge_label": "Final Stand",
+            "evidence_tags": ["weapon", "family", "choice", "six_shots"],
+            "display_order": 0,
+            "image_prompt": "old revolver being loaded with steady hands, six bullets visible, bunker interior with dawn light through vent, moment of decision, survival thriller climax",
+            "is_progression_gate": False,  # Final episode
+        },
+        {
+            "name": "Truck Keys",
+            "slug": "truck-keys",
+            "prop_type": "object",
+            "description": "Keys to the truck in the barn. Fifty meters away. In daylight, you could make it. She's handing them to you.",
+            "content": None,
+            "content_format": None,
+            "reveal_mode": "character_initiated",
+            "reveal_turn_hint": 2,
+            "is_key_evidence": False,
+            "badge_label": "Escape Route",
+            "evidence_tags": ["escape", "choice", "vehicle", "daylight"],
+            "display_order": 1,
+            "image_prompt": "old truck keys on leather keychain being offered, dawn light from bunker vent, packed survival bag nearby, choice being presented, cold morning atmosphere",
+            "is_progression_gate": False,
+        },
+    ],
+}
+
+# =============================================================================
 # CHARACTER DEFINITION
 # =============================================================================
 
@@ -489,6 +648,108 @@ async def create_episodes(db: Database, series_id: str, character_id: str) -> li
     return episode_ids
 
 
+async def create_props(db: Database, series_id: str, episode_ids: list) -> int:
+    """Create props for episodes (ADR-005 + ADR-006 Option B).
+
+    Returns count of props created.
+    """
+    print("\n[5/5] Creating props (ADR-005 + ADR-006 Option B)...")
+
+    # Get episode_number -> episode_id mapping
+    episode_map = {}
+    episode_slug_map = {}  # slug -> id for gating resolution
+    for ep_id in episode_ids:
+        row = await db.fetch_one(
+            "SELECT episode_number, slug FROM episode_templates WHERE id = :id",
+            {"id": ep_id}
+        )
+        if row:
+            episode_map[row["episode_number"]] = ep_id
+            episode_slug_map[row["slug"]] = ep_id
+
+    props_created = 0
+    progression_gates = 0
+
+    for ep_num, props in EPISODE_PROPS.items():
+        ep_id = episode_map.get(ep_num)
+        if not ep_id:
+            print(f"  - Episode {ep_num}: not found, skipping props")
+            continue
+
+        for prop in props:
+            # Check if exists
+            existing = await db.fetch_one(
+                """SELECT id FROM props
+                   WHERE episode_template_id = :ep_id AND slug = :slug""",
+                {"ep_id": ep_id, "slug": prop["slug"]}
+            )
+            if existing:
+                print(f"  - Ep {ep_num}: {prop['name']} - exists (skipped)")
+                continue
+
+            prop_id = str(uuid.uuid4())
+
+            # ADR-006: Resolve gates_episode_slug to gates_episode_id
+            gates_episode_id = None
+            gates_slug = prop.get("gates_episode_slug")
+            if gates_slug and gates_slug in episode_slug_map:
+                gates_episode_id = episode_slug_map[gates_slug]
+
+            await db.execute("""
+                INSERT INTO props (
+                    id, episode_template_id,
+                    name, slug, prop_type, description,
+                    content, content_format,
+                    reveal_mode, reveal_turn_hint,
+                    is_key_evidence, badge_label, evidence_tags,
+                    display_order, image_prompt,
+                    is_progression_gate, gates_episode_id
+                ) VALUES (
+                    :id, :episode_template_id,
+                    :name, :slug, :prop_type, :description,
+                    :content, :content_format,
+                    :reveal_mode, :reveal_turn_hint,
+                    :is_key_evidence, :badge_label, CAST(:evidence_tags AS jsonb),
+                    :display_order, :image_prompt,
+                    :is_progression_gate, :gates_episode_id
+                )
+            """, {
+                "id": prop_id,
+                "episode_template_id": ep_id,
+                "name": prop["name"],
+                "slug": prop["slug"],
+                "prop_type": prop["prop_type"],
+                "description": prop["description"],
+                "content": prop.get("content"),
+                "content_format": prop.get("content_format"),
+                "reveal_mode": prop.get("reveal_mode", "character_initiated"),
+                "reveal_turn_hint": prop.get("reveal_turn_hint"),
+                "is_key_evidence": prop.get("is_key_evidence", False),
+                "badge_label": prop.get("badge_label"),
+                "evidence_tags": json.dumps(prop.get("evidence_tags", [])),
+                "display_order": prop.get("display_order", 0),
+                "image_prompt": prop.get("image_prompt"),
+                # ADR-006 Option B fields
+                "is_progression_gate": prop.get("is_progression_gate", False),
+                "gates_episode_id": gates_episode_id,
+            })
+
+            props_created += 1
+            markers = []
+            if prop.get("is_key_evidence"):
+                markers.append("KEY")
+            if prop.get("is_progression_gate"):
+                markers.append("GATE")
+                progression_gates += 1
+            marker_str = f" [{','.join(markers)}]" if markers else ""
+            print(f"  - Ep {ep_num}: {prop['name']} ({prop['prop_type']}){marker_str}: created")
+
+    if progression_gates > 0:
+        print(f"\n  ADR-006: {progression_gates} progression gate props created")
+
+    return props_created
+
+
 async def scaffold_all(dry_run: bool = False):
     """Main scaffold function."""
     print("=" * 60)
@@ -499,16 +760,36 @@ async def scaffold_all(dry_run: bool = False):
     print(f"Genre: survival_thriller")
     print(f"Episodes: {len(EPISODES)}")
 
+    # Count props
+    total_props = sum(len(props) for props in EPISODE_PROPS.values())
+
+    # Count progression gates (ADR-006)
+    total_gates = sum(
+        1 for props in EPISODE_PROPS.values()
+        for p in props if p.get("is_progression_gate")
+    )
+
     if dry_run:
         print("\n[DRY RUN] Would create:")
         print(f"  - 1 character (Mira)")
         print(f"  - 1 avatar kit")
         print(f"  - 1 series (Blackout)")
         print(f"  - {len(EPISODES)} episode templates")
+        print(f"  - {total_props} props (ADR-005)")
+        print(f"  - {total_gates} progression gates (ADR-006 Option B)")
         print("\nEpisode Arc:")
         for ep in EPISODES:
             print(f"  - Ep {ep['episode_number']}: {ep['title']} ({ep['episode_type']})")
             print(f"    Dramatic Question: {ep['dramatic_question']}")
+            props = EPISODE_PROPS.get(ep['episode_number'], [])
+            if props:
+                prop_strs = []
+                for p in props:
+                    name = p['name']
+                    if p.get('is_progression_gate'):
+                        name += f" → gates '{p.get('gates_episode_slug')}'"
+                    prop_strs.append(name)
+                print(f"    Props: {', '.join(prop_strs)}")
         return
 
     db = Database(DATABASE_URL)
@@ -524,6 +805,7 @@ async def scaffold_all(dry_run: bool = False):
         kit_id = await create_avatar_kit(db, character_id, world_id)
         series_id = await create_series(db, world_id, character_id)
         episode_ids = await create_episodes(db, series_id, character_id)
+        props_count = await create_props(db, series_id, episode_ids)
 
         # Summary
         print("\n" + "=" * 60)
@@ -533,10 +815,11 @@ async def scaffold_all(dry_run: bool = False):
         print(f"Avatar Kit ID: {kit_id}")
         print(f"Series ID: {series_id}")
         print(f"Episodes: {len(episode_ids)}")
+        print(f"Props: {props_count} (ADR-005 + ADR-006)")
 
         print("\n>>> NEXT STEPS:")
-        print("1. Add 'survival_thriller' genre to director.py GENRE_DOCTRINES")
-        print("2. Run: python -m app.scripts.generate_blackout_images")
+        print("1. Run: python -m app.scripts.generate_blackout_images")
+        print("2. Run: python -m app.scripts.generate_blackout_props (TODO)")
         print("3. Activate: UPDATE series SET status = 'active' WHERE slug = 'blackout'")
 
     finally:

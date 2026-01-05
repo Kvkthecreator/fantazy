@@ -41,13 +41,19 @@ NOIR_QUALITY = "masterpiece, best quality, highly detailed, dramatic lighting, a
 NOIR_NEGATIVE = "anime, cartoon, bright colors, cheerful, sunny, low quality, blurry, text, watermark"
 
 # =============================================================================
-# PROPS DEFINITIONS (ADR-005)
+# PROPS DEFINITIONS (ADR-005 + ADR-006 Option B)
 # =============================================================================
 # Props are canonical story objects with exact, immutable content.
 # They solve the "details don't stick" problem.
+#
+# ADR-006 Option B: Props as Progression Gates
+# - is_progression_gate: Marks props that gate content
+# - gates_episode_slug: Episode slug this prop unlocks (resolved at scaffold time)
+# - badge_label: Custom badge text for PropCard display
 
 EPISODE_PROPS = {
     # Episode 0: First Contact
+    # Goal: Establish the mystery, give player the inciting evidence
     0: [
         {
             "name": "The Anonymous Text",
@@ -59,9 +65,13 @@ EPISODE_PROPS = {
             "reveal_mode": "automatic",  # Player has this from the start
             "reveal_turn_hint": 0,
             "is_key_evidence": True,
+            "badge_label": "Inciting Evidence",  # Custom label
             "evidence_tags": ["inciting_incident", "accusation", "timestamp"],
             "display_order": 0,
             "image_prompt": "screenshot of text message on smartphone screen, dark mode interface, ominous message visible, cracked screen edge, noir lighting, dramatic shadows, no readable text",
+            # ADR-006: This prop gates Episode 1
+            "is_progression_gate": True,
+            "gates_episode_slug": "the-cracks",  # Must see this to unlock Ep 1
         },
         {
             "name": "The Yellow Note",
@@ -73,12 +83,15 @@ EPISODE_PROPS = {
             "reveal_mode": "character_initiated",
             "reveal_turn_hint": 3,
             "is_key_evidence": True,
+            "badge_label": "Key Evidence",
             "evidence_tags": ["handwriting", "warning", "apology", "suspect_unknown"],
             "display_order": 1,
             "image_prompt": "torn piece of yellow legal paper with handwritten cursive text, creased from folding, slight water stains, dramatic side lighting, on dark wood table, noir mystery aesthetic, no readable text",
+            "is_progression_gate": False,
         },
     ],
     # Episode 1: The Cracks
+    # Goal: Deepen suspicion, reveal what she was investigating
     1: [
         {
             "name": "Her Laptop (Missing)",
@@ -90,9 +103,13 @@ EPISODE_PROPS = {
             "reveal_mode": "player_requested",
             "reveal_turn_hint": 4,
             "is_key_evidence": True,
+            "badge_label": "Missing Item",
             "evidence_tags": ["missing_item", "investigation", "digital_evidence"],
             "display_order": 0,
             "image_prompt": "empty desk with laptop charging cable plugged into wall, dust outline where laptop was, dramatic window light through blinds, noir atmosphere, something missing",
+            # ADR-006: Finding this gates Episode 2
+            "is_progression_gate": True,
+            "gates_episode_slug": "the-trade",
         },
         {
             "name": "The Coffee Mug",
@@ -104,12 +121,15 @@ EPISODE_PROPS = {
             "reveal_mode": "character_initiated",
             "reveal_turn_hint": 2,
             "is_key_evidence": False,
+            "badge_label": None,  # No badge - atmospheric prop
             "evidence_tags": ["personal_item", "timeline", "presence"],
             "display_order": 1,
             "image_prompt": "white coffee mug with lipstick mark on rim, cold coffee inside, on kitchen counter, afternoon light through window, abandoned feeling, noir photography",
+            "is_progression_gate": False,
         },
     ],
     # Episode 2: The Trade
+    # Goal: Stakes escalate, player becomes invested
     2: [
         {
             "name": "The Envelope",
@@ -121,12 +141,17 @@ EPISODE_PROPS = {
             "reveal_mode": "character_initiated",
             "reveal_turn_hint": 5,
             "is_key_evidence": True,
+            "badge_label": "Critical Intel",  # Higher stakes language
             "evidence_tags": ["investigation", "financial", "suspect_meridian", "photos"],
             "display_order": 0,
             "image_prompt": "sealed manila envelope on car hood in parking garage, harsh fluorescent light from above, concrete pillars in shadow, noir thriller aesthetic, something dangerous inside",
+            # ADR-006: The envelope gates the finale
+            "is_progression_gate": True,
+            "gates_episode_slug": "the-truth",
         },
     ],
     # Episode 3: The Truth
+    # Goal: Revelation, closure or cliffhanger
     3: [
         {
             "name": "Security Footage",
@@ -138,9 +163,11 @@ EPISODE_PROPS = {
             "reveal_mode": "character_initiated",
             "reveal_turn_hint": 1,
             "is_key_evidence": True,
+            "badge_label": "Final Evidence",
             "evidence_tags": ["video", "timestamp_1047", "suspect_revealed", "accomplice_or_victim"],
             "display_order": 0,
             "image_prompt": "grainy security camera footage on monitor screen, train station platform visible, two figures in frame, timestamp visible, multiple monitors in security office, harsh fluorescent light, noir thriller",
+            "is_progression_gate": False,  # Final episode - no gate needed
         },
     ],
 }
@@ -593,21 +620,27 @@ async def create_episodes(db: Database, series_id: str, character_id: str) -> li
     return episode_ids
 
 
-async def create_props(db: Database, episode_ids: list) -> int:
-    """Create props for episodes (ADR-005). Returns count of props created."""
-    print("\n[5/5] Creating props (ADR-005)...")
+async def create_props(db: Database, series_id: str, episode_ids: list) -> int:
+    """Create props for episodes (ADR-005 + ADR-006 Option B).
+
+    Returns count of props created.
+    """
+    print("\n[5/5] Creating props (ADR-005 + ADR-006 Option B)...")
 
     # Get episode_number -> episode_id mapping
     episode_map = {}
+    episode_slug_map = {}  # slug -> id for gating resolution
     for ep_id in episode_ids:
         row = await db.fetch_one(
-            "SELECT episode_number FROM episode_templates WHERE id = :id",
+            "SELECT episode_number, slug FROM episode_templates WHERE id = :id",
             {"id": ep_id}
         )
         if row:
             episode_map[row["episode_number"]] = ep_id
+            episode_slug_map[row["slug"]] = ep_id
 
     props_created = 0
+    progression_gates = 0
 
     for ep_num, props in EPISODE_PROPS.items():
         ep_id = episode_map.get(ep_num)
@@ -628,21 +661,29 @@ async def create_props(db: Database, episode_ids: list) -> int:
 
             prop_id = str(uuid.uuid4())
 
+            # ADR-006: Resolve gates_episode_slug to gates_episode_id
+            gates_episode_id = None
+            gates_slug = prop.get("gates_episode_slug")
+            if gates_slug and gates_slug in episode_slug_map:
+                gates_episode_id = episode_slug_map[gates_slug]
+
             await db.execute("""
                 INSERT INTO props (
                     id, episode_template_id,
                     name, slug, prop_type, description,
                     content, content_format,
                     reveal_mode, reveal_turn_hint,
-                    is_key_evidence, evidence_tags,
-                    display_order, image_prompt
+                    is_key_evidence, badge_label, evidence_tags,
+                    display_order, image_prompt,
+                    is_progression_gate, gates_episode_id
                 ) VALUES (
                     :id, :episode_template_id,
                     :name, :slug, :prop_type, :description,
                     :content, :content_format,
                     :reveal_mode, :reveal_turn_hint,
-                    :is_key_evidence, CAST(:evidence_tags AS jsonb),
-                    :display_order, :image_prompt
+                    :is_key_evidence, :badge_label, CAST(:evidence_tags AS jsonb),
+                    :display_order, :image_prompt,
+                    :is_progression_gate, :gates_episode_id
                 )
             """, {
                 "id": prop_id,
@@ -656,14 +697,27 @@ async def create_props(db: Database, episode_ids: list) -> int:
                 "reveal_mode": prop.get("reveal_mode", "character_initiated"),
                 "reveal_turn_hint": prop.get("reveal_turn_hint"),
                 "is_key_evidence": prop.get("is_key_evidence", False),
+                "badge_label": prop.get("badge_label"),
                 "evidence_tags": json.dumps(prop.get("evidence_tags", [])),
                 "display_order": prop.get("display_order", 0),
                 "image_prompt": prop.get("image_prompt"),
+                # ADR-006 Option B fields
+                "is_progression_gate": prop.get("is_progression_gate", False),
+                "gates_episode_id": gates_episode_id,
             })
 
             props_created += 1
-            evidence_marker = " [KEY]" if prop.get("is_key_evidence") else ""
-            print(f"  - Ep {ep_num}: {prop['name']} ({prop['prop_type']}){evidence_marker}: created")
+            markers = []
+            if prop.get("is_key_evidence"):
+                markers.append("KEY")
+            if prop.get("is_progression_gate"):
+                markers.append("GATE")
+                progression_gates += 1
+            marker_str = f" [{','.join(markers)}]" if markers else ""
+            print(f"  - Ep {ep_num}: {prop['name']} ({prop['prop_type']}){marker_str}: created")
+
+    if progression_gates > 0:
+        print(f"\n  ADR-006: {progression_gates} progression gate props created")
 
     return props_created
 
@@ -681,6 +735,12 @@ async def scaffold_all(dry_run: bool = False):
     # Count props
     total_props = sum(len(props) for props in EPISODE_PROPS.values())
 
+    # Count progression gates (ADR-006)
+    total_gates = sum(
+        1 for props in EPISODE_PROPS.values()
+        for p in props if p.get("is_progression_gate")
+    )
+
     if dry_run:
         print("\n[DRY RUN] Would create:")
         print(f"  - 1 character (Daniel)")
@@ -688,13 +748,20 @@ async def scaffold_all(dry_run: bool = False):
         print(f"  - 1 series (The Last Message)")
         print(f"  - {len(EPISODES)} episode templates")
         print(f"  - {total_props} props (ADR-005)")
+        print(f"  - {total_gates} progression gates (ADR-006 Option B)")
         print("\nEpisode Arc:")
         for ep in EPISODES:
             print(f"  - Ep {ep['episode_number']}: {ep['title']} ({ep['episode_type']})")
             print(f"    Dramatic Question: {ep['dramatic_question']}")
             props = EPISODE_PROPS.get(ep['episode_number'], [])
             if props:
-                print(f"    Props: {', '.join(p['name'] for p in props)}")
+                prop_strs = []
+                for p in props:
+                    name = p['name']
+                    if p.get('is_progression_gate'):
+                        name += f" → gates '{p.get('gates_episode_slug')}'"
+                    prop_strs.append(name)
+                print(f"    Props: {', '.join(prop_strs)}")
         return
 
     db = Database(DATABASE_URL)
@@ -710,7 +777,7 @@ async def scaffold_all(dry_run: bool = False):
         kit_id = await create_avatar_kit(db, character_id, world_id)
         series_id = await create_series(db, world_id, character_id)
         episode_ids = await create_episodes(db, series_id, character_id)
-        props_count = await create_props(db, episode_ids)
+        props_count = await create_props(db, series_id, episode_ids)
 
         # Summary
         print("\n" + "=" * 60)
