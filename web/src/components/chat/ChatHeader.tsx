@@ -171,8 +171,8 @@ export function ChatHeader({
             </button>
           )}
 
-          {/* ADR-006: Items button - only shows when props exist */}
-          {revealedProps.length > 0 && onItemsClick && (
+          {/* ADR-006: Items button - shows in series context (even at 0 for anticipation) */}
+          {isSeriesContext && onItemsClick && (
             <button
               onClick={onItemsClick}
               className={cn(
