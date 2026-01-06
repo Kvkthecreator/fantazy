@@ -24,6 +24,23 @@ interface VisualPendingState {
   sparks_deducted: number;
 }
 
+// ADR-005: Prop with reveal timestamp for timeline ordering
+// Explicitly define all fields to avoid TypeScript inference issues
+export interface RevealedProp {
+  id: string;
+  name: string;
+  slug: string;
+  prop_type: "document" | "photo" | "object" | "recording" | "digital";
+  description: string;
+  content: string | null;
+  content_format: string | null;
+  image_url: string | null;
+  is_key_evidence: boolean;
+  evidence_tags: string[];
+  badge_label: string | null;
+  revealed_at: string;  // ISO timestamp for timeline ordering
+}
+
 interface UseChatOptions {
   characterId: string;
   episodeTemplateId?: string;
@@ -55,8 +72,8 @@ interface UseChatReturn {
   visualPending: VisualPendingState | null;
   instructionCards: string[];  // Accumulated instruction cards for session
   needsSparks: boolean;
-  // ADR-005: Props revealed this session
-  revealedProps: StreamPropRevealEvent["prop"][];
+  // ADR-005: Props revealed this session (with timestamps for timeline)
+  revealedProps: RevealedProp[];
   // Actions
   sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
@@ -99,8 +116,8 @@ export function useChat({
   const [visualPending, setVisualPending] = useState<VisualPendingState | null>(null);
   const [instructionCards, setInstructionCards] = useState<string[]>([]);
   const [needsSparks, setNeedsSparks] = useState(false);
-  // ADR-005: Props revealed this session
-  const [revealedProps, setRevealedProps] = useState<StreamPropRevealEvent["prop"][]>([]);
+  // ADR-005: Props revealed this session (with timestamps for timeline ordering)
+  const [revealedProps, setRevealedProps] = useState<RevealedProp[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -271,7 +288,12 @@ export function useChat({
           onNeedsSparksRef.current?.(event);
         } else if (event.type === "prop_reveal") {
           // ADR-005: Prop revealed (automatic or character-initiated)
-          setRevealedProps((prev) => [...prev, event.prop]);
+          // Add timestamp for timeline ordering in chat
+          const propWithTimestamp: RevealedProp = {
+            ...event.prop,
+            revealed_at: new Date().toISOString(),
+          };
+          setRevealedProps((prev) => [...prev, propWithTimestamp]);
           onPropRevealRef.current?.(event);
         } else if (event.type === "episode_complete" || event.type === "next_episode_suggestion") {
           // Director suggests moving to next episode (v2.6: decoupled from "completion")

@@ -7,14 +7,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { Character, EpisodeTemplate, StreamDirectorState } from "@/types";
-
-// Minimal prop data for Evidence button display
-interface PropData {
-  id: string;
-  name: string;
-  is_key_evidence: boolean;
-  badge_label?: string | null;
-}
+import type { RevealedProp } from "@/hooks/useChat";
 
 interface ChatHeaderProps {
   character: Character;
@@ -34,7 +27,7 @@ interface ChatHeaderProps {
   seriesTitle?: string | null;  // ADR-004: Series title for multi-character support
   hasBackground?: boolean;
   // ADR-006: Items drawer integration
-  revealedProps?: PropData[];
+  revealedProps?: RevealedProp[];
   onItemsClick?: () => void;
   hasNewProp?: boolean;
 }

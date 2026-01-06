@@ -3,28 +3,11 @@
 import { useState } from "react";
 import { FileText, Camera, Package, Mic, Smartphone, AlertTriangle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { RevealedProp } from "@/hooks/useChat";
 import type { PropType } from "@/types";
 
-/**
- * Minimal prop data needed for display.
- * ADR-005: SSE events send a subset of SessionProp fields.
- */
-interface PropCardData {
-  id: string;
-  name: string;
-  slug: string;
-  prop_type: PropType;
-  description: string;
-  content: string | null;
-  content_format: string | null;
-  image_url: string | null;
-  is_key_evidence: boolean;
-  evidence_tags: string[];
-  badge_label?: string | null;  // Custom badge text, null/undefined = use default
-}
-
 interface PropCardProps {
-  prop: PropCardData;
+  prop: RevealedProp;
   hasBackground?: boolean;
   onReveal?: () => void;
 }

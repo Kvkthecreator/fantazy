@@ -6,28 +6,10 @@ import { X, FileSearch, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PropCard } from "./PropCard";
 import { cn } from "@/lib/utils";
-import type { PropType } from "@/types";
-
-/**
- * Minimal prop data needed for display.
- * ADR-005: SSE events send a subset of SessionProp fields.
- */
-interface PropData {
-  id: string;
-  name: string;
-  slug: string;
-  prop_type: PropType;
-  description: string;
-  content: string | null;
-  content_format: string | null;
-  image_url: string | null;
-  is_key_evidence: boolean;
-  evidence_tags: string[];
-  badge_label?: string | null;
-}
+import type { RevealedProp } from "@/hooks/useChat";
 
 interface EvidenceDrawerProps {
-  props: PropData[];
+  props: RevealedProp[];
   isOpen: boolean;
   onClose: () => void;
   hasBackground?: boolean;

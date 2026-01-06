@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useMemo, useState, useCallback } from "react";
-import { useChat } from "@/hooks/useChat";
+import { useChat, RevealedProp } from "@/hooks/useChat";
 import { useCharacter } from "@/hooks/useCharacters";
 import { useScenes } from "@/hooks/useScenes";
 import { ChatHeader } from "./ChatHeader";
@@ -11,6 +11,7 @@ import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { InstructionCard } from "./InstructionCard";
 import { ItemsDrawer } from "./ItemsDrawer";
+import { PropCard } from "./PropCard";
 import { EpisodeOpeningCard } from "./EpisodeOpeningCard";
 import { RateLimitModal } from "./RateLimitModal";
 import { InlineCompletionCard } from "./InlineCompletionCard";
@@ -27,10 +28,11 @@ interface ChatContainerProps {
   episodeTemplateId?: string;
 }
 
-// A chat item can be a message, scene card, or inline card
+// A chat item can be a message, scene card, prop card, or inline card
 type ChatItem =
   | { type: "message"; data: Message }
   | { type: "scene"; data: EpisodeImage }
+  | { type: "prop"; data: RevealedProp }
   | { type: "completion"; id: string }
   | { type: "suggestion"; id: string };
 
@@ -261,7 +263,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     };
   }, [seriesEpisodes, episodeTemplate]);
 
-  // Merge messages, scenes, and inline cards into a single timeline
+  // Merge messages, scenes, props, and inline cards into a single timeline
   const chatItems = useMemo((): ChatItem[] => {
     const items: ChatItem[] = [];
 
@@ -275,17 +277,32 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
       items.push({ type: "scene", data: scene });
     }
 
-    // Sort by created_at
+    // Add all revealed props (inline in chat timeline)
+    for (const prop of revealedProps) {
+      items.push({ type: "prop", data: prop });
+    }
+
+    // Sort by timestamp (created_at for messages/scenes, revealed_at for props)
     items.sort((a, b) => {
       if (a.type === "completion" || a.type === "suggestion") return 1;
       if (b.type === "completion" || b.type === "suggestion") return -1;
-      const timeA = new Date((a.data as Message | EpisodeImage).created_at).getTime();
-      const timeB = new Date((b.data as Message | EpisodeImage).created_at).getTime();
-      return timeA - timeB;
+
+      const getTime = (item: ChatItem): number => {
+        if (item.type === "prop") {
+          return new Date(item.data.revealed_at).getTime();
+        } else if (item.type === "message") {
+          return new Date(item.data.created_at).getTime();
+        } else if (item.type === "scene") {
+          return new Date(item.data.created_at).getTime();
+        }
+        return 0;
+      };
+
+      return getTime(a) - getTime(b);
     });
 
     return items;
-  }, [messages, scenes]);
+  }, [messages, scenes, revealedProps]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -399,7 +416,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                 />
               )}
 
-              {/* Chat items (messages + scenes) */}
+              {/* Chat items (messages + scenes + props) */}
               {chatItems.map((item) =>
                 item.type === "message" ? (
                   <MessageBubble
@@ -414,6 +431,12 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                   <SceneCard
                     key={`scene-${item.data.id}`}
                     scene={item.data}
+                  />
+                ) : item.type === "prop" ? (
+                  <PropCard
+                    key={`prop-${item.data.id}`}
+                    prop={item.data}
+                    hasBackground={hasBackground}
                   />
                 ) : null
               )}
