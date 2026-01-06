@@ -125,6 +125,7 @@ export default async function Image() {
           </div>
           <div
             style={{
+              display: "flex",
               padding: "12px 20px",
               backgroundColor: "rgba(168, 85, 247, 0.15)",
               borderRadius: 9999,
@@ -136,6 +137,7 @@ export default async function Image() {
           </div>
           <div
             style={{
+              display: "flex",
               padding: "12px 20px",
               backgroundColor: "rgba(168, 85, 247, 0.15)",
               borderRadius: 9999,
