@@ -3,30 +3,6 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
-interface MockMessage {
-  role: "user" | "character";
-  content: string;
-}
-
-const PREVIEW_MESSAGES: MockMessage[] = [
-  {
-    role: "character",
-    content: "You're not supposed to be back here.",
-  },
-  {
-    role: "user",
-    content: "Neither are you.",
-  },
-  {
-    role: "character",
-    content: "...",
-  },
-  {
-    role: "character",
-    content: "Fair point. You're not going to post about this, are you?",
-  },
-];
-
 interface ChatPreviewProps {
   characterName?: string;
   characterAvatarUrl?: string;
@@ -39,11 +15,13 @@ export function ChatPreview({
   className,
 }: ChatPreviewProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(characterAvatarUrl || null);
+  const [sceneUrl, setSceneUrl] = useState<string | null>(null);
 
-  // Fetch Min Soo's avatar from API if not provided
+  // Fetch Min Soo's avatar and K-pop series cover from API
   useEffect(() => {
     if (characterAvatarUrl) return;
 
+    // Fetch character avatar
     fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://api.ep-0.com"}/characters?limit=50`)
       .then((res) => res.json())
       .then((characters) => {
@@ -52,9 +30,18 @@ export function ChatPreview({
           setAvatarUrl(minSoo.avatar_url);
         }
       })
-      .catch(() => {
-        // Silently fail - fallback will show
-      });
+      .catch(() => {});
+
+    // Fetch series cover for scene image
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://api.ep-0.com"}/series?featured=true&limit=6`)
+      .then((res) => res.json())
+      .then((series) => {
+        const kpopSeries = series.find((s: { slug: string }) => s.slug === "k-pop-boy-idol");
+        if (kpopSeries?.cover_image_url) {
+          setSceneUrl(kpopSeries.cover_image_url);
+        }
+      })
+      .catch(() => {});
   }, [characterAvatarUrl]);
 
   return (
@@ -92,26 +79,51 @@ export function ChatPreview({
 
       {/* Messages */}
       <div className="flex flex-col gap-3 p-4">
-        {PREVIEW_MESSAGES.map((msg, i) => (
-          <div
-            key={i}
-            className={cn(
-              "flex",
-              msg.role === "user" ? "justify-end" : "justify-start"
-            )}
-          >
-            <div
-              className={cn(
-                "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm",
-                msg.role === "user"
-                  ? "rounded-tr-md bg-primary text-primary-foreground"
-                  : "rounded-tl-md bg-muted text-foreground"
-              )}
-            >
-              {msg.content}
-            </div>
+        {/* Character message */}
+        <div className="flex justify-start">
+          <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-muted px-4 py-2.5 text-sm text-foreground">
+            You&apos;re not supposed to be back here.
           </div>
-        ))}
+        </div>
+
+        {/* User message */}
+        <div className="flex justify-end">
+          <div className="max-w-[80%] rounded-2xl rounded-tr-md bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+            Neither are you.
+          </div>
+        </div>
+
+        {/* Scene image - replaces the "..." */}
+        <div className="flex justify-start">
+          <div className="max-w-[85%] overflow-hidden rounded-2xl rounded-tl-md">
+            {sceneUrl ? (
+              <img
+                src={sceneUrl}
+                alt="Scene"
+                className="h-24 w-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.parentElement!.innerHTML = `
+                    <div class="h-24 w-full bg-gradient-to-br from-purple-900 via-pink-900 to-slate-900 flex items-center justify-center">
+                      <span class="text-white/60 text-xs italic">The neon lights flicker overhead...</span>
+                    </div>
+                  `;
+                }}
+              />
+            ) : (
+              <div className="h-24 w-48 bg-gradient-to-br from-purple-900 via-pink-900 to-slate-900 flex items-center justify-center">
+                <span className="text-white/60 text-xs italic px-3 text-center">The neon lights flicker overhead...</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Character follow-up */}
+        <div className="flex justify-start">
+          <div className="max-w-[80%] rounded-2xl rounded-tl-md bg-muted px-4 py-2.5 text-sm text-foreground">
+            Fair point. You&apos;re not going to post about this, are you?
+          </div>
+        </div>
 
         {/* Typing indicator */}
         <div className="flex justify-start">
