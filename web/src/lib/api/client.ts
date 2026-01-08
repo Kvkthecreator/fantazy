@@ -1104,6 +1104,11 @@ export const api = {
       return response.json() as Promise<import("@/types").QuizEvaluateResponse>;
     },
   },
+
+  // Admin endpoints
+  admin: {
+    stats: () => request<import("@/types").AdminStatsResponse>("/admin/stats"),
+  },
 };
 
 export default api;

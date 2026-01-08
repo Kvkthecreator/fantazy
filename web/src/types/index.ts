@@ -1647,3 +1647,69 @@ export interface PropUpdate {
   evidence_tags?: string[];
   display_order?: number;
 }
+
+// =============================================================================
+// Admin Dashboard Types
+// =============================================================================
+
+/**
+ * Overview stats for admin dashboard
+ */
+export interface AdminOverviewStats {
+  total_users: number;
+  users_7d: number;
+  users_30d: number;
+  premium_users: number;
+  total_revenue_cents: number;
+  total_messages: number;
+  total_sessions: number;
+}
+
+/**
+ * Daily signup data point
+ */
+export interface AdminSignupDay {
+  date: string;
+  count: number;
+}
+
+/**
+ * User engagement data for admin table
+ */
+export interface AdminUserEngagement {
+  id: string;
+  display_name: string;
+  email?: string | null;
+  subscription_status: string;
+  spark_balance: number;
+  messages_sent_count: number;
+  flux_generations_used: number;
+  session_count: number;
+  engagement_count: number;
+  created_at: string;
+  last_active?: string | null;
+}
+
+/**
+ * Purchase record for admin
+ */
+export interface AdminPurchase {
+  id: string;
+  user_id: string;
+  user_name?: string | null;
+  pack_name: string;
+  sparks_amount: number;
+  price_cents: number;
+  status: string;
+  created_at: string;
+}
+
+/**
+ * Full admin stats response
+ */
+export interface AdminStatsResponse {
+  overview: AdminOverviewStats;
+  signups_by_day: AdminSignupDay[];
+  users: AdminUserEngagement[];
+  purchases: AdminPurchase[];
+}

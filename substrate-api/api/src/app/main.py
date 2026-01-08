@@ -18,6 +18,7 @@ from middleware.security_headers import SecurityHeadersMiddleware
 
 # Routes
 from app.routes import (
+    admin,
     avatars,
     characters,
     conversation,
@@ -184,6 +185,7 @@ app.include_router(subscription.webhook_router, tags=["Webhooks"])
 app.include_router(credits.router, tags=["Credits"])
 app.include_router(credits.topup_router, tags=["Top-Up"])
 app.include_router(studio.router, tags=["Studio"])
+app.include_router(admin.router, tags=["Admin"])
 app.include_router(games.router, tags=["Games"])
 app.include_router(webhooks.router, tags=["Webhooks"])
 

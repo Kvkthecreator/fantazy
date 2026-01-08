@@ -38,7 +38,8 @@ export async function updateSession(request: NextRequest) {
   // Protected routes - redirect to login if not authenticated
   const isProtectedRoute =
     path.startsWith('/dashboard') ||
-    path.startsWith('/studio')
+    path.startsWith('/studio') ||
+    path.startsWith('/admin')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
                       request.nextUrl.pathname.startsWith('/signup')
 
@@ -48,8 +49,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Internal-only routes
-  if (path.startsWith('/studio') && user && !isInternalEmail(user.email)) {
+  // Internal-only routes (studio and admin)
+  const isInternalRoute = path.startsWith('/studio') || path.startsWith('/admin')
+  if (isInternalRoute && user && !isInternalEmail(user.email)) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)
