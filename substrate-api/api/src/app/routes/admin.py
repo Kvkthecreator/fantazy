@@ -84,19 +84,17 @@ class AdminStatsResponse(BaseModel):
 
 async def verify_admin_access(request: Request, user_id: UUID, db) -> str:
     """Verify the requesting user has admin access. Returns email."""
-    # Get user email from auth
-    user_email = getattr(request.state, "user_email", None)
+    # Get user email from JWT claims (stored by auth middleware)
+    jwt_payload = getattr(request.state, "jwt_payload", None)
+    user_email = jwt_payload.get("email") if jwt_payload else None
 
-    # If not in state, fetch from database
     if not user_email:
-        result = await db.fetchrow(
-            "SELECT email FROM auth.users WHERE id = $1",
-            user_id
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required - email not available in token"
         )
-        if result:
-            user_email = result["email"]
 
-    if not user_email or not is_admin_email(user_email):
+    if not is_admin_email(user_email):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
@@ -127,14 +125,17 @@ async def get_admin_stats(
     overview_query = """
     SELECT
         (SELECT COUNT(*) FROM users) as total_users,
-        (SELECT COUNT(*) FROM users WHERE created_at > $1) as users_7d,
-        (SELECT COUNT(*) FROM users WHERE created_at > $2) as users_30d,
+        (SELECT COUNT(*) FROM users WHERE created_at > :seven_days_ago) as users_7d,
+        (SELECT COUNT(*) FROM users WHERE created_at > :thirty_days_ago) as users_30d,
         (SELECT COUNT(*) FROM users WHERE subscription_status = 'premium') as premium_users,
         (SELECT COALESCE(SUM(price_cents), 0) FROM topup_purchases WHERE status = 'completed') as total_revenue_cents,
         (SELECT COALESCE(SUM(messages_sent_count), 0) FROM users) as total_messages,
         (SELECT COUNT(*) FROM sessions) as total_sessions
     """
-    overview_row = await db.fetchrow(overview_query, seven_days_ago, thirty_days_ago)
+    overview_row = await db.fetch_one(overview_query, {
+        "seven_days_ago": seven_days_ago,
+        "thirty_days_ago": thirty_days_ago
+    })
 
     overview = OverviewStats(
         total_users=overview_row["total_users"],
@@ -152,11 +153,11 @@ async def get_admin_stats(
         DATE(created_at) as signup_date,
         COUNT(*) as count
     FROM users
-    WHERE created_at > $1
+    WHERE created_at > :thirty_days_ago
     GROUP BY DATE(created_at)
     ORDER BY signup_date ASC
     """
-    signups_rows = await db.fetch(signups_query, thirty_days_ago)
+    signups_rows = await db.fetch_all(signups_query, {"thirty_days_ago": thirty_days_ago})
     signups_by_day = [
         SignupDay(date=str(row["signup_date"]), count=row["count"])
         for row in signups_rows
@@ -179,7 +180,7 @@ async def get_admin_stats(
     ORDER BY u.created_at DESC
     LIMIT 100
     """
-    users_rows = await db.fetch(users_query)
+    users_rows = await db.fetch_all(users_query)
     users = [
         UserEngagement(
             id=str(row["id"]),
@@ -212,7 +213,7 @@ async def get_admin_stats(
     ORDER BY p.created_at DESC
     LIMIT 20
     """
-    purchases_rows = await db.fetch(purchases_query)
+    purchases_rows = await db.fetch_all(purchases_query)
     purchases = [
         Purchase(
             id=str(row["id"]),
