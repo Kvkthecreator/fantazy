@@ -9,6 +9,18 @@ export default function TermsPage() {
         our acceptable use guidelines and any platform policies that apply.
       </p>
 
+      <h2 className="mt-8 text-lg font-medium">Content Standards</h2>
+      <p className="mt-4 text-muted-foreground">
+        ep-0 is a safe-for-work (SFW) platform. We do not permit sexually explicit, pornographic, or
+        NSFW (Not Safe For Work) content of any kind.
+      </p>
+      <ul className="mt-4 list-disc space-y-2 pl-5 text-muted-foreground">
+        <li>All platform-generated content (characters, dialogue, images, videos) is SFW only.</li>
+        <li>Users may not upload, share, or attempt to generate explicit or adult content.</li>
+        <li>Romantic and flirtatious content is permitted within tasteful, non-explicit boundaries.</li>
+        <li>Violations of this policy will result in immediate account suspension or termination.</li>
+      </ul>
+
       <h2 className="mt-8 text-lg font-medium">General Use</h2>
       <ul className="mt-4 list-disc space-y-2 pl-5 text-muted-foreground">
         <li>Use ep-0 for personal, non-commercial purposes unless otherwise approved.</li>
