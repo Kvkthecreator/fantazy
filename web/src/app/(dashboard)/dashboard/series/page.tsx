@@ -1,34 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BookOpen, Clock, ChevronRight, MoreVertical, RotateCcw, Sparkles } from "lucide-react";
+import { BookOpen, Clock, Play, MoreVertical, RotateCcw, Sparkles, Heart, Search, Skull } from "lucide-react";
 import { ResetSeriesModal } from "@/components/series/ResetSeriesModal";
 import type { ContinueWatchingItem } from "@/types";
 
-// Genre display labels
-const GENRE_LABELS: Record<string, string> = {
-  slice_of_life: "Slice of Life",
-  romance: "Romance",
-  drama: "Drama",
-  comedy: "Comedy",
-  fantasy: "Fantasy",
-  mystery: "Mystery",
-  thriller: "Thriller",
-  sci_fi: "Sci-Fi",
-  horror: "Horror",
-  action: "Action",
+// Genre display config (matching discover/dashboard)
+const GENRE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
+  romance: { label: "Romance", icon: <Heart className="h-5 w-5 text-pink-500" /> },
+  dark_romance: { label: "Dark Romance", icon: <Heart className="h-5 w-5 text-rose-700" /> },
+  romantic_tension: { label: "Romantic Tension", icon: <Heart className="h-5 w-5 text-red-400" /> },
+  enemies_to_lovers: { label: "Enemies to Lovers", icon: <Heart className="h-5 w-5 text-orange-500" /> },
+  mystery: { label: "Mystery", icon: <Search className="h-5 w-5 text-indigo-500" /> },
+  survival_thriller: { label: "Survival Thriller", icon: <Skull className="h-5 w-5 text-slate-500" /> },
+  otome_isekai: { label: "Otome Isekai", icon: <Sparkles className="h-5 w-5 text-violet-500" /> },
+  shoujo: { label: "Shoujo", icon: <Heart className="h-5 w-5 text-pink-400" /> },
 };
 
 export default function MySeriesPage() {
@@ -55,33 +54,61 @@ export default function MySeriesPage() {
     loadData();
   }, []);
 
+  // Group by genre
+  const itemsByGenre = useMemo(() => {
+    const grouped: Record<string, ContinueWatchingItem[]> = {};
+    items.forEach((item) => {
+      const genre = item.series_genre || "other";
+      if (!grouped[genre]) grouped[genre] = [];
+      grouped[genre].push(item);
+    });
+    return grouped;
+  }, [items]);
+
+  // Sort genres by item count
+  const sortedGenres = useMemo(() => {
+    return Object.entries(itemsByGenre)
+      .sort(([, a], [, b]) => b.length - a.length)
+      .map(([genre]) => genre);
+  }, [itemsByGenre]);
+
   const handleResetComplete = () => {
-    // Remove the reset series from the list
     setItems((prev) => prev.filter((item) => item.series_id !== resetModal.seriesId));
   };
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="space-y-2">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-64" />
         </div>
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
+          <Skeleton className="h-6 w-32" />
+          <div className="flex gap-3 overflow-hidden">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="flex-shrink-0 w-[300px] h-28 rounded-xl" />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-32" />
+          <div className="flex gap-3 overflow-hidden">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="flex-shrink-0 w-[300px] h-28 rounded-xl" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">My Series</h1>
         <p className="text-muted-foreground">
-          Continue your episode progress.
+          {items.length} {items.length === 1 ? "series" : "series"} in progress
         </p>
       </div>
 
@@ -96,142 +123,37 @@ export default function MySeriesPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {/* ADR-004: Key by (series_id, character_id) for distinct playthroughs */}
-          {items.map((item) => (
-            <Card
-              key={`${item.series_id}-${item.character_id}`}
-              className="cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md group overflow-hidden"
-            >
-              <CardContent className="p-0">
-                <div className="flex">
-                  {/* Series cover image - clickable */}
-                  <Link
-                    href={`/series/${item.series_slug}`}
-                    className="relative h-24 w-32 sm:w-40 shrink-0 overflow-hidden"
+        <div className="space-y-8">
+          {sortedGenres.map((genre) => {
+            const genreItems = itemsByGenre[genre];
+            const config = GENRE_CONFIG[genre] || { label: genre, icon: <BookOpen className="h-5 w-5" /> };
+
+            return (
+              <ScrollRow
+                key={genre}
+                title={config.label}
+                icon={config.icon}
+              >
+                {genreItems.map((item) => (
+                  <div
+                    key={`${item.series_id}-${item.character_id}`}
+                    className="flex-shrink-0 snap-start w-[300px] sm:w-[340px]"
                   >
-                    {item.series_cover_image_url ? (
-                      <img
-                        src={item.series_cover_image_url}
-                        alt={item.series_title}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="h-full w-full bg-gradient-to-br from-blue-600/40 via-purple-500/30 to-pink-500/20" />
-                    )}
-                    {/* Progress bar overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
-                      <div
-                        className="h-full bg-primary"
-                        style={{
-                          width: `${Math.min((item.current_episode_number / item.total_episodes) * 100, 100)}%`,
-                        }}
-                      />
-                    </div>
-                    {/* Character avatar overlay (ADR-004) */}
-                    <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full pl-0.5 pr-2 py-0.5">
-                      <div className="h-5 w-5 rounded-full overflow-hidden bg-muted flex items-center justify-center shrink-0">
-                        {item.character_avatar_url ? (
-                          <img
-                            src={item.character_avatar_url}
-                            alt={item.character_name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="text-[8px] font-medium text-white/80">
-                            {item.character_name.slice(0, 2).toUpperCase()}
-                          </span>
-                        )}
-                      </div>
-                      {item.character_is_user_created && (
-                        <Sparkles className="h-2.5 w-2.5 text-yellow-400" />
-                      )}
-                    </div>
-                  </Link>
-
-                  {/* Content - clickable */}
-                  <Link
-                    href={`/series/${item.series_slug}`}
-                    className="flex-1 p-4 flex items-center gap-4"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <h3 className="truncate text-base font-semibold">
-                          {item.series_title}
-                        </h3>
-                        {item.series_genre && (
-                          <Badge
-                            variant="secondary"
-                            className="text-[10px] bg-primary/10 text-primary"
-                          >
-                            {GENRE_LABELS[item.series_genre] || item.series_genre}
-                          </Badge>
-                        )}
-                      </div>
-
-                      {/* Playing as (ADR-004) */}
-                      <p className="text-xs text-muted-foreground mb-1">
-                        Playing as <span className="font-medium">{item.character_name}</span>
-                      </p>
-
-                      <p className="text-sm text-muted-foreground line-clamp-1">
-                        Up next: Episode {item.current_episode_number} - {item.current_episode_title}
-                      </p>
-
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <BookOpen className="h-3 w-3" />
-                          {item.current_episode_number} of {item.total_episodes} episodes
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatRelativeTime(item.last_played_at)}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Arrow indicator */}
-                    <div className="shrink-0 opacity-50 group-hover:opacity-100 transition-opacity">
-                      <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  </Link>
-
-                  {/* Actions menu */}
-                  <div className="flex items-center pr-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setResetModal({
-                              open: true,
-                              seriesId: item.series_id,
-                              seriesTitle: item.series_title,
-                            });
-                          }}
-                        >
-                          <RotateCcw className="h-4 w-4 mr-2" />
-                          Reset Progress
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <SeriesCard
+                      item={item}
+                      onReset={() =>
+                        setResetModal({
+                          open: true,
+                          seriesId: item.series_id,
+                          seriesTitle: item.series_title,
+                        })
+                      }
+                    />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                ))}
+              </ScrollRow>
+            );
+          })}
         </div>
       )}
 
@@ -246,6 +168,126 @@ export default function MySeriesPage() {
   );
 }
 
+function SeriesCard({
+  item,
+  onReset,
+}: {
+  item: ContinueWatchingItem;
+  onReset: () => void;
+}) {
+  return (
+    <Card className="overflow-hidden hover:shadow-md transition-all group h-full">
+      <CardContent className="p-0">
+        <div className="flex h-full">
+          {/* Series cover image */}
+          <Link
+            href={`/series/${item.series_slug}`}
+            className="relative h-28 w-24 sm:w-28 shrink-0 overflow-hidden"
+          >
+            {item.series_cover_image_url ? (
+              <img
+                src={item.series_cover_image_url}
+                alt={item.series_title}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="h-full w-full bg-gradient-to-br from-blue-600/40 via-purple-500/30 to-pink-500/20" />
+            )}
+            {/* Progress bar overlay */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/30">
+              <div
+                className="h-full bg-primary"
+                style={{
+                  width: `${Math.min((item.current_episode_number / item.total_episodes) * 100, 100)}%`,
+                }}
+              />
+            </div>
+            {/* Character avatar overlay */}
+            <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-sm rounded-full pl-0.5 pr-1.5 py-0.5">
+              <div className="h-5 w-5 rounded-full overflow-hidden bg-muted flex items-center justify-center shrink-0">
+                {item.character_avatar_url ? (
+                  <img
+                    src={item.character_avatar_url}
+                    alt={item.character_name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <span className="text-[8px] font-medium text-white/80">
+                    {item.character_name.slice(0, 2).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              {item.character_is_user_created && (
+                <Sparkles className="h-2.5 w-2.5 text-yellow-400" />
+              )}
+            </div>
+          </Link>
+
+          {/* Content */}
+          <Link
+            href={`/series/${item.series_slug}`}
+            className="flex-1 p-3 flex flex-col justify-between min-w-0"
+          >
+            <div>
+              <h3 className="font-semibold text-sm truncate mb-0.5">
+                {item.series_title}
+              </h3>
+              <p className="text-xs text-muted-foreground truncate">
+                as {item.character_name}
+              </p>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground line-clamp-1">
+                Ep {item.current_episode_number}: {item.current_episode_title}
+              </p>
+              <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-0.5">
+                  <Play className="h-3 w-3" />
+                  {item.current_episode_number}/{item.total_episodes}
+                </span>
+                <span>•</span>
+                <span className="flex items-center gap-0.5">
+                  <Clock className="h-3 w-3" />
+                  {formatRelativeTime(item.last_played_at)}
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          {/* Actions */}
+          <div className="flex items-start p-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
+                >
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reset Progress
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function formatRelativeTime(dateString: string): string {
   const date = new Date(dateString);
   const now = new Date();
@@ -254,9 +296,9 @@ function formatRelativeTime(dateString: string): string {
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
 
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffMins < 1) return "now";
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays < 7) return `${diffDays}d`;
   return date.toLocaleDateString();
 }

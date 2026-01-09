@@ -6,6 +6,7 @@ import { api } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ImageOff, MessageCircle, Sparkles, MoreVertical, Download, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { ImageOff, MessageCircle, Sparkles, MoreVertical, Download, Trash2, ChevronDown, BookOpen, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SceneGalleryItem, RelationshipWithCharacter } from "@/types";
 
@@ -40,7 +41,6 @@ export default function GalleryPage() {
   const [relationships, setRelationships] = useState<RelationshipWithCharacter[]>([]);
   const [selectedCharacter, setSelectedCharacter] = useState<string>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("series");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<SceneGalleryItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -115,18 +115,6 @@ export default function GalleryPage() {
     });
   }, [scenes, groupBy]);
 
-  const toggleGroup = (key: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
   const handleDownload = async (scene: SceneGalleryItem) => {
     try {
       const response = await fetch(scene.image_url);
@@ -159,7 +147,7 @@ export default function GalleryPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-8">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
@@ -223,43 +211,53 @@ export default function GalleryPage() {
         <EmptyState hasRelationships={relationships.length > 0} />
       ) : (
         <div className="space-y-8">
-          {groupedScenes.map((group) => (
-            <div key={group.key}>
-              {/* Group header */}
-              {groupBy !== "none" && (
-                <button
-                  onClick={() => toggleGroup(group.key)}
-                  className="flex items-center gap-2 mb-4 hover:opacity-80 transition-opacity"
-                >
-                  {collapsedGroups.has(group.key) ? (
-                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                  )}
-                  <h2 className="text-lg font-semibold">{group.label}</h2>
-                  {group.sublabel && (
-                    <span className="text-sm text-muted-foreground">• {group.sublabel}</span>
-                  )}
-                  <span className="text-sm text-muted-foreground">({group.scenes.length})</span>
-                </button>
-              )}
+          {groupedScenes.map((group) => {
+            const icon = groupBy === "series"
+              ? <BookOpen className="h-5 w-5 text-primary" />
+              : groupBy === "character"
+              ? <Users className="h-5 w-5 text-primary" />
+              : null;
 
-              {/* Grid */}
-              {!collapsedGroups.has(group.key) && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            // For "none" mode, show flat grid
+            if (groupBy === "none") {
+              return (
+                <div key={group.key} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {group.scenes.map((scene) => (
                     <SceneCard
                       key={scene.image_id}
                       scene={scene}
                       onDownload={() => handleDownload(scene)}
                       onDelete={() => setDeleteTarget(scene)}
-                      showEpisode={groupBy === "series"}
+                      showEpisode={false}
                     />
                   ))}
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            }
+
+            // For grouped modes, use ScrollRow
+            return (
+              <ScrollRow
+                key={group.key}
+                title={group.label}
+                icon={icon}
+              >
+                {group.scenes.map((scene) => (
+                  <div
+                    key={scene.image_id}
+                    className="flex-shrink-0 snap-start w-[200px] sm:w-[240px]"
+                  >
+                    <SceneCard
+                      scene={scene}
+                      onDownload={() => handleDownload(scene)}
+                      onDelete={() => setDeleteTarget(scene)}
+                      showEpisode={groupBy === "series"}
+                    />
+                  </div>
+                ))}
+              </ScrollRow>
+            );
+          })}
         </div>
       )}
 
@@ -396,12 +394,23 @@ function EmptyState({ hasRelationships }: { hasRelationships: boolean }) {
 
 function ScenesGridSkeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-        <Card key={i} className="overflow-hidden">
-          <Skeleton className="aspect-square" />
-        </Card>
-      ))}
+    <div className="space-y-8">
+      <div className="space-y-3">
+        <Skeleton className="h-6 w-32" />
+        <div className="flex gap-3 overflow-hidden">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="flex-shrink-0 w-[200px] sm:w-[240px] aspect-square rounded-xl" />
+          ))}
+        </div>
+      </div>
+      <div className="space-y-3">
+        <Skeleton className="h-6 w-40" />
+        <div className="flex gap-3 overflow-hidden">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="flex-shrink-0 w-[200px] sm:w-[240px] aspect-square rounded-xl" />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

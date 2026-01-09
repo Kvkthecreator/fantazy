@@ -1,18 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { ScrollRow } from "@/components/ui/scroll-row";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MessageCircle, Clock, ChevronRight, MoreVertical, RotateCcw } from "lucide-react";
+import { MessageCircle, Clock, MoreVertical, RotateCcw, Zap, History } from "lucide-react";
 import { ResetChatModal } from "@/components/chat/ResetChatModal";
 import type { ChatItem } from "@/types";
 
@@ -45,33 +46,43 @@ export default function MyChatsPage() {
     setItems((prev) => prev.filter((item) => item.character_id !== resetModal.characterId));
   };
 
+  // Group by active vs inactive for scroll rows
+  const activeChats = useMemo(() => items.filter((item) => item.is_active), [items]);
+  const recentChats = useMemo(() => items.filter((item) => !item.is_active), [items]);
+
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         <div className="space-y-2">
           <Skeleton className="h-8 w-48" />
           <Skeleton className="h-4 w-64" />
         </div>
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
-          ))}
+          <Skeleton className="h-6 w-32" />
+          <div className="flex gap-3 overflow-hidden">
+            {[1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="flex-shrink-0 w-[300px] h-24 rounded-xl" />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-32" />
+          <div className="flex gap-3 overflow-hidden">
+            {[1, 2, 3].map((i) => (
+              <Skeleton key={i} className="flex-shrink-0 w-[300px] h-24 rounded-xl" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
-  // Group by active vs inactive
-  const activeChats = items.filter((item) => item.is_active);
-  const recentChats = items.filter((item) => !item.is_active);
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-8">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Just Chat</h1>
         <p className="text-muted-foreground">
-          Open conversations outside of story episodes. For story-based chats, visit{" "}
-          <Link href="/dashboard" className="text-primary hover:underline">Dashboard</Link>.
+          {items.length} open {items.length === 1 ? "conversation" : "conversations"}
         </p>
       </div>
 
@@ -92,14 +103,16 @@ export default function MyChatsPage() {
         <div className="space-y-8">
           {/* Active Chats */}
           {activeChats.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Active
-              </h2>
-              <div className="space-y-2">
-                {activeChats.map((item) => (
+            <ScrollRow
+              title="Active"
+              icon={<Zap className="h-5 w-5 text-green-500" />}
+            >
+              {activeChats.map((item) => (
+                <div
+                  key={item.session_id}
+                  className="flex-shrink-0 snap-start w-[300px] sm:w-[340px]"
+                >
                   <ChatCard
-                    key={item.session_id}
                     item={item}
                     onReset={() =>
                       setResetModal({
@@ -109,21 +122,23 @@ export default function MyChatsPage() {
                       })
                     }
                   />
-                ))}
-              </div>
-            </section>
+                </div>
+              ))}
+            </ScrollRow>
           )}
 
           {/* Recent Chats */}
           {recentChats.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Recent
-              </h2>
-              <div className="space-y-2">
-                {recentChats.map((item) => (
+            <ScrollRow
+              title="Recent"
+              icon={<History className="h-5 w-5 text-muted-foreground" />}
+            >
+              {recentChats.map((item) => (
+                <div
+                  key={item.session_id}
+                  className="flex-shrink-0 snap-start w-[300px] sm:w-[340px]"
+                >
                   <ChatCard
-                    key={item.session_id}
                     item={item}
                     onReset={() =>
                       setResetModal({
@@ -133,9 +148,9 @@ export default function MyChatsPage() {
                       })
                     }
                   />
-                ))}
-              </div>
-            </section>
+                </div>
+              ))}
+            </ScrollRow>
           )}
         </div>
       )}
@@ -161,49 +176,52 @@ function ChatCard({ item, onReset }: ChatCardProps) {
   const chatUrl = `/chat/${item.character_id}`;
 
   return (
-    <Card className="cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md group overflow-hidden">
+    <Card className="overflow-hidden hover:shadow-md transition-all group h-full">
       <CardContent className="p-0">
-        <div className="flex items-center gap-4 p-4">
-          {/* Character Avatar - clickable */}
-          <Link href={chatUrl} className="relative shrink-0">
+        <div className="flex h-full">
+          {/* Character Avatar - larger for visual impact */}
+          <Link
+            href={chatUrl}
+            className="relative h-24 w-20 sm:w-24 shrink-0 overflow-hidden"
+          >
             {item.character_avatar_url ? (
               <img
                 src={item.character_avatar_url}
                 alt={item.character_name}
-                className="h-12 w-12 rounded-full object-cover border-2 border-border"
+                className="h-full w-full object-cover"
               />
             ) : (
-              <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary/50 to-accent/50 flex items-center justify-center text-lg font-semibold text-white">
+              <div className="h-full w-full bg-gradient-to-br from-primary/50 to-accent/50 flex items-center justify-center text-2xl font-semibold text-white">
                 {item.character_name[0]}
               </div>
             )}
             {/* Active indicator */}
             {item.is_active && (
-              <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-green-500 border-2 border-background" />
+              <div className="absolute top-1.5 right-1.5 h-3 w-3 rounded-full bg-green-500 border-2 border-background" />
             )}
           </Link>
 
-          {/* Content - clickable */}
-          <Link href={chatUrl} className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold truncate">{item.character_name}</h3>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
-                Just Chat
-              </span>
+          {/* Content */}
+          <Link
+            href={chatUrl}
+            className="flex-1 p-3 flex flex-col justify-between min-w-0"
+          >
+            <div>
+              <h3 className="font-semibold text-sm truncate">{item.character_name}</h3>
+              <p className="text-xs text-muted-foreground truncate">
+                <span className="capitalize">{item.character_archetype || "Character"}</span>
+              </p>
             </div>
-            <p className="text-sm text-muted-foreground truncate">
-              Playing as <span className="capitalize">{item.character_archetype || "Character"}</span>
-            </p>
 
-            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
+            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-0.5">
                 <MessageCircle className="h-3 w-3" />
-                {item.message_count} messages
+                {item.message_count}
               </span>
               {item.last_message_at && (
                 <>
                   <span>•</span>
-                  <span className="flex items-center gap-1">
+                  <span className="flex items-center gap-0.5">
                     <Clock className="h-3 w-3" />
                     {formatRelativeTime(item.last_message_at)}
                   </span>
@@ -212,22 +230,14 @@ function ChatCard({ item, onReset }: ChatCardProps) {
             </div>
           </Link>
 
-          {/* Arrow indicator - clickable */}
-          <Link
-            href={chatUrl}
-            className="shrink-0 opacity-50 group-hover:opacity-100 transition-opacity"
-          >
-            <ChevronRight className="h-5 w-5 text-muted-foreground" />
-          </Link>
-
-          {/* Actions menu */}
-          <div className="shrink-0">
+          {/* Actions */}
+          <div className="flex items-start p-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <MoreVertical className="h-4 w-4" />
