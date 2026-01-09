@@ -1,4 +1,5 @@
 """Admin API routes for analytics and dashboard."""
+import logging
 import os
 from datetime import datetime, timedelta
 from typing import List, Optional
@@ -10,19 +11,23 @@ from pydantic import BaseModel
 from app.deps import get_db
 from app.dependencies import get_current_user_id
 
+log = logging.getLogger("uvicorn.error")
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 # List of allowed admin emails (same pattern as studio)
-ADMIN_ALLOWED_EMAILS = os.getenv("STUDIO_ALLOWED_EMAILS", "").split(",")
+# Default to kvkthecreator@gmail.com if env var not set
+ADMIN_ALLOWED_EMAILS = os.getenv("STUDIO_ALLOWED_EMAILS", "kvkthecreator@gmail.com").split(",")
+log.info(f"Admin allowed emails: {ADMIN_ALLOWED_EMAILS}")
 
 
 def is_admin_email(email: str) -> bool:
     """Check if email is in the admin allowlist."""
     if not email:
         return False
-    return email.lower().strip() in [e.lower().strip() for e in ADMIN_ALLOWED_EMAILS if e]
+    allowed = [e.lower().strip() for e in ADMIN_ALLOWED_EMAILS if e]
+    return email.lower().strip() in allowed
 
 
 # =============================================================================
@@ -86,7 +91,10 @@ async def verify_admin_access(request: Request, user_id: UUID, db) -> str:
     """Verify the requesting user has admin access. Returns email."""
     # Get user email from JWT claims (stored by auth middleware)
     jwt_payload = getattr(request.state, "jwt_payload", None)
+    log.info(f"Admin access check - jwt_payload keys: {jwt_payload.keys() if jwt_payload else 'None'}")
+
     user_email = jwt_payload.get("email") if jwt_payload else None
+    log.info(f"Admin access check - user_email: {user_email}, allowed: {ADMIN_ALLOWED_EMAILS}")
 
     if not user_email:
         raise HTTPException(
@@ -95,6 +103,7 @@ async def verify_admin_access(request: Request, user_id: UUID, db) -> str:
         )
 
     if not is_admin_email(user_email):
+        log.warning(f"Admin access denied for email: {user_email}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
