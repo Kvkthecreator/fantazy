@@ -62,8 +62,7 @@ export function ScrollRow({ title, icon, children, className, showArrows = true 
           ref={scrollRef}
           className={cn(
             "flex gap-3 overflow-x-auto scrollbar-hide",
-            "scroll-smooth snap-x snap-mandatory",
-            "-mx-4 px-4 md:mx-0 md:px-0" // Full bleed on mobile
+            "scroll-smooth snap-x snap-mandatory"
           )}
         >
           {children}
