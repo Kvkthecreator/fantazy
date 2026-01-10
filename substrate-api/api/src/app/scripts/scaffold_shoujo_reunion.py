@@ -149,7 +149,7 @@ Classic shoujo manga male lead, the one who returned.
 SUMMERS_END_SERIES = {
     "id": str(uuid.uuid4()),
     "slug": "summers-end",
-    "title": "[Shoujo] Summer's End",
+    "title": "Summer's End",
     "tagline": "He left without saying goodbye. Seven years later, he's back. And summer ends in four weeks.",
     "genre": "shoujo",
     "description": "Haruki Mizuno disappeared from your life seven years ago. No explanation. No goodbye. Just an empty house and a hole where your best friend used to be. Now he's back for the summer, grown and guarded and looking at you like he's trying to memorize your face. He says he's just visiting. But summer has a way of making people honest.",

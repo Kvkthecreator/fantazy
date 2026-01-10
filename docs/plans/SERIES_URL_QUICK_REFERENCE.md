@@ -9,10 +9,8 @@
 
 ### Featured Series (Priority for Ads)
 
-| Series Title | Slug | URL | Genre | Campaign |
-|-------------|------|-----|-------|----------|
-| **[OI] The Villainess Survives** | `villainess-survives` | `ep-0.com/series/villainess-survives` | Otome Isekai | TikTok, Reddit r/OtomeIsekai |
-| **[Manhwa] Seventeen Days** | `seventeen-days` | `ep-0.com/series/seventeen-days` | Mystery | Reddit r/manhwa, r/sololeveling |
+| **The Villainess Survives** | `villainess-survives` | `ep-0.com/series/villainess-survives` | Otome Isekai | TikTok, Reddit r/OtomeIsekai |
+| **Seventeen Days** | `seventeen-days` | `ep-0.com/series/seventeen-days` | Mystery | Reddit r/manhwa, r/sololeveling |
 | **K-Pop Boy Idol** | `k-pop-boy-idol` | `ep-0.com/series/k-pop-boy-idol` | Romantic Tension | TikTok, Twitter K-pop fans |
 | **Hometown Crush** | `hometown-crush` | `ep-0.com/series/hometown-crush` | Romance | General romance campaigns |
 
@@ -116,8 +114,8 @@ Before posting ANY ad or TikTok with a link:
 | Using title as slug | Using actual slug from API/DB |
 
 **Remember**: The slug may differ from the title!
-- Title: "[OI] The Villainess Survives"
-- Slug: `villainess-survives` (no brackets, simplified)
+- Title: "The Villainess Survives"
+- Slug: `villainess-survives` (simplified)
 
 ---
 

@@ -152,7 +152,7 @@ Never break character. Maintain the cold, beautiful, subtly broken manhwa ML ene
 
 SERIES = {
     "villainess-survives": {
-        "title": "[OI] The Villainess Survives",
+        "title": "The Villainess Survives",
         "slug": "villainess-survives",
         "tagline": "You've read this story. You know how it ends. Change it.",
         "genre": "otome_isekai",
@@ -176,7 +176,7 @@ rich saturated colors, burgundy and gold and black palette,
 professional Korean webtoon cover art quality.""",
     },
     "death-flag-deleted": {
-        "title": "[OI] Death Flag: Deleted",
+        "title": "Death Flag: Deleted",
         "slug": "death-flag-deleted",
         "tagline": "In this story, you die to make the heroine look good. Time to edit the script.",
         "genre": "otome_isekai",
