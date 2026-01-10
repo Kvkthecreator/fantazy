@@ -133,7 +133,7 @@ export function RotatingHero({
           {/* CTA */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
             <Link
-              href="/login?next=/discover"
+              href="/login?next=/dashboard"
               className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 shadow-lg transition hover:bg-white/90"
             >
               Play free

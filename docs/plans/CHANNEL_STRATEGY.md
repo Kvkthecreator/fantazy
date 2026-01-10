@@ -248,11 +248,88 @@ Double down on winning channel/creative combinations. Expected distribution:
 
 ---
 
+## Landing Page Strategy: Series-Specific URLs
+
+> **CRITICAL FOR ALL CAMPAIGNS**: Always link to series-specific pages, NOT the generic homepage.
+
+### URL Structure
+
+**Format**: `https://ep-0.com/series/[series-slug]`
+
+**Examples**:
+- `https://ep-0.com/series/the-villainess-survives`
+- `https://ep-0.com/series/midnight-burn`
+- `https://ep-0.com/series/corner-office`
+- `https://ep-0.com/series/death-flag-deleted`
+
+### Why Series-Specific Landing Pages
+
+| Issue | Generic Homepage | Series-Specific Page |
+|-------|-----------------|---------------------|
+| Message match | ❌ Ad says "Lady Verlaine", landing is generic | ✅ Same visuals, character, story |
+| User intent | ❌ "Where's the story I clicked on?" | ✅ Immediate relevance |
+| Bounce rate | ❌ 89% (measured) | ✅ 40-50% (projected) |
+| Signup rate | ❌ 2.7% (measured) | ✅ 8-12% (projected) |
+| Decision paralysis | ❌ Browse entire catalog | ✅ Clear CTA: "Start Episode 0" |
+
+### Series Page Features
+
+All `/series/[slug]` pages include:
+- ✅ **Public access** (no login required to view)
+- ✅ Series hero image, genre, tagline
+- ✅ Episode list with descriptions and thumbnails
+- ✅ "Start Episode 0 Free" CTA (prompts signup on click)
+- ✅ Progress tracking (for returning users)
+- ✅ Character selection (if custom characters exist)
+
+### Implementation Details
+
+**Authentication flow**:
+1. User clicks TikTok/Reddit ad → lands on `/series/[slug]` (no login)
+2. User sees series info, episodes, and "Start Episode" buttons
+3. Click "Start Episode" → Signup modal appears
+4. After signup → User is redirected directly to episode chat
+5. Series page remembers their progress for future visits
+
+**For Ad Campaigns**:
+- Otome Isekai campaign → `ep-0.com/series/the-villainess-survives`
+- Manhwa Regressor campaign → `ep-0.com/series/death-flag-deleted`
+- K-pop Idol campaign → `ep-0.com/series/midnight-burn`
+- CEO Romance campaign → `ep-0.com/series/corner-office`
+
+### Finding Series Slugs
+
+**To get the slug for a series**:
+1. Go to `/discover` page (when logged in)
+2. Click any series card
+3. URL will show the slug: `/series/[this-is-the-slug]`
+
+**OR** via API:
+```bash
+curl https://api.ep-0.com/series?status=active
+```
+
+Look for the `slug` field in each series object.
+
+### Generic Homepage Usage
+
+**Use `ep-0.com` (homepage) ONLY for**:
+- Brand awareness campaigns (no specific series)
+- Press mentions
+- Direct navigation (users typing URL)
+- Generic social media bios
+
+**For all series-specific content** (ads, TikTok videos, Reddit posts):
+→ **Always use series-specific URLs**
+
+---
+
 ## Related Documents
 
 - [VIRAL_PLAY_FEATURE_GTM.md](./VIRAL_PLAY_FEATURE_GTM.md) - Organic viral feature strategy
 - [IMAGE_STRATEGY.md](../content/IMAGE_STRATEGY.md) - Visual asset guidelines
 - [CONTENT_ARCHITECTURE_CANON.md](../content/CONTENT_ARCHITECTURE_CANON.md) - Series/episode structure
+- [ACTIVATION_AND_GROWTH_ANALYSIS.md](./ACTIVATION_AND_GROWTH_ANALYSIS.md) - Metrics and conversion data
 
 ---
 
@@ -260,4 +337,5 @@ Double down on winning channel/creative combinations. Expected distribution:
 
 | Date | Change |
 |------|--------|
+| 2026-01-10 | **MAJOR**: Added series-specific landing page strategy. All campaigns now use `/series/[slug]` URLs instead of homepage. |
 | 2025-01-07 | Initial version - BOC Framework established |

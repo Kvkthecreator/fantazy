@@ -47,14 +47,14 @@ export default async function Home() {
           {/* Auth button */}
           {isLoggedIn ? (
             <Link
-              href="/discover"
+              href="/dashboard"
               className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
             >
               Continue
             </Link>
           ) : (
             <Link
-              href="/login?next=/discover"
+              href="/login?next=/dashboard"
               className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90"
             >
               Sign in
@@ -99,7 +99,7 @@ export default async function Home() {
             </div>
             <div>
               <Link
-                href="/login?next=/discover"
+                href="/login?next=/dashboard"
                 className="text-sm font-semibold text-primary hover:underline"
               >
                 Explore all stories
@@ -178,10 +178,10 @@ export default async function Home() {
               </ul>
               <div className="pt-2">
                 <Link
-                  href="/login?next=/my-characters"
+                  href="/login?next=/dashboard"
                   className="inline-flex items-center gap-2 rounded-full bg-purple-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700"
                 >
-                  Create character
+                  Get started
                   <svg
                     className="h-4 w-4"
                     fill="none"
@@ -237,7 +237,7 @@ export default async function Home() {
             <nav className="flex flex-wrap items-center gap-6 text-sm text-muted-foreground">
               {!isLoggedIn && (
                 <Link
-                  href="/login?next=/discover"
+                  href="/login?next=/dashboard"
                   className="hover:text-foreground"
                 >
                   Sign in
