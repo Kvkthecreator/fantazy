@@ -56,6 +56,7 @@ class EpisodeTemplateCreate(EpisodeTemplateBase):
     """Create episode template request."""
     character_id: UUID
     series_id: Optional[UUID] = None
+    role_id: Optional[UUID] = None
     episode_number: int = 0
     is_default: bool = False
 
@@ -69,6 +70,7 @@ class EpisodeTemplateUpdate(BaseModel):
     background_image_url: Optional[str] = None
     status: Optional[str] = None
     series_id: Optional[UUID] = None
+    role_id: Optional[UUID] = None
     # Episode Dynamics
     dramatic_question: Optional[str] = None
     resolution_types: Optional[List[str]] = None
@@ -306,19 +308,26 @@ async def create_episode_template(
         {"id": str(data.character_id)}
     )
 
+    # Validate: Episode 0 requires role_id
+    if data.episode_number == 0 and not data.role_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Episode 0 requires role_id to be set"
+        )
+
     query = """
         INSERT INTO episode_templates (
-            character_id, episode_number, title, slug,
+            character_id, series_id, role_id, episode_number, title, slug,
             situation, opening_line, episode_frame,
             dramatic_question, scene_objective, scene_obstacle, scene_tactic,
             is_default, sort_order, status
         ) VALUES (
-            :character_id, :episode_number, :title, :slug,
+            :character_id, :series_id, :role_id, :episode_number, :title, :slug,
             :situation, :opening_line, :episode_frame,
             :dramatic_question, :scene_objective, :scene_obstacle, :scene_tactic,
             :is_default, :sort_order, 'draft'
         )
-        RETURNING id, character_id, episode_number, title, slug,
+        RETURNING id, character_id, series_id, role_id, episode_number, title, slug,
                   situation, opening_line, background_image_url,
                   episode_frame, is_default, sort_order, status,
                   episode_type, dramatic_question,
@@ -327,6 +336,8 @@ async def create_episode_template(
 
     row = await db.fetch_one(query, {
         "character_id": str(data.character_id),
+        "series_id": str(data.series_id) if data.series_id else None,
+        "role_id": str(data.role_id) if data.role_id else None,
         "episode_number": data.episode_number,
         "title": data.title,
         "slug": data.slug,
@@ -393,6 +404,12 @@ async def update_episode_template(
     if data.scene_tactic is not None:
         updates.append("scene_tactic = :scene_tactic")
         values["scene_tactic"] = data.scene_tactic
+    if data.series_id is not None:
+        updates.append("series_id = :series_id")
+        values["series_id"] = str(data.series_id)
+    if data.role_id is not None:
+        updates.append("role_id = :role_id")
+        values["role_id"] = str(data.role_id)
 
     if not updates:
         raise HTTPException(
@@ -406,7 +423,7 @@ async def update_episode_template(
         UPDATE episode_templates
         SET {", ".join(updates)}
         WHERE id = :id
-        RETURNING id, character_id, series_id, episode_number, title, slug,
+        RETURNING id, character_id, series_id, role_id, episode_number, title, slug,
                   situation, opening_line, background_image_url,
                   episode_frame, is_default, sort_order, status,
                   episode_type, dramatic_question,
