@@ -1688,6 +1688,12 @@ export interface AdminUserEngagement {
   engagement_count: number;
   created_at: string;
   last_active?: string | null;
+  signup_source?: string | null;
+  signup_campaign?: string | null;
+  signup_medium?: string | null;
+  signup_content?: string | null;
+  signup_landing_page?: string | null;
+  signup_referrer?: string | null;
 }
 
 /**

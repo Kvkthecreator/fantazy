@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { CharacterSelectionModal } from "@/components/series/CharacterSelectionModal";
+import { captureAttribution } from "@/lib/utils/attribution";
 import type {
   SeriesWithEpisodes,
   World,
@@ -92,6 +93,11 @@ export default function SeriesPage({ params }: PageProps) {
     avatar_url: string | null;
     is_user_created: boolean;
   } | null>(null);
+
+  // Capture attribution when user lands on series page
+  useEffect(() => {
+    captureAttribution();
+  }, []);
 
   // Check authentication status
   useEffect(() => {

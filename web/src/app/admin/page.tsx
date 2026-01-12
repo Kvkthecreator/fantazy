@@ -57,9 +57,9 @@ function exportToCSV(stats: AdminStatsResponse) {
 
   // Users
   csv += 'USERS\n'
-  csv += 'Name,Status,Messages,Images,Sparks,Sessions,Signed Up\n'
+  csv += 'Name,Status,Source,Campaign,Messages,Images,Sparks,Sessions,Signed Up\n'
   users.forEach(user => {
-    csv += `"${user.display_name}",${user.subscription_status},${user.messages_sent_count},${user.flux_generations_used},${user.spark_balance},${user.session_count},${user.created_at}\n`
+    csv += `"${user.display_name}",${user.subscription_status},"${user.signup_source || 'unknown'}","${user.signup_campaign || '-'}",${user.messages_sent_count},${user.flux_generations_used},${user.spark_balance},${user.session_count},${user.created_at}\n`
   })
 
   // Download
@@ -286,6 +286,70 @@ export default function AdminPage() {
         </CardContent>
       </Card>
 
+      {/* Campaign Performance */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-4 w-4" />
+            Campaign Performance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-left py-2 px-2 font-medium">Source</th>
+                  <th className="text-left py-2 px-2 font-medium">Campaign</th>
+                  <th className="text-right py-2 px-2 font-medium">Signups</th>
+                  <th className="text-right py-2 px-2 font-medium">Activated</th>
+                  <th className="text-right py-2 px-2 font-medium">Activation %</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(() => {
+                  // Group users by source and campaign
+                  const campaignStats = users.reduce((acc, user) => {
+                    const key = `${user.signup_source || 'unknown'}|${user.signup_campaign || '-'}`;
+                    if (!acc[key]) {
+                      acc[key] = {
+                        source: user.signup_source || 'unknown',
+                        campaign: user.signup_campaign || '-',
+                        total: 0,
+                        activated: 0
+                      };
+                    }
+                    acc[key].total += 1;
+                    if (user.messages_sent_count > 0) {
+                      acc[key].activated += 1;
+                    }
+                    return acc;
+                  }, {} as Record<string, { source: string; campaign: string; total: number; activated: number }>);
+
+                  return Object.values(campaignStats)
+                    .sort((a, b) => b.total - a.total)
+                    .map((stats, i) => (
+                      <tr key={i} className="border-b border-border/50 hover:bg-muted/50">
+                        <td className="py-2 px-2 font-medium">{stats.source}</td>
+                        <td className="py-2 px-2 text-xs text-muted-foreground max-w-[200px] truncate" title={stats.campaign}>
+                          {stats.campaign}
+                        </td>
+                        <td className="text-right py-2 px-2 tabular-nums">{stats.total}</td>
+                        <td className="text-right py-2 px-2 tabular-nums">{stats.activated}</td>
+                        <td className="text-right py-2 px-2 tabular-nums">
+                          <span className={stats.activated > 0 ? 'text-green-500 font-medium' : 'text-muted-foreground'}>
+                            {((stats.activated / stats.total) * 100).toFixed(0)}%
+                          </span>
+                        </td>
+                      </tr>
+                    ));
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Users Table */}
       <Card>
         <CardHeader>
@@ -301,9 +365,9 @@ export default function AdminPage() {
                 <tr className="border-b">
                   <th className="text-left py-2 px-2 font-medium">User</th>
                   <th className="text-left py-2 px-2 font-medium">Status</th>
+                  <th className="text-left py-2 px-2 font-medium">Source</th>
+                  <th className="text-left py-2 px-2 font-medium">Campaign</th>
                   <th className="text-right py-2 px-2 font-medium">Messages</th>
-                  <th className="text-right py-2 px-2 font-medium">Images</th>
-                  <th className="text-right py-2 px-2 font-medium">Sparks</th>
                   <th className="text-right py-2 px-2 font-medium">Sessions</th>
                   <th className="text-left py-2 px-2 font-medium">Signed Up</th>
                 </tr>
@@ -319,14 +383,14 @@ export default function AdminPage() {
                         {user.subscription_status}
                       </Badge>
                     </td>
+                    <td className="py-2 px-2 text-xs text-muted-foreground">
+                      {user.signup_source || 'unknown'}
+                    </td>
+                    <td className="py-2 px-2 text-xs text-muted-foreground max-w-[150px] truncate" title={user.signup_campaign || '-'}>
+                      {user.signup_campaign || '-'}
+                    </td>
                     <td className="text-right py-2 px-2 tabular-nums">
                       {user.messages_sent_count}
-                    </td>
-                    <td className="text-right py-2 px-2 tabular-nums">
-                      {user.flux_generations_used}
-                    </td>
-                    <td className="text-right py-2 px-2 tabular-nums">
-                      {user.spark_balance}
                     </td>
                     <td className="text-right py-2 px-2 tabular-nums">
                       {user.session_count}

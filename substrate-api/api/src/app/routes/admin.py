@@ -62,6 +62,12 @@ class UserEngagement(BaseModel):
     engagement_count: int
     created_at: str
     last_active: Optional[str] = None
+    signup_source: Optional[str] = None
+    signup_campaign: Optional[str] = None
+    signup_medium: Optional[str] = None
+    signup_content: Optional[str] = None
+    signup_landing_page: Optional[str] = None
+    signup_referrer: Optional[str] = None
 
 
 class Purchase(BaseModel):
@@ -182,6 +188,12 @@ async def get_admin_stats(
         u.messages_sent_count,
         u.flux_generations_used,
         u.created_at,
+        u.signup_source,
+        u.signup_campaign,
+        u.signup_medium,
+        u.signup_content,
+        u.signup_landing_page,
+        u.signup_referrer,
         (SELECT COUNT(*) FROM sessions WHERE user_id = u.id) as session_count,
         (SELECT COUNT(*) FROM engagements WHERE user_id = u.id) as engagement_count,
         (SELECT MAX(last_interaction_at) FROM engagements WHERE user_id = u.id) as last_active
@@ -202,6 +214,12 @@ async def get_admin_stats(
             engagement_count=row["engagement_count"],
             created_at=row["created_at"].isoformat() if row["created_at"] else "",
             last_active=row["last_active"].isoformat() if row["last_active"] else None,
+            signup_source=row["signup_source"],
+            signup_campaign=row["signup_campaign"],
+            signup_medium=row["signup_medium"],
+            signup_content=row["signup_content"],
+            signup_landing_page=row["signup_landing_page"],
+            signup_referrer=row["signup_referrer"],
         )
         for row in users_rows
     ]
