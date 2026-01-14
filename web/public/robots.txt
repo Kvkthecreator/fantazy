@@ -1,0 +1,17 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://ep-0.com/sitemap.xml
+
+# Disallow admin and auth pages
+Disallow: /admin
+Disallow: /login
+Disallow: /api/
+Disallow: /studio/
+
+# Allow series and play pages (public content)
+Allow: /series/
+Allow: /play/
+Allow: /r/
