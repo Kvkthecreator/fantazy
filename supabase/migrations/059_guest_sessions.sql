@@ -20,9 +20,18 @@ ADD COLUMN IF NOT EXISTS guest_ip_hash TEXT,
 ADD COLUMN IF NOT EXISTS guest_converted_at TIMESTAMPTZ;
 
 -- Add constraint: Either user_id OR guest_session_id must be set
-ALTER TABLE sessions
-ADD CONSTRAINT sessions_user_or_guest_check
-CHECK (user_id IS NOT NULL OR guest_session_id IS NOT NULL);
+-- Add constraint to ensure either user_id or guest_session_id is set
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'sessions_user_or_guest_check'
+    ) THEN
+        ALTER TABLE sessions
+        ADD CONSTRAINT sessions_user_or_guest_check
+        CHECK (user_id IS NOT NULL OR guest_session_id IS NOT NULL);
+    END IF;
+END $$;
 
 -- ============================================================================
 -- 3. Indexes for guest session operations
@@ -33,8 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_sessions_guest_id ON sessions(guest_session_id)
 WHERE guest_session_id IS NOT NULL;
 
 -- Guest session cleanup (find expired sessions)
+-- Note: Cannot use NOW() in index predicate, so index all guest sessions by created_at
 CREATE INDEX IF NOT EXISTS idx_sessions_guest_expired ON sessions(guest_created_at)
-WHERE user_id IS NULL AND guest_created_at < NOW() - INTERVAL '24 hours';
+WHERE user_id IS NULL;
 
 -- IP-based rate limiting lookups
 CREATE INDEX IF NOT EXISTS idx_sessions_guest_ip ON sessions(guest_ip_hash, guest_created_at)
