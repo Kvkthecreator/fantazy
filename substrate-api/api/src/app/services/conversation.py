@@ -392,18 +392,20 @@ class ConversationService:
         # v2.7: Moved to background task for instant response finalization.
         # Memory/hook extraction, beat classification, and visual triggers run async.
         # This reduces perceived latency by 800ms-2.5s.
-        full_messages = context.messages + [{"role": "assistant", "content": response_content}]
+        # Skip for guests - they don't need memory/hook processing and user_id is None
+        if user_id:
+            full_messages = context.messages + [{"role": "assistant", "content": response_content}]
 
-        asyncio.create_task(
-            self._run_director_phase2_background(
-                episode_id=episode.id,
-                episode_template=episode_template,
-                full_messages=full_messages,
-                character_id=character_id,
-                user_id=user_id,
-                character_name=context.character_name,
+            asyncio.create_task(
+                self._run_director_phase2_background(
+                    episode_id=episode.id,
+                    episode_template=episode_template,
+                    full_messages=full_messages,
+                    character_id=character_id,
+                    user_id=user_id,
+                    character_name=context.character_name,
+                )
             )
-        )
 
     async def get_context(
         self,
