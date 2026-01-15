@@ -235,6 +235,7 @@ export interface EpisodeTemplateSummary {
   slug: string;
   background_image_url: string | null;
   is_default: boolean;
+  episode_cost: number;  // Sparks required to start (0 for free episodes)
 }
 
 /**

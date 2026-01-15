@@ -105,6 +105,7 @@ class EpisodeTemplateSummary(BaseModel):
     slug: str
     background_image_url: Optional[str] = None
     is_default: bool
+    episode_cost: int = 0  # Sparks required to start (0 for free episodes)
 
 
 class EpisodeDiscoveryItem(BaseModel):
@@ -117,6 +118,7 @@ class EpisodeDiscoveryItem(BaseModel):
     situation: str
     background_image_url: Optional[str] = None
     is_default: bool
+    episode_cost: int = 0  # Sparks required to start (0 for free episodes)
     # Character context
     character_id: UUID
     character_name: str
@@ -151,6 +153,7 @@ async def list_all_episodes(
             et.situation,
             et.background_image_url,
             et.is_default,
+            COALESCE(et.episode_cost, 0) as episode_cost,
             c.id as character_id,
             c.name as character_name,
             c.slug as character_slug,
@@ -199,7 +202,8 @@ async def list_character_episodes(
     Returns episodes in sort order for episode selection UI.
     """
     query = """
-        SELECT id, episode_number, episode_type, title, slug, background_image_url, is_default
+        SELECT id, episode_number, episode_type, title, slug, background_image_url, is_default,
+               COALESCE(episode_cost, 0) as episode_cost
         FROM episode_templates
         WHERE character_id = :character_id
         AND status = :status

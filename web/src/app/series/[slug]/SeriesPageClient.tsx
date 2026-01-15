@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { CharacterSelectionModal } from "@/components/series/CharacterSelectionModal";
+import { SparkCostConfirmModal } from "@/components/sparks/SparkCostConfirmModal";
 import { captureAttribution } from "@/lib/utils/attribution";
 import type {
   SeriesWithEpisodes,
@@ -92,6 +93,15 @@ export default function SeriesPageClient({ params }: PageProps) {
     name: string;
     avatar_url: string | null;
     is_user_created: boolean;
+  } | null>(null);
+
+  // Spark cost confirmation modal state
+  const [showSparkConfirm, setShowSparkConfirm] = useState(false);
+  const [pendingSparkEpisode, setPendingSparkEpisode] = useState<{
+    id: string;
+    title: string;
+    cost: number;
+    characterId: string;
   } | null>(null);
 
   // Capture attribution when user lands on series page
@@ -195,6 +205,7 @@ export default function SeriesPageClient({ params }: PageProps) {
     // Check if this is Episode 0 (guest mode allowed)
     const episode = series?.episodes.find(ep => ep.id === episodeId);
     const isEpisode0 = episode?.episode_number === 0;
+    const episodeCost = episode?.episode_cost ?? 0;
 
     // If not authenticated and NOT Episode 0, redirect to login
     if (!isAuthenticated && !isEpisode0) {
@@ -220,12 +231,25 @@ export default function SeriesPageClient({ params }: PageProps) {
     const characterId = selectedCharacter?.id || userContext?.character_id || canonicalCharacterId;
     if (!characterId) return;
 
+    // If episode has a cost, show confirmation modal first
+    if (episodeCost > 0) {
+      setPendingSparkEpisode({
+        id: episodeId,
+        title: episodeTitle,
+        cost: episodeCost,
+        characterId,
+      });
+      setShowSparkConfirm(true);
+      return;
+    }
+
     await startWithCharacter(episodeId, characterId);
   };
 
   const startWithCharacter = async (episodeId: string, characterId: string) => {
     setStartingEpisode(episodeId);
     setCharacterSelectionOpen(false);
+    setShowSparkConfirm(false);
 
     try {
       await api.relationships.create(characterId).catch(() => {});
@@ -234,6 +258,16 @@ export default function SeriesPageClient({ params }: PageProps) {
       console.error("Failed to start episode:", err);
       setStartingEpisode(null);
     }
+  };
+
+  const handleSparkConfirm = () => {
+    if (!pendingSparkEpisode) return;
+    startWithCharacter(pendingSparkEpisode.id, pendingSparkEpisode.characterId);
+  };
+
+  const handleSparkCancel = () => {
+    setShowSparkConfirm(false);
+    setPendingSparkEpisode(null);
   };
 
   const handleCharacterSelected = (characterId: string) => {
@@ -718,6 +752,16 @@ export default function SeriesPageClient({ params }: PageProps) {
                               Started
                             </Badge>
                           )}
+                          {/* Spark cost badge for paid episodes */}
+                          {episode.episode_cost > 0 && (
+                            <Badge
+                              variant="secondary"
+                              className="text-[10px] bg-amber-500/90 text-white border-0 flex items-center gap-0.5"
+                            >
+                              <Sparkles className="h-2.5 w-2.5" />
+                              {episode.episode_cost}
+                            </Badge>
+                          )}
                         </div>
 
                         <h3 className="font-semibold line-clamp-1 mb-1">
@@ -769,6 +813,16 @@ export default function SeriesPageClient({ params }: PageProps) {
             onSelect={handleCharacterSelected}
           />
         )}
+
+        {/* Spark cost confirmation modal */}
+        <SparkCostConfirmModal
+          open={showSparkConfirm}
+          onClose={handleSparkCancel}
+          onConfirm={handleSparkConfirm}
+          cost={pendingSparkEpisode?.cost ?? 0}
+          episodeTitle={pendingSparkEpisode?.title ?? ""}
+          isLoading={!!startingEpisode}
+        />
       </div>
     </div>
   );

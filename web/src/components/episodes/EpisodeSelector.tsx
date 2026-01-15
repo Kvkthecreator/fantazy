@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Play, Sparkles } from "lucide-react";
+import { SparkCostConfirmModal } from "@/components/sparks/SparkCostConfirmModal";
 import type { EpisodeTemplateSummary } from "@/types";
 
 interface EpisodeSelectorProps {
@@ -29,6 +30,10 @@ export function EpisodeSelector({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isStarting, setIsStarting] = useState(false);
 
+  // Confirmation modal state
+  const [pendingEpisode, setPendingEpisode] = useState<EpisodeTemplateSummary | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
   useEffect(() => {
     api.episodeTemplates.listForCharacter(characterId)
       .then(setTemplates)
@@ -39,9 +44,21 @@ export function EpisodeSelector({
       .finally(() => setIsLoading(false));
   }, [characterId]);
 
-  const handleSelect = async (template: EpisodeTemplateSummary) => {
+  const handleSelect = (template: EpisodeTemplateSummary) => {
     if (isStarting) return;
 
+    // If episode has a cost, show confirmation modal
+    if (template.episode_cost > 0) {
+      setPendingEpisode(template);
+      setShowConfirmModal(true);
+      return;
+    }
+
+    // Free episode - start directly
+    startEpisode(template);
+  };
+
+  const startEpisode = async (template: EpisodeTemplateSummary) => {
     setSelectedId(template.id);
     setIsStarting(true);
 
@@ -64,6 +81,17 @@ export function EpisodeSelector({
     }
   };
 
+  const handleConfirmStart = () => {
+    if (!pendingEpisode) return;
+    setShowConfirmModal(false);
+    startEpisode(pendingEpisode);
+  };
+
+  const handleCancelConfirm = () => {
+    setShowConfirmModal(false);
+    setPendingEpisode(null);
+  };
+
   if (isLoading) {
     return <EpisodeSelectorSkeleton />;
   }
@@ -73,27 +101,39 @@ export function EpisodeSelector({
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-primary" />
-        <h3 className="text-sm font-medium">Choose your scene</h3>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Pick where your story with {characterName} begins
-      </p>
+    <>
+      <div className={cn("space-y-3", className)}>
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-medium">Choose your scene</h3>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Pick where your story with {characterName} begins
+        </p>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {templates.map((template) => (
-          <EpisodeCard
-            key={template.id}
-            template={template}
-            isSelected={selectedId === template.id}
-            isLoading={isStarting && selectedId === template.id}
-            onClick={() => handleSelect(template)}
-          />
-        ))}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {templates.map((template) => (
+            <EpisodeCard
+              key={template.id}
+              template={template}
+              isSelected={selectedId === template.id}
+              isLoading={isStarting && selectedId === template.id}
+              onClick={() => handleSelect(template)}
+            />
+          ))}
+        </div>
       </div>
-    </div>
+
+      {/* Spark cost confirmation modal */}
+      <SparkCostConfirmModal
+        open={showConfirmModal}
+        onClose={handleCancelConfirm}
+        onConfirm={handleConfirmStart}
+        cost={pendingEpisode?.episode_cost ?? 0}
+        episodeTitle={pendingEpisode?.title ?? ""}
+        isLoading={isStarting}
+      />
+    </>
   );
 }
 
@@ -157,8 +197,19 @@ function EpisodeCard({ template, isSelected, isLoading, onClick }: EpisodeCardPr
           Episode {template.episode_number}
         </Badge>
 
-        {/* Default badge */}
-        {template.is_default && (
+        {/* Cost badge - show for paid episodes */}
+        {template.episode_cost > 0 && (
+          <Badge
+            variant="secondary"
+            className="absolute top-2 right-2 bg-amber-500/90 text-white border-0 text-[10px] flex items-center gap-1"
+          >
+            <Sparkles className="h-3 w-3" />
+            {template.episode_cost}
+          </Badge>
+        )}
+
+        {/* Default badge - only show if no cost badge */}
+        {template.is_default && template.episode_cost === 0 && (
           <Badge
             className="absolute top-2 right-2 bg-primary text-primary-foreground text-[10px]"
           >
