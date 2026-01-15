@@ -202,6 +202,7 @@ class ConversationService:
                 )
 
         # Get episode (either find existing guest session or create for authenticated user)
+        log.info(f"[GUEST_DEBUG] send_message_stream start: user_id={user_id}, guest_session_id={guest_session_id}, character_id={character_id}")
         if guest_session_id:
             # For guests, find the existing session by guest_session_id
             episode_query = """
@@ -213,9 +214,11 @@ class ConversationService:
                 "guest_id": guest_session_id,
                 "character_id": str(character_id),
             })
+            log.info(f"[GUEST_DEBUG] Guest session lookup: found={episode_row is not None}")
             if not episode_row:
                 raise ValueError(f"Guest session {guest_session_id} not found")
             episode = Session(**dict(episode_row))
+            log.info(f"[GUEST_DEBUG] Guest session loaded: id={episode.id}")
         else:
             # For authenticated users, get or create episode
             episode = await self.get_or_create_episode(
@@ -224,11 +227,15 @@ class ConversationService:
 
         # Get episode template if session has one (for Director integration)
         episode_template = await self._get_episode_template(episode.episode_template_id)
+        log.info(f"[GUEST_DEBUG] Episode template: {episode_template.id if episode_template else None}")
 
         # Build context
+        log.info(f"[GUEST_DEBUG] Building context...")
         context = await self.get_context(user_id, character_id, episode.id)
+        log.info(f"[GUEST_DEBUG] Context built: {len(context.messages)} messages")
 
         # Save user message
+        log.info(f"[GUEST_DEBUG] Saving user message...")
         await self._save_message(
             episode_id=episode.id,
             role=MessageRole.USER,
@@ -273,7 +280,9 @@ class ConversationService:
                 log.warning(f"Director pre-guidance failed: {e}")
 
         # Generate streaming response (with Director guidance in context)
+        log.info(f"[GUEST_DEBUG] Formatting messages for LLM...")
         formatted_messages = context.to_messages()
+        log.info(f"[GUEST_DEBUG] Formatted {len(formatted_messages)} messages, starting LLM stream...")
         full_response = []
 
         async for chunk in self.llm.generate_stream(formatted_messages):
@@ -281,6 +290,7 @@ class ConversationService:
             yield json.dumps({"type": "chunk", "content": chunk})
 
         response_content = "".join(full_response)
+        log.info(f"[GUEST_DEBUG] LLM response complete: {len(response_content)} chars")
 
         # Save assistant message
         await self._save_message(
