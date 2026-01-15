@@ -84,14 +84,14 @@ class Session(BaseModel):
     """
 
     id: UUID
-    user_id: UUID
+    user_id: Optional[UUID] = None  # Optional for guest sessions
     character_id: UUID
     engagement_id: Optional[UUID] = None
     episode_template_id: Optional[UUID] = None
     series_id: Optional[UUID] = None  # Series scoping for memory isolation
     role_id: Optional[UUID] = None  # ADR-004: Role being played in this session
 
-    @field_validator("episode_template_id", "series_id", "role_id", "engagement_id", mode="before")
+    @field_validator("user_id", "episode_template_id", "series_id", "role_id", "engagement_id", mode="before")
     @classmethod
     def coerce_none_string(cls, v):
         """Handle edge case where 'None' string comes from DB or serialization."""
