@@ -231,8 +231,11 @@ export default function SeriesPageClient({ params }: PageProps) {
     const characterId = selectedCharacter?.id || userContext?.character_id || canonicalCharacterId;
     if (!characterId) return;
 
-    // If episode has a cost, show confirmation modal first
-    if (episodeCost > 0) {
+    // Check if user has already started this episode (already paid)
+    const hasAlreadyStarted = progress.has(episodeId);
+
+    // If episode has a cost AND user hasn't started it yet, show confirmation modal
+    if (episodeCost > 0 && !hasAlreadyStarted) {
       setPendingSparkEpisode({
         id: episodeId,
         title: episodeTitle,
