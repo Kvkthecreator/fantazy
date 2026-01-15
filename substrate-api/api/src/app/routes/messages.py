@@ -2,10 +2,10 @@
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.deps import get_db
-from app.dependencies import get_current_user_id
+from app.dependencies import get_optional_user_id
 from app.models.message import Message, MessageCreate
 
 router = APIRouter(prefix="/episodes/{episode_id}/messages", tags=["Messages"])
@@ -14,18 +14,47 @@ router = APIRouter(prefix="/episodes/{episode_id}/messages", tags=["Messages"])
 @router.get("", response_model=List[Message])
 async def list_messages(
     episode_id: UUID,
-    user_id: UUID = Depends(get_current_user_id),
+    request: Request,
+    user_id: Optional[UUID] = Depends(get_optional_user_id),
     limit: int = Query(50, ge=1, le=200),
     before_id: Optional[UUID] = Query(None, description="Get messages before this ID"),
     db=Depends(get_db),
 ):
-    """List messages in a session (episode_id is legacy param name for session_id)."""
-    # Verify session ownership
-    session_check = """
-        SELECT id FROM sessions
-        WHERE id = :episode_id AND user_id = :user_id
+    """List messages in a session (episode_id is legacy param name for session_id).
+
+    Supports both authenticated users and guest sessions.
     """
-    session_row = await db.fetch_one(session_check, {"episode_id": str(episode_id), "user_id": str(user_id)})
+    # Extract guest_session_id from headers (if present)
+    guest_session_id = request.headers.get("X-Guest-Session-Id")
+
+    # Require either user_id OR guest_session_id
+    if not user_id and not guest_session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication or guest session ID required"
+        )
+
+    # Verify session ownership based on auth type
+    if guest_session_id and not user_id:
+        # Guest session - verify by guest_session_id
+        session_check = """
+            SELECT id FROM sessions
+            WHERE id = :episode_id AND guest_session_id = :guest_id
+        """
+        session_row = await db.fetch_one(session_check, {
+            "episode_id": str(episode_id),
+            "guest_id": guest_session_id,
+        })
+    else:
+        # Authenticated user - verify by user_id
+        session_check = """
+            SELECT id FROM sessions
+            WHERE id = :episode_id AND user_id = :user_id
+        """
+        session_row = await db.fetch_one(session_check, {
+            "episode_id": str(episode_id),
+            "user_id": str(user_id),
+        })
 
     if not session_row:
         raise HTTPException(

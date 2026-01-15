@@ -138,13 +138,90 @@ async def send_message(
 async def send_message_stream(
     character_id: UUID,
     data: MessageCreate,
-    user_id: UUID = Depends(get_current_user_id),
+    request: Request,
+    user_id: Optional[UUID] = Depends(get_optional_user_id),
     db=Depends(get_db),
 ):
     """Send a message and stream the response.
 
+    Supports both authenticated users and guest sessions (Episode 0 only).
     Returns a Server-Sent Events stream with the character's response.
+
+    For guest sessions:
+    - Requires X-Guest-Session-Id header
+    - Limited to 5 messages per session
+    - Only works with Episode 0
     """
+    # Extract guest_session_id from headers (if present)
+    guest_session_id = request.headers.get("X-Guest-Session-Id")
+
+    # Require either user_id OR guest_session_id
+    if not user_id and not guest_session_id:
+        return StreamingResponse(
+            iter(["data: [ERROR] Authentication or guest session ID required\n\n"]),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+        )
+
+    # Guest session handling - verify session and enforce message limit
+    if guest_session_id and not user_id:
+        session_query = """
+            SELECT id, message_count, episode_template_id, user_id
+            FROM sessions
+            WHERE guest_session_id = :guest_id
+            AND character_id = :character_id
+        """
+        session = await db.fetch_one(session_query, {
+            "guest_id": guest_session_id,
+            "character_id": str(character_id),
+        })
+
+        if not session:
+            return StreamingResponse(
+                iter(["data: [ERROR] Guest session not found\n\n"]),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
+
+        # Check if session was converted (has user_id now)
+        if session["user_id"]:
+            error_data = json.dumps({
+                "type": "error",
+                "error": "session_converted",
+                "message": "This guest session has been converted. Please log in to continue.",
+            })
+            return StreamingResponse(
+                iter([f"data: {error_data}\n\n"]),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
+
+        # Enforce 5-message limit for guests
+        user_message_count_query = """
+            SELECT COUNT(*) as count
+            FROM messages
+            WHERE episode_id = :session_id
+            AND role = 'user'
+        """
+        message_count_row = await db.fetch_one(user_message_count_query, {
+            "session_id": str(session["id"])
+        })
+        user_message_count = message_count_row["count"] if message_count_row else 0
+
+        if user_message_count >= 5:
+            error_data = json.dumps({
+                "type": "error",
+                "error": "guest_message_limit",
+                "message": "You've reached the guest message limit. Sign up to continue!",
+                "messages_sent": user_message_count,
+                "limit": 5,
+            })
+            return StreamingResponse(
+                iter([f"data: {error_data}\n\n"]),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+            )
+
     service = ConversationService(db)
 
     async def generate():
@@ -154,6 +231,7 @@ async def send_message_stream(
                 character_id=character_id,
                 content=data.content,
                 episode_template_id=data.episode_template_id,
+                guest_session_id=guest_session_id,
             ):
                 yield f"data: {chunk}\n\n"
             yield "data: [DONE]\n\n"

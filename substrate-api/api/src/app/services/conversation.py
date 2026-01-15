@@ -170,12 +170,15 @@ class ConversationService:
 
     async def send_message_stream(
         self,
-        user_id: UUID,
+        user_id: Optional[UUID],
         character_id: UUID,
         content: str,
         episode_template_id: Optional[UUID] = None,
+        guest_session_id: Optional[str] = None,
     ) -> AsyncIterator[str]:
         """Send a message and stream the response.
+
+        Supports both authenticated users and guest sessions.
 
         Director Protocol v2.0:
         - PHASE 1: Pre-guidance (before LLM) - pacing, tension, genre beat
@@ -185,22 +188,39 @@ class ConversationService:
         - Open episodes: turn counting, memory, hooks, beat tracking
         - Bounded episodes: all of the above + completion detection + evaluation
         """
-        # Check rate limit (messages are FREE but rate-limited for abuse prevention)
-        subscription_status = await self._get_user_subscription_status(user_id)
-        rate_check = await self.rate_limiter.check_rate_limit(user_id, subscription_status)
+        # Check rate limit (skip for guest sessions)
+        if user_id:
+            subscription_status = await self._get_user_subscription_status(user_id)
+            rate_check = await self.rate_limiter.check_rate_limit(user_id, subscription_status)
 
-        if not rate_check.allowed:
-            raise RateLimitExceededError(
-                message=rate_check.message or "Rate limit exceeded",
-                reset_at=rate_check.reset_at,
-                cooldown_seconds=rate_check.cooldown_seconds,
-                remaining=rate_check.remaining,
+            if not rate_check.allowed:
+                raise RateLimitExceededError(
+                    message=rate_check.message or "Rate limit exceeded",
+                    reset_at=rate_check.reset_at,
+                    cooldown_seconds=rate_check.cooldown_seconds,
+                    remaining=rate_check.remaining,
+                )
+
+        # Get episode (either find existing guest session or create for authenticated user)
+        if guest_session_id:
+            # For guests, find the existing session by guest_session_id
+            episode_query = """
+                SELECT * FROM sessions
+                WHERE guest_session_id = :guest_id
+                AND character_id = :character_id
+            """
+            episode_row = await self.db.fetch_one(episode_query, {
+                "guest_id": guest_session_id,
+                "character_id": str(character_id),
+            })
+            if not episode_row:
+                raise ValueError(f"Guest session {guest_session_id} not found")
+            episode = Session(**dict(episode_row))
+        else:
+            # For authenticated users, get or create episode
+            episode = await self.get_or_create_episode(
+                user_id, character_id, episode_template_id=episode_template_id
             )
-
-        # Get or create episode (with episode_template_id for proper session scoping)
-        episode = await self.get_or_create_episode(
-            user_id, character_id, episode_template_id=episode_template_id
-        )
 
         # Get episode template if session has one (for Director integration)
         episode_template = await self._get_episode_template(episode.episode_template_id)
@@ -215,12 +235,13 @@ class ConversationService:
             content=content,
         )
 
-        # Track message for analytics (non-blocking, fire-and-forget)
-        await self.usage_service.increment_message_count(
-            user_id=str(user_id),
-            character_id=str(character_id),
-            episode_id=str(episode.id),
-        )
+        # Track message for analytics (skip for guests - no user_id)
+        if user_id:
+            await self.usage_service.increment_message_count(
+                user_id=str(user_id),
+                character_id=str(character_id),
+                episode_id=str(episode.id),
+            )
 
         # Add user message to context
         context.messages.append({"role": "user", "content": content})
@@ -270,15 +291,17 @@ class ConversationService:
         )
 
         # Mark hooks as triggered (batch into single query for efficiency)
-        if context.hooks:
+        # Skip for guests - they don't have hooks
+        if context.hooks and user_id:
             hook_ids = [str(hook.id) for hook in context.hooks]
             await self.db.execute(
                 "UPDATE hooks SET triggered_at = NOW() WHERE id = ANY(:hook_ids)",
                 {"hook_ids": hook_ids},
             )
 
-        # Record message for rate limiting (after successful exchange)
-        await self.rate_limiter.record_message(user_id)
+        # Record message for rate limiting (skip for guests)
+        if user_id:
+            await self.rate_limiter.record_message(user_id)
 
         # Check if we should suggest scene generation
         # (frontend can show a "visualize" prompt)

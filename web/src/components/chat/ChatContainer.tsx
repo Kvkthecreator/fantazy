@@ -67,7 +67,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const { character, isLoading: isLoadingCharacter } = useCharacter(characterId);
 
   // Guest session management
-  const { guestSessionId, messagesRemaining, isGuest, createGuestSession, updateMessagesRemaining, clearGuestSession } = useGuestSession();
+  const { guestSessionId, sessionId, messagesRemaining, isGuest, createGuestSession, updateMessagesRemaining, clearGuestSession } = useGuestSession();
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [user, setUser] = useState<any>(null);
 
@@ -172,7 +172,16 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const backgroundImageUrl = episodeTemplate?.background_image_url;
 
   // Only initialize chat after character is confirmed to exist
-  const shouldInitChat = !isLoadingCharacter && !!character;
+  // For guests (non-authenticated users), we need special handling:
+  // - If episodeTemplateId is provided but template not loaded yet, wait
+  // - If Episode 0 (trial episode), wait for guest session to be created
+  // - If authenticated, proceed normally
+  const isWaitingForEpisodeTemplate = episodeTemplateId && !episodeTemplate;
+  const isGuestOnEpisode0 = !user && episodeTemplate?.episode_number === 0;
+  const isGuestNeedingSession = isGuestOnEpisode0 && !guestSessionId;
+  // For unauthenticated non-Episode-0 access, either redirect to login or use existing guest session
+  const isUnauthenticatedNonGuest = !user && episodeTemplate && episodeTemplate.episode_number !== 0 && !guestSessionId;
+  const shouldInitChat = !isLoadingCharacter && !!character && !isWaitingForEpisodeTemplate && !isGuestNeedingSession && !isUnauthenticatedNonGuest;
 
   const {
     messages,
@@ -200,6 +209,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     characterId,
     episodeTemplateId,
     enabled: shouldInitChat,
+    // Guest session support - pass IDs so useChat skips session creation
+    guestSessionId: guestSessionId,
+    guestEpisodeId: sessionId,  // session_id from useGuestSession is the episode ID
     onError: (error) => {
       console.error("Chat error:", error);
     },

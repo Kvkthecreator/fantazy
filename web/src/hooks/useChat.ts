@@ -45,6 +45,9 @@ interface UseChatOptions {
   characterId: string;
   episodeTemplateId?: string;
   enabled?: boolean;
+  // Guest session support - when provided, skips session creation and uses existing guest session
+  guestSessionId?: string | null;
+  guestEpisodeId?: string | null;  // The session_id from guest session creation
   onError?: (error: Error) => void;
   onRateLimitExceeded?: (error: RateLimitError) => void;
   onEpisodeAccessDenied?: (error: EpisodeAccessError) => void;
@@ -89,6 +92,8 @@ export function useChat({
   characterId,
   episodeTemplateId,
   enabled = true,
+  guestSessionId,
+  guestEpisodeId,
   onError,
   onRateLimitExceeded,
   onEpisodeAccessDenied,
@@ -156,22 +161,51 @@ export function useChat({
   const loadMessages = useCallback(async () => {
     setIsLoading(true);
     try {
-      // Use conversation.start to get/create proper session
-      // Backend handles all session routing logic:
-      // - With episodeTemplateId: returns session for that specific episode
-      // - Without episodeTemplateId: returns free chat session (using is_free_chat template)
-      // This unified approach works with both episode and free chat modes
       let activeEpisode;
-      try {
-        activeEpisode = await api.conversation.start(characterId, {
-          episodeTemplateId,
-        });
-      } catch (err) {
-        if (err instanceof APIError && err.status === 409) {
-          // Session already exists and is active - fetch it
-          activeEpisode = await api.episodes.getActive(characterId);
-        } else {
-          throw err;
+
+      // Guest session flow: use the existing session instead of creating a new one
+      if (guestSessionId && guestEpisodeId) {
+        // For guests, we already have the session_id from guest session creation
+        // Create a minimal episode object with the ID so we can load messages
+        // We only need id, is_active for the chat flow to work
+        activeEpisode = {
+          id: guestEpisodeId,
+          is_active: true,
+          turn_count: 0,
+          // Required fields with placeholder values (not used for guests)
+          character_id: "",
+          episode_number: 0,
+          title: null,
+          started_at: new Date().toISOString(),
+          ended_at: null,
+          message_count: 0,
+          user_id: "",
+          episode_template_id: null,
+          scene: null,
+          summary: null,
+          emotional_tags: [],
+          key_events: [],
+          user_message_count: 0,
+          metadata: {},
+          created_at: new Date().toISOString(),
+        } as Episode;
+      } else {
+        // Authenticated user flow: use conversation.start to get/create proper session
+        // Backend handles all session routing logic:
+        // - With episodeTemplateId: returns session for that specific episode
+        // - Without episodeTemplateId: returns free chat session (using is_free_chat template)
+        // This unified approach works with both episode and free chat modes
+        try {
+          activeEpisode = await api.conversation.start(characterId, {
+            episodeTemplateId,
+          });
+        } catch (err) {
+          if (err instanceof APIError && err.status === 409) {
+            // Session already exists and is active - fetch it
+            activeEpisode = await api.episodes.getActive(characterId);
+          } else {
+            throw err;
+          }
         }
       }
 
@@ -193,7 +227,7 @@ export function useChat({
     } finally {
       setIsLoading(false);
     }
-  }, [characterId, episodeTemplateId]);
+  }, [characterId, episodeTemplateId, guestSessionId, guestEpisodeId]);
 
   // Send message (non-streaming)
   const sendMessageSimple = useCallback(async (content: string) => {
@@ -434,15 +468,21 @@ export function useChat({
     setNeedsSparks(false);
   }, []);
 
-  // Load on mount (only when enabled, and only once per characterId + episodeTemplateId combo)
+  // Load on mount (only when enabled, and only once per characterId + episodeTemplateId + guestSession combo)
   useEffect(() => {
     if (!enabled) {
       setIsLoading(false);
       return;
     }
 
-    // Create a unique key for characterId + episodeTemplateId combo
-    const loadKey = `${characterId}:${episodeTemplateId || "default"}`;
+    // For guest sessions, wait until we have the session ID before loading
+    // This prevents loading before the guest session is created
+    if (guestSessionId && !guestEpisodeId) {
+      return;
+    }
+
+    // Create a unique key for characterId + episodeTemplateId + guest combo
+    const loadKey = `${characterId}:${episodeTemplateId || "default"}:${guestEpisodeId || "auth"}`;
 
     // Prevent infinite loops - only load once per key
     if (loadedKeyRef.current === loadKey) {
@@ -455,7 +495,7 @@ export function useChat({
     return () => {
       abortControllerRef.current?.abort();
     };
-  }, [loadMessages, enabled, characterId, episodeTemplateId]);
+  }, [loadMessages, enabled, characterId, episodeTemplateId, guestSessionId, guestEpisodeId]);
 
   return {
     messages,
