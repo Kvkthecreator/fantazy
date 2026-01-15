@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from app.deps import get_db
-from app.dependencies import get_optional_user_id
+from app.dependencies import get_current_user_id, get_optional_user_id
 from app.models.message import Message, MessageCreate
 
 router = APIRouter(prefix="/episodes/{episode_id}/messages", tags=["Messages"])
