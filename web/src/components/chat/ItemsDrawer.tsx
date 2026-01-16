@@ -2,26 +2,37 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, FileSearch, Briefcase } from "lucide-react";
+import { X, FileSearch, Briefcase, BookOpen, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PropCard } from "./PropCard";
 import { cn } from "@/lib/utils";
 import type { RevealedProp } from "@/hooks/useChat";
 
-interface EvidenceDrawerProps {
+interface StoryBrief {
+  episodeTitle?: string;
+  situation?: string;
+  backstory?: string;
+}
+
+interface ItemsDrawerProps {
   props: RevealedProp[];
   isOpen: boolean;
   onClose: () => void;
   hasBackground?: boolean;
   characterName?: string;
+  storyBrief?: StoryBrief;
 }
 
 /**
- * ItemsDrawer - Collapsible drawer for collected props
+ * ItemsDrawer - Collapsible drawer for story brief and collected props
  *
  * ADR-006: Props as Progression System
  * Instead of showing props inline at bottom of chat, we collect them
  * into an items drawer - like an inventory in a game.
+ *
+ * Story Brief section added for supplemental context - helps users
+ * understand the scene, their role, and key background info without
+ * needing to visit the series page first.
  *
  * Design philosophy:
  * - Bottom sheet on mobile, side panel on desktop
@@ -35,8 +46,10 @@ export function ItemsDrawer({
   onClose,
   hasBackground = false,
   characterName,
-}: EvidenceDrawerProps) {
+  storyBrief,
+}: ItemsDrawerProps) {
   const [mounted, setMounted] = useState(false);
+  const [briefExpanded, setBriefExpanded] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -121,8 +134,56 @@ export function ItemsDrawer({
           </Button>
         </div>
 
-        {/* Props list */}
+        {/* Scrollable content */}
         <div className="overflow-y-auto max-h-[calc(85vh-80px)] sm:max-h-[calc(100vh-80px)] px-3 pb-[env(safe-area-inset-bottom)]">
+          {/* Story Brief Section */}
+          {storyBrief && (storyBrief.situation || storyBrief.backstory) && (
+            <div className="py-3 border-b border-white/10">
+              <button
+                onClick={() => setBriefExpanded(!briefExpanded)}
+                className="w-full flex items-center justify-between text-left group"
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-white/90">Story Brief</span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "w-4 h-4 text-white/50 transition-transform",
+                    briefExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+
+              {briefExpanded && (
+                <div className="mt-3 space-y-3">
+                  {storyBrief.episodeTitle && (
+                    <p className="text-xs text-blue-400 uppercase tracking-wide">
+                      {storyBrief.episodeTitle}
+                    </p>
+                  )}
+                  {storyBrief.situation && (
+                    <div>
+                      <p className="text-xs text-white/40 mb-1">The Scene</p>
+                      <p className="text-sm text-white/80 leading-relaxed">
+                        {storyBrief.situation}
+                      </p>
+                    </div>
+                  )}
+                  {storyBrief.backstory && (
+                    <div>
+                      <p className="text-xs text-white/40 mb-1">What You Know</p>
+                      <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">
+                        {storyBrief.backstory}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Props/Items Section */}
           {props.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
@@ -134,7 +195,8 @@ export function ItemsDrawer({
               </p>
             </div>
           ) : (
-            <div className="space-y-2 py-2">
+            <div className="space-y-2 py-3">
+              <p className="text-xs text-white/40 px-1 mb-2">Items Collected</p>
               {props.map((prop) => (
                 <PropCard
                   key={prop.id}

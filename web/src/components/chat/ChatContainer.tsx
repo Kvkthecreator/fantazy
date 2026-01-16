@@ -690,13 +690,18 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         hasBackground={hasBackground}
       />
 
-      {/* ADR-006: Items drawer for collected props */}
+      {/* ADR-006: Items drawer for collected props and story brief */}
       <ItemsDrawer
         props={revealedProps}
         isOpen={showItemsDrawer}
         onClose={() => setShowItemsDrawer(false)}
         hasBackground={hasBackground}
         characterName={character.name}
+        storyBrief={{
+          episodeTitle: episodeTemplate?.title,
+          situation: episodeTemplate?.situation,
+          backstory: character.backstory || undefined,
+        }}
       />
 
       {/* Guest signup modal */}
