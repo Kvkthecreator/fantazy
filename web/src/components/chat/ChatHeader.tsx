@@ -164,8 +164,8 @@ export function ChatHeader({
             </button>
           )}
 
-          {/* ADR-006: Items button - shows in series context (even at 0 for anticipation) */}
-          {isSeriesContext && onItemsClick && (
+          {/* ADR-006: Items button - shows for any episode (series or standalone) */}
+          {onItemsClick && (
             <button
               onClick={onItemsClick}
               className={cn(
