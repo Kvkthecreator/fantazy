@@ -31,47 +31,20 @@ export function SignupModal({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {trigger === "message_limit"
-              ? "You've reached the trial limit"
-              : "Sign up to continue"}
-          </DialogTitle>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader className="text-center">
+          <DialogTitle>Sign up to continue</DialogTitle>
           <DialogDescription>
-            {trigger === "message_limit"
-              ? "Create an account to continue your conversation and unlock all episodes."
-              : "The character remembers what you said. Sign up to see how this affects the story."}
+            Your conversation will be saved.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          <div className="space-y-2 text-sm">
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 text-green-500">✓</div>
-              <div>Unlimited messages in all episodes</div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 text-green-500">✓</div>
-              <div>Your choices are remembered across episodes</div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 text-green-500">✓</div>
-              <div>Continue through all episodes in every series</div>
-            </div>
-            <div className="flex items-start gap-2">
-              <div className="mt-0.5 text-green-500">✓</div>
-              <div>Try different story paths and endings</div>
-            </div>
-          </div>
-        </div>
-
-        <DialogFooter className="flex-col gap-2 sm:flex-col">
+        <DialogFooter className="flex-col gap-2 sm:flex-col pt-2">
           <Button onClick={handleSignup} className="w-full">
-            Continue with Google
+            Sign up free
           </Button>
-          <Button variant="ghost" onClick={onClose} className="w-full">
-            Not now
+          <Button variant="ghost" onClick={onClose} className="w-full text-muted-foreground">
+            Maybe later
           </Button>
         </DialogFooter>
       </DialogContent>
