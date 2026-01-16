@@ -502,6 +502,56 @@ K_CAMPUS_ENCOUNTER_BACKGROUNDS = {
     },
 }
 
+# Trainee Days (K-World, pre-debut idol trainee - raw documentary style)
+# Unglamorous agency aesthetic: fluorescent lights, practice rooms, exhaustion
+TRAINEE_DOCUMENTARY_STYLE = "documentary photography, K-pop trainee aesthetic, raw unpolished look, realistic"
+TRAINEE_DOCUMENTARY_QUALITY = "masterpiece, best quality, cinematic documentary, realistic detail, shallow depth of field"
+
+TRAINEE_DAYS_BACKGROUNDS = {
+    "Evaluation Room": {
+        "location": "K-pop agency hallway outside evaluation room, fluorescent tube lights, practice room doors with small windows, grey linoleum floor, agency posters on wall",
+        "time": "evening after evaluation, harsh artificial fluorescent light, exhausted late-day atmosphere",
+        "mood": "post-evaluation tension, ranking anxiety, vulnerability after performance",
+        "rendering": TRAINEE_DOCUMENTARY_STYLE,
+        "quality": TRAINEE_DOCUMENTARY_QUALITY,
+    },
+    "Practice Room 2AM": {
+        "location": "empty K-pop dance practice room at night, floor-to-ceiling mirrors reflecting fluorescent lights, polished wood floor with sweat marks, phone propped against mirror playing music, scattered water bottles",
+        "time": "2am, harsh overhead fluorescents, empty building silence, obsessive late-night energy",
+        "mood": "obsessive dedication, private struggle, exhaustion as devotion, loneliness of ambition",
+        "rendering": TRAINEE_DOCUMENTARY_STYLE,
+        "quality": TRAINEE_DOCUMENTARY_QUALITY,
+    },
+    "Rooftop Break": {
+        "location": "agency building rooftop at dawn, concrete industrial ledge, Seoul cityscape waking up below, convenience store kimbap wrappers and coffee cups, industrial vents and railing",
+        "time": "6am sunrise, soft pink and orange sky contrasting with grey concrete, cool morning air atmosphere",
+        "mood": "stolen peace before schedules, uncertain futures, quiet honesty between rivals",
+        "rendering": TRAINEE_DOCUMENTARY_STYLE,
+        "quality": TRAINEE_DOCUMENTARY_QUALITY,
+    },
+    "Vocal Room Confession": {
+        "location": "small soundproofed vocal practice booth, foam acoustic panels on walls, keyboard on stand, two plastic stools close together, warm single overhead light, closed door",
+        "time": "afternoon, warm interior lighting in soundproofed silence, intimate isolation",
+        "mood": "private bubble, nowhere to hide, truth forced by proximity, confession space",
+        "rendering": TRAINEE_DOCUMENTARY_STYLE,
+        "quality": TRAINEE_DOCUMENTARY_QUALITY,
+    },
+    "Lineup Day": {
+        "location": "agency hallway with bulletin board, printed lineup list pinned up, fluorescent lights, crowd of dark-clothed trainee silhouettes reflected in window, grey institutional walls",
+        "time": "morning announcement, bright harsh institutional lighting, life-changing moment frozen",
+        "mood": "destiny revealed, dreams made or broken, public emotion barely contained",
+        "rendering": TRAINEE_DOCUMENTARY_STYLE,
+        "quality": TRAINEE_DOCUMENTARY_QUALITY,
+    },
+    "Night Before Debut": {
+        "location": "empty practice room at midnight, city lights through single window, debut stage outfits hanging on rolling rack in corner, mirrors reflecting dim room, last night as trainees",
+        "time": "midnight before debut, city glow through window only light source, quiet anticipation",
+        "mood": "last night of anonymity, everything about to change, now or never confession",
+        "rendering": TRAINEE_DOCUMENTARY_STYLE,
+        "quality": TRAINEE_DOCUMENTARY_QUALITY,
+    },
+}
+
 # Corner Office (Real Life, corporate romance - CEO/Assistant)
 # Semi-realistic style for workplace romance
 CORPORATE_ROMANCE_STYLE = "digital illustration, modern romance novel aesthetic, cinematic lighting, sophisticated urban setting"
@@ -929,6 +979,7 @@ ALL_EPISODE_BACKGROUNDS = {
     **FASHION_EMPIRE_CEO_BACKGROUNDS,
     **CHEERLEADER_CRUSH_BACKGROUNDS,
     **K_CAMPUS_ENCOUNTER_BACKGROUNDS,
+    **TRAINEE_DAYS_BACKGROUNDS,
     **CORNER_OFFICE_BACKGROUNDS,
     **THE_COMPETITION_BACKGROUNDS,
     **OFF_LIMITS_BACKGROUNDS,
