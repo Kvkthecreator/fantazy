@@ -24,6 +24,7 @@ import { SignupModal } from "@/components/guest/SignupModal";
 import { GuestBanner } from "@/components/guest/GuestBanner";
 import { api } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/client";
+import { captureAttribution } from "@/lib/utils/attribution";
 import type { Message, EpisodeImage, EpisodeTemplate, InsufficientSparksError, EpisodeAccessError, RateLimitError } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +72,11 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const { guestSessionId, sessionId, messagesRemaining, isGuest, createGuestSession, updateMessagesRemaining, clearGuestSession } = useGuestSession();
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [user, setUser] = useState<any>(null);
+
+  // Capture UTM attribution on mount (for direct Episode 0 ad links)
+  useEffect(() => {
+    captureAttribution();
+  }, []);
 
   // Check authentication status
   useEffect(() => {
