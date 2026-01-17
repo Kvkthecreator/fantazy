@@ -47,37 +47,37 @@ DATABASE_URL = os.getenv(
 GENERATION_DELAY = 5
 
 # =============================================================================
-# Trainee Documentary Style Constants
-# Raw, unglamorous, fluorescent-lit agency aesthetic
+# Trainee Manhwa Style Constants
+# Unglamorous agency aesthetic rendered in Korean webtoon style
 # =============================================================================
 
-TRAINEE_STYLE = "documentary photography, K-pop trainee aesthetic, raw unpolished look, realistic"
-TRAINEE_QUALITY = "masterpiece, best quality, cinematic documentary, realistic detail, shallow depth of field"
-TRAINEE_NEGATIVE = "glamorous, stage makeup, concert lighting, perfect skin, anime, cartoon, polished idol look, multiple people, text, watermark, 3D render, illustration"
+TRAINEE_STYLE = "webtoon illustration, manhwa art style, K-pop trainee aesthetic, clean bold lineart, soft cel shading"
+TRAINEE_QUALITY = "masterpiece, best quality, professional manhwa art, crisp clean lines, emotional atmosphere"
+TRAINEE_NEGATIVE = "photorealistic, 3D render, western cartoon, harsh shadows, blurry, low quality, multiple people, text, watermark"
 
-# Tae-min's appearance for avatar generation - raw trainee look
-TAEMIN_APPEARANCE = """Korean male late teens, sharp jawline still softening with youth, intense focused eyes with visible dark circles,
-black hair damp with sweat pushed back from forehead, faint acne scars on cheeks, athletic dancer's build,
-wearing agency-issued black training clothes with towel around neck, practice room mirror behind him,
-exhausted but determined expression, sweat on skin, realistic trainee look"""
+# Tae-min's appearance for avatar generation - manhwa trainee look
+TAEMIN_APPEARANCE = """manhwa style Korean male late teens, sharp handsome jawline, intense focused eyes with slight dark circles,
+black hair damp with sweat pushed back from forehead, athletic dancer's build,
+wearing agency-issued black training clothes with towel around neck, practice room setting,
+exhausted but determined expression, beautiful in an unpolished way"""
 
-TAEMIN_STYLE = """raw documentary-style K-pop portrait, harsh practice room fluorescent lighting,
-mirror reflections in background, sweat visible on skin, realistic unpolished idol aesthetic,
-shallow depth of field, candid trainee moment, cinematic photography"""
+TAEMIN_STYLE = """webtoon illustration, manhwa art style portrait, K-pop trainee aesthetic,
+practice room fluorescent lighting rendered in soft colors, clean bold lineart,
+soft cel shading, moody atmospheric colors, emotional intensity"""
 
-# Series cover prompt - practice room scene with mirrors
-SERIES_COVER_PROMPT = """cinematic documentary photograph, K-pop agency practice room at night,
-floor-to-ceiling mirrors reflecting fluorescent lights, polished wood floor with sweat marks,
-single figure silhouette in mirror doing dance move, agency logo on wall, water bottles scattered,
-raw trainee atmosphere, dreams and exhaustion, Seoul city lights through small window,
-masterpiece, best quality, cinematic film still, high detail, documentary aesthetic"""
+# Series cover prompt - practice room scene with mirrors (manhwa style)
+SERIES_COVER_PROMPT = """webtoon illustration, manhwa art style, K-pop agency practice room at night,
+floor-to-ceiling mirrors reflecting soft fluorescent glow, polished wood floor,
+single figure silhouette in mirror doing dance move, agency aesthetic, water bottles scattered,
+trainee dreams and determination atmosphere, Seoul city lights through window,
+masterpiece, best quality, professional manhwa art, moody atmospheric colors"""
 
-SERIES_COVER_NEGATIVE = """glamorous, concert, stage, perfect lighting, anime, cartoon, illustration,
-multiple people clearly visible, text, watermark, polished idol look, bright cheerful colors"""
+SERIES_COVER_NEGATIVE = """photorealistic, 3D render, western cartoon, harsh shadows,
+multiple people clearly visible, text, watermark, blurry, low quality"""
 
 
 async def generate_avatar(db: Database, storage: StorageService, image_service: ImageService):
-    """Generate Tae-min's documentary-style avatar."""
+    """Generate Tae-min's manhwa-style avatar."""
     print("\n" + "=" * 60)
     print("GENERATING TAE-MIN AVATAR")
     print("=" * 60)
