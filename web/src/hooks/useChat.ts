@@ -57,6 +57,12 @@ export interface ChoicePointState {
   choices: Array<{ id: string; label: string }>;
 }
 
+// ADR-008: Tracks the last choice made (for visual feedback)
+export interface MadeChoiceState {
+  prompt: string;
+  selectedLabel: string;
+}
+
 interface UseChatOptions {
   characterId: string;
   episodeTemplateId?: string;
@@ -103,6 +109,7 @@ interface UseChatReturn {
   // ADR-008: User objectives
   currentObjective: ObjectiveState | null;
   activeChoicePoint: ChoicePointState | null;
+  madeChoice: MadeChoiceState | null;  // Last choice made (for visual feedback)
   // Actions
   sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
@@ -162,6 +169,7 @@ export function useChat({
     initialObjective ? { objective: initialObjective, hint: initialHint, status: "active" } : null
   );
   const [activeChoicePoint, setActiveChoicePoint] = useState<ChoicePointState | null>(null);
+  const [madeChoice, setMadeChoice] = useState<MadeChoiceState | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -205,6 +213,7 @@ export function useChat({
       initialObjective ? { objective: initialObjective, hint: initialHint, status: "active" } : null
     );
     setActiveChoicePoint(null);
+    setMadeChoice(null);
   }, [episodeTemplateId, initialObjective, initialHint]);
 
   // Load active episode and messages
@@ -540,15 +549,27 @@ export function useChat({
 
   // ADR-008: Select a choice at a choice point
   const selectChoice = useCallback(async (choicePointId: string, choiceId: string) => {
-    if (!episode) return;
+    if (!episode || !activeChoicePoint) return;
+
+    // Find the selected choice label for visual feedback
+    const selectedChoice = activeChoicePoint.choices.find(c => c.id === choiceId);
 
     try {
       await api.episodes.recordChoice(episode.id, choicePointId, choiceId);
+
+      // Store the made choice for visual feedback before clearing the active choice point
+      if (selectedChoice) {
+        setMadeChoice({
+          prompt: activeChoicePoint.prompt,
+          selectedLabel: selectedChoice.label,
+        });
+      }
+
       setActiveChoicePoint(null);  // Clear choice point after selection
     } catch (error) {
       onErrorRef.current?.(error as Error);
     }
-  }, [episode]);
+  }, [episode, activeChoicePoint]);
 
   // Load on mount (only when enabled, and only once per characterId + episodeTemplateId + guestSession combo)
   useEffect(() => {
@@ -601,6 +622,7 @@ export function useChat({
     // ADR-008: User objectives
     currentObjective,
     activeChoicePoint,
+    madeChoice,
     // Actions
     sendMessage,
     loadMessages,

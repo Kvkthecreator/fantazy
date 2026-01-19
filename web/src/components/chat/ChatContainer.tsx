@@ -18,7 +18,7 @@ import { RateLimitModal } from "./RateLimitModal";
 import { InlineCompletionCard } from "./InlineCompletionCard";
 import { InlineSuggestionCard } from "./InlineSuggestionCard";
 import { ObjectiveCard } from "./ObjectiveCard";
-import { ChoiceCard } from "./ChoiceCard";
+import { ChoiceCard, ChoiceMadeCard } from "./ChoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuotaExceededModal } from "@/components/usage";
 import { InsufficientSparksModal } from "@/components/sparks";
@@ -218,6 +218,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     // ADR-008: User objectives
     currentObjective,
     activeChoicePoint,
+    madeChoice,
     selectChoice,
     // Actions
     sendMessage,
@@ -603,6 +604,14 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                   onChoiceSelect={async (choiceId) => {
                     await selectChoice(activeChoicePoint.id, choiceId);
                   }}
+                />
+              )}
+
+              {/* ADR-008: Show visual feedback after a choice has been made */}
+              {madeChoice && !activeChoicePoint && (
+                <ChoiceMadeCard
+                  prompt={madeChoice.prompt}
+                  selectedLabel={madeChoice.selectedLabel}
                 />
               )}
 
