@@ -8,12 +8,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { SubscriptionCard } from "@/components/subscription";
 import { TopupPacks, TransactionHistory } from "@/components/sparks";
 import { useUser } from "@/hooks/useUser";
 import { useSparks } from "@/hooks/useSparks";
 import { createClient } from "@/lib/supabase/client";
-import { CheckCircle2, Sparkles, CreditCard, User, Mail, Clock, Loader2, History, Settings2, Image, AlertCircle, HelpCircle, ExternalLink } from "lucide-react";
+import { api } from "@/lib/api/client";
+import { CheckCircle2, Sparkles, CreditCard, User, Mail, Clock, Loader2, History, Settings2, Image, AlertCircle, HelpCircle, ExternalLink, Trash2 } from "lucide-react";
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
@@ -31,6 +40,13 @@ export default function SettingsPage() {
   const [visualModeOverride, setVisualModeOverride] = useState<string>("episode_default");
   const [isSavingPrefs, setIsSavingPrefs] = useState(false);
   const [prefsSaveSuccess, setPrefsSaveSuccess] = useState(false);
+
+  // Delete account state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Get email from Supabase auth
   useEffect(() => {
@@ -90,6 +106,29 @@ export default function SettingsPage() {
       await reload();
     } finally {
       setIsSavingPrefs(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmation !== "DELETE") {
+      setDeleteError("Please type DELETE to confirm");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await api.users.deleteAccount("DELETE", deleteReason || undefined);
+
+      // Sign out and redirect to home
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      router.push("/");
+    } catch (err) {
+      console.error("Failed to delete account:", err);
+      setDeleteError("Failed to delete account. Please try again or contact support.");
+      setIsDeleting(false);
     }
   };
 
@@ -367,6 +406,42 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Danger Zone */}
+          <Card className="border-red-500/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+                <AlertCircle className="h-5 w-5" />
+                Danger Zone
+              </CardTitle>
+              <CardDescription>
+                Irreversible actions that affect your account
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="space-y-1">
+                    <p className="font-medium text-red-700 dark:text-red-400">
+                      Delete Account
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete your account and all associated data.
+                      This action cannot be undone.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setShowDeleteModal(true)}
+                    className="shrink-0"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Account
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Preferences Tab */}
@@ -494,6 +569,100 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Delete Account Confirmation Modal */}
+      <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-400">
+              <AlertCircle className="h-5 w-5" />
+              Delete Account
+            </DialogTitle>
+            <DialogDescription>
+              This action is permanent and cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Warning */}
+            <div className="rounded-lg bg-red-500/10 border border-red-500/20 p-4 text-sm space-y-2">
+              <p className="font-medium text-red-700 dark:text-red-400">
+                This will permanently delete:
+              </p>
+              <ul className="list-disc list-inside text-red-600 dark:text-red-500 space-y-1">
+                <li>Your account and profile</li>
+                <li>All chat history and messages</li>
+                <li>All memories and saved moments</li>
+                <li>Your Spark balance and transaction history</li>
+                <li>Any active subscription (will be cancelled)</li>
+              </ul>
+            </div>
+
+            {/* Reason (optional) */}
+            <div className="space-y-2">
+              <Label htmlFor="delete-reason" className="text-muted-foreground">
+                Why are you leaving? (optional)
+              </Label>
+              <Select value={deleteReason} onValueChange={setDeleteReason}>
+                <SelectTrigger id="delete-reason">
+                  <SelectValue placeholder="Select a reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="not_using">Not using the app anymore</SelectItem>
+                  <SelectItem value="found_alternative">Found an alternative</SelectItem>
+                  <SelectItem value="privacy">Privacy concerns</SelectItem>
+                  <SelectItem value="too_expensive">Too expensive</SelectItem>
+                  <SelectItem value="not_satisfied">Not satisfied with the experience</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Confirmation input */}
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirmation">
+                Type <span className="font-mono font-bold text-red-600">DELETE</span> to confirm
+              </Label>
+              <Input
+                id="delete-confirmation"
+                type="text"
+                placeholder="Type DELETE"
+                value={deleteConfirmation}
+                onChange={(e) => setDeleteConfirmation(e.target.value)}
+                className="font-mono"
+              />
+            </div>
+
+            {/* Error message */}
+            {deleteError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setDeleteConfirmation("");
+                setDeleteReason("");
+                setDeleteError(null);
+              }}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteAccount}
+              disabled={deleteConfirmation !== "DELETE" || isDeleting}
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Delete My Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
