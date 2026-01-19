@@ -434,30 +434,33 @@ async def get_activation_funnel(
     # 2. MESSAGE DISTRIBUTION
     # ==========================================================================
     distribution_query = """
-    SELECT
-        CASE
-            WHEN messages_sent_count = 0 THEN '0'
-            WHEN messages_sent_count BETWEEN 1 AND 5 THEN '1-5'
-            WHEN messages_sent_count BETWEEN 6 AND 10 THEN '6-10'
-            WHEN messages_sent_count BETWEEN 11 AND 25 THEN '11-25'
-            WHEN messages_sent_count BETWEEN 26 AND 50 THEN '26-50'
-            WHEN messages_sent_count BETWEEN 51 AND 100 THEN '51-100'
-            ELSE '100+'
-        END as bucket,
-        COUNT(*) as count
-    FROM users
-    WHERE created_at > :lookback
-    GROUP BY bucket
-    ORDER BY
-        CASE bucket
-            WHEN '0' THEN 1
-            WHEN '1-5' THEN 2
-            WHEN '6-10' THEN 3
-            WHEN '11-25' THEN 4
-            WHEN '26-50' THEN 5
-            WHEN '51-100' THEN 6
-            ELSE 7
-        END
+    WITH bucketed AS (
+        SELECT
+            CASE
+                WHEN messages_sent_count = 0 THEN '0'
+                WHEN messages_sent_count BETWEEN 1 AND 5 THEN '1-5'
+                WHEN messages_sent_count BETWEEN 6 AND 10 THEN '6-10'
+                WHEN messages_sent_count BETWEEN 11 AND 25 THEN '11-25'
+                WHEN messages_sent_count BETWEEN 26 AND 50 THEN '26-50'
+                WHEN messages_sent_count BETWEEN 51 AND 100 THEN '51-100'
+                ELSE '100+'
+            END as bucket,
+            CASE
+                WHEN messages_sent_count = 0 THEN 1
+                WHEN messages_sent_count BETWEEN 1 AND 5 THEN 2
+                WHEN messages_sent_count BETWEEN 6 AND 10 THEN 3
+                WHEN messages_sent_count BETWEEN 11 AND 25 THEN 4
+                WHEN messages_sent_count BETWEEN 26 AND 50 THEN 5
+                WHEN messages_sent_count BETWEEN 51 AND 100 THEN 6
+                ELSE 7
+            END as sort_order
+        FROM users
+        WHERE created_at > :lookback
+    )
+    SELECT bucket, COUNT(*) as count
+    FROM bucketed
+    GROUP BY bucket, sort_order
+    ORDER BY sort_order
     """
     dist_rows = await db.fetch_all(distribution_query, {"lookback": lookback})
     total_for_dist = sum(row["count"] for row in dist_rows) or 1
