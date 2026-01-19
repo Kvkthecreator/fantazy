@@ -578,7 +578,7 @@ async def get_activation_funnel(
             u.id,
             DATE_TRUNC('week', u.created_at) as cohort_week,
             u.created_at as signup_date,
-            (SELECT MIN(created_at) FROM messages m
+            (SELECT MIN(m.created_at) FROM messages m
              JOIN sessions s ON m.episode_id = s.id
              WHERE s.user_id = u.id) as first_message_at,
             (SELECT MAX(last_interaction_at) FROM engagements WHERE user_id = u.id) as last_active
