@@ -14,6 +14,27 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator
 
 
+class ChoiceOption(BaseModel):
+    """A single choice option within a choice point."""
+    id: str
+    label: str
+    sets_flag: Optional[str] = None
+
+
+class ChoicePoint(BaseModel):
+    """An interactive decision moment within an episode (ADR-008)."""
+    id: str
+    trigger: str  # "turn:N" or "after_objective:obj_id"
+    prompt: str
+    choices: List[ChoiceOption]
+
+
+class FlagContextRule(BaseModel):
+    """Context injection rule based on flags (ADR-008)."""
+    if_flag: str
+    inject: str
+
+
 class VisualMode:
     """Visual generation mode constants (Ticket + Moments model).
 
@@ -92,6 +113,17 @@ class EpisodeTemplate(BaseModel):
     scene_obstacle: Optional[str] = None   # What's stopping them from just asking
     scene_tactic: Optional[str] = None     # How they're trying to get what they want
 
+    # User objectives (ADR-008: User Objectives System)
+    # These give users explicit goals with visible stakes and consequences
+    user_objective: Optional[str] = None   # What the user is trying to achieve
+    user_hint: Optional[str] = None        # Optional hint to help users
+    success_condition: Optional[str] = None  # semantic:<criteria>, keyword:<words>, turn:<N>, flag:<name>
+    failure_condition: str = "turn_budget_exceeded"  # Default: fail if turn budget exceeded
+    on_success: dict = Field(default_factory=dict)   # { "set_flag": "...", "suggest_episode": "..." }
+    on_failure: dict = Field(default_factory=dict)   # { "set_flag": "...", "suggest_episode": "..." }
+    choice_points: List[ChoicePoint] = Field(default_factory=list)  # Interactive decision moments
+    flag_context_rules: List[FlagContextRule] = Field(default_factory=list)  # Context injection rules
+
     # Director configuration
     genre: str = "romance"  # Story genre for semantic evaluation context
     # NOTE: series_finale removed - never used in prompt generation or Director logic
@@ -130,6 +162,53 @@ class EpisodeTemplate(BaseModel):
                 return [v]
         return []
 
+    @field_validator("on_success", "on_failure", mode="before")
+    @classmethod
+    def ensure_dict(cls, v: Any) -> dict:
+        """Handle JSONB dict fields from DB."""
+        if v is None:
+            return {}
+        if isinstance(v, dict):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                if isinstance(parsed, dict):
+                    return parsed
+            except (json.JSONDecodeError, TypeError):
+                return {}
+        return {}
+
+    @field_validator("choice_points", mode="before")
+    @classmethod
+    def ensure_choice_points(cls, v: Any) -> List[ChoicePoint]:
+        """Handle choice_points JSONB from DB."""
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                v = json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        if isinstance(v, list):
+            return [ChoicePoint(**cp) if isinstance(cp, dict) else cp for cp in v]
+        return []
+
+    @field_validator("flag_context_rules", mode="before")
+    @classmethod
+    def ensure_flag_context_rules(cls, v: Any) -> List[FlagContextRule]:
+        """Handle flag_context_rules JSONB from DB."""
+        if v is None:
+            return []
+        if isinstance(v, str):
+            try:
+                v = json.loads(v)
+            except (json.JSONDecodeError, TypeError):
+                return []
+        if isinstance(v, list):
+            return [FlagContextRule(**r) if isinstance(r, dict) else r for r in v]
+        return []
+
     class Config:
         from_attributes = True
 
@@ -160,6 +239,16 @@ class EpisodeTemplateCreate(BaseModel):
     scene_objective: Optional[str] = None
     scene_obstacle: Optional[str] = None
     scene_tactic: Optional[str] = None
+
+    # User objectives (ADR-008: User Objectives System)
+    user_objective: Optional[str] = None
+    user_hint: Optional[str] = None
+    success_condition: Optional[str] = None
+    failure_condition: str = "turn_budget_exceeded"
+    on_success: dict = Field(default_factory=dict)
+    on_failure: dict = Field(default_factory=dict)
+    choice_points: List[ChoicePoint] = Field(default_factory=list)
+    flag_context_rules: List[FlagContextRule] = Field(default_factory=list)
 
     # Director configuration
     genre: str = "romance"
@@ -192,6 +281,16 @@ class EpisodeTemplateUpdate(BaseModel):
     scene_objective: Optional[str] = None
     scene_obstacle: Optional[str] = None
     scene_tactic: Optional[str] = None
+
+    # User objectives (ADR-008: User Objectives System)
+    user_objective: Optional[str] = None
+    user_hint: Optional[str] = None
+    success_condition: Optional[str] = None
+    failure_condition: Optional[str] = None
+    on_success: Optional[dict] = None
+    on_failure: Optional[dict] = None
+    choice_points: Optional[List[ChoicePoint]] = None
+    flag_context_rules: Optional[List[FlagContextRule]] = None
 
     # Director configuration
     genre: Optional[str] = None

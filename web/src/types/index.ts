@@ -279,6 +279,20 @@ export interface EpisodeTemplate extends EpisodeTemplateSummary {
   scene_objective: string | null;  // What character wants from user this scene
   scene_obstacle: string | null;   // What's stopping them from just asking
   scene_tactic: string | null;     // How they're trying to get what they want
+  // User Objectives (ADR-008: User Objectives System)
+  user_objective: string | null;   // What the user is trying to achieve
+  user_hint: string | null;        // Optional hint to help users
+  success_condition: string | null;
+  failure_condition: string | null;
+  on_success: Record<string, unknown>;
+  on_failure: Record<string, unknown>;
+  choice_points: Array<{
+    id: string;
+    trigger: string;
+    prompt: string;
+    choices: Array<{ id: string; label: string; sets_flag?: string }>;
+  }>;
+  flag_context_rules: Array<{ if_flag: string; inject: string }>;
   // Director V2 configuration
   genre: string;  // Story genre for semantic evaluation
   auto_scene_mode: AutoSceneMode;  // off, peaks, rhythmic

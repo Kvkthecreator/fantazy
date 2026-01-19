@@ -41,6 +41,22 @@ export interface RevealedProp {
   revealed_at: string;  // ISO timestamp for timeline ordering
 }
 
+// ADR-008: User objective state
+export type ObjectiveStatus = "active" | "completed" | "failed";
+
+export interface ObjectiveState {
+  objective: string;
+  hint?: string;
+  status: ObjectiveStatus;
+}
+
+// ADR-008: Choice point from backend
+export interface ChoicePointState {
+  id: string;
+  prompt: string;
+  choices: Array<{ id: string; label: string }>;
+}
+
 interface UseChatOptions {
   characterId: string;
   episodeTemplateId?: string;
@@ -48,6 +64,9 @@ interface UseChatOptions {
   // Guest session support - when provided, skips session creation and uses existing guest session
   guestSessionId?: string | null;
   guestEpisodeId?: string | null;  // The session_id from guest session creation
+  // ADR-008: Initial objective from episode template (if any)
+  initialObjective?: string;
+  initialHint?: string;
   onError?: (error: Error) => void;
   onRateLimitExceeded?: (error: RateLimitError) => void;
   onEpisodeAccessDenied?: (error: EpisodeAccessError) => void;
@@ -56,6 +75,10 @@ interface UseChatOptions {
   onInstructionCard?: (event: StreamInstructionCardEvent) => void;
   onNeedsSparks?: (event: StreamNeedsSparksEvent) => void;
   onPropReveal?: (event: StreamPropRevealEvent) => void;
+  // ADR-008: Objective events
+  onObjectiveCompleted?: (objective: string, turn: number) => void;
+  onObjectiveFailed?: (objective: string, turn: number) => void;
+  onChoicePoint?: (choicePoint: ChoicePointState) => void;
 }
 
 interface UseChatReturn {
@@ -77,6 +100,9 @@ interface UseChatReturn {
   needsSparks: boolean;
   // ADR-005: Props revealed this session (with timestamps for timeline)
   revealedProps: RevealedProp[];
+  // ADR-008: User objectives
+  currentObjective: ObjectiveState | null;
+  activeChoicePoint: ChoicePointState | null;
   // Actions
   sendMessage: (content: string) => Promise<void>;
   loadMessages: () => Promise<void>;
@@ -86,6 +112,8 @@ interface UseChatReturn {
   dismissSuggestion: () => void;  // Hide suggestion card (user can keep chatting)
   clearVisualPending: () => void;
   clearNeedsSparks: () => void;
+  // ADR-008: Choice selection
+  selectChoice: (choicePointId: string, choiceId: string) => Promise<void>;
 }
 
 export function useChat({
@@ -94,6 +122,8 @@ export function useChat({
   enabled = true,
   guestSessionId,
   guestEpisodeId,
+  initialObjective,
+  initialHint,
   onError,
   onRateLimitExceeded,
   onEpisodeAccessDenied,
@@ -102,6 +132,9 @@ export function useChat({
   onInstructionCard,
   onNeedsSparks,
   onPropReveal,
+  onObjectiveCompleted,
+  onObjectiveFailed,
+  onChoicePoint,
 }: UseChatOptions): UseChatReturn {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,6 +157,12 @@ export function useChat({
   // ADR-005: Props revealed this session (with timestamps for timeline ordering)
   const [revealedProps, setRevealedProps] = useState<RevealedProp[]>([]);
 
+  // ADR-008: User objectives state
+  const [currentObjective, setCurrentObjective] = useState<ObjectiveState | null>(
+    initialObjective ? { objective: initialObjective, hint: initialHint, status: "active" } : null
+  );
+  const [activeChoicePoint, setActiveChoicePoint] = useState<ChoicePointState | null>(null);
+
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Store callbacks in refs to avoid dependency issues causing infinite loops
@@ -143,6 +182,12 @@ export function useChat({
   onNeedsSparksRef.current = onNeedsSparks;
   const onPropRevealRef = useRef(onPropReveal);
   onPropRevealRef.current = onPropReveal;
+  const onObjectiveCompletedRef = useRef(onObjectiveCompleted);
+  onObjectiveCompletedRef.current = onObjectiveCompleted;
+  const onObjectiveFailedRef = useRef(onObjectiveFailed);
+  onObjectiveFailedRef.current = onObjectiveFailed;
+  const onChoicePointRef = useRef(onChoicePoint);
+  onChoicePointRef.current = onChoicePoint;
 
   // Track if we've already loaded for this characterId + episodeTemplateId combo
   const loadedKeyRef = useRef<string | null>(null);
@@ -155,7 +200,12 @@ export function useChat({
     setDirectorState(null);
     setInstructionCards([]);
     setRevealedProps([]);  // ADR-005: Reset revealed props for new episode
-  }, [episodeTemplateId]);
+    // ADR-008: Reset objective state for new episode
+    setCurrentObjective(
+      initialObjective ? { objective: initialObjective, hint: initialHint, status: "active" } : null
+    );
+    setActiveChoicePoint(null);
+  }, [episodeTemplateId, initialObjective, initialHint]);
 
   // Load active episode and messages
   const loadMessages = useCallback(async () => {
@@ -329,6 +379,26 @@ export function useChat({
           };
           setRevealedProps((prev) => [...prev, propWithTimestamp]);
           onPropRevealRef.current?.(event);
+        } else if (event.type === "objective_completed") {
+          // ADR-008: User objective completed
+          setCurrentObjective((prev) => prev ? { ...prev, status: "completed" } : null);
+          onObjectiveCompletedRef.current?.(event.objective, event.turn);
+        } else if (event.type === "objective_failed") {
+          // ADR-008: User objective failed
+          setCurrentObjective((prev) => prev ? { ...prev, status: "failed" } : null);
+          onObjectiveFailedRef.current?.(event.objective, event.turn);
+        } else if (event.type === "choice_point") {
+          // ADR-008: Choice point triggered
+          setActiveChoicePoint({
+            id: event.id,
+            prompt: event.prompt,
+            choices: event.choices,
+          });
+          onChoicePointRef.current?.({
+            id: event.id,
+            prompt: event.prompt,
+            choices: event.choices,
+          });
         } else if (event.type === "episode_complete" || event.type === "next_episode_suggestion") {
           // Director suggests moving to next episode (v2.6: decoupled from "completion")
           // This is just a suggestion - user can dismiss and keep chatting
@@ -468,6 +538,18 @@ export function useChat({
     setNeedsSparks(false);
   }, []);
 
+  // ADR-008: Select a choice at a choice point
+  const selectChoice = useCallback(async (choicePointId: string, choiceId: string) => {
+    if (!episode) return;
+
+    try {
+      await api.sessions.recordChoice(episode.id, choicePointId, choiceId);
+      setActiveChoicePoint(null);  // Clear choice point after selection
+    } catch (error) {
+      onErrorRef.current?.(error as Error);
+    }
+  }, [episode]);
+
   // Load on mount (only when enabled, and only once per characterId + episodeTemplateId + guestSession combo)
   useEffect(() => {
     if (!enabled) {
@@ -516,6 +598,9 @@ export function useChat({
     needsSparks,
     // ADR-005: Props revealed this session
     revealedProps,
+    // ADR-008: User objectives
+    currentObjective,
+    activeChoicePoint,
     // Actions
     sendMessage,
     loadMessages,
@@ -525,5 +610,7 @@ export function useChat({
     dismissSuggestion,
     clearVisualPending,
     clearNeedsSparks,
+    // ADR-008: Choice selection
+    selectChoice,
   };
 }

@@ -387,6 +387,121 @@ class ConversationService:
                 log.warning(f"Prop revelation detection failed: {e}")
 
         # =====================================================================
+        # ADR-008: USER OBJECTIVES EVALUATION
+        # =====================================================================
+        if episode_template and user_id:
+            user_objective = getattr(episode_template, 'user_objective', None)
+            success_condition = getattr(episode_template, 'success_condition', None)
+            failure_condition = getattr(episode_template, 'failure_condition', 'turn_budget_exceeded')
+            choice_points = getattr(episode_template, 'choice_points', [])
+            on_success = getattr(episode_template, 'on_success', {})
+            on_failure = getattr(episode_template, 'on_failure', {})
+
+            if user_objective:
+                try:
+                    # Get current director_state for flags and objective status
+                    director_state = dict(episode.director_state) if episode.director_state else {}
+                    objectives_state = director_state.get("objectives", {})
+                    flags = director_state.get("flags", {})
+                    current_objective_status = objectives_state.get("status", "pending")
+
+                    # Skip evaluation if objective already completed/failed
+                    if current_objective_status not in ("completed", "failed"):
+                        # Evaluate objective
+                        full_messages = context.messages + [{"role": "assistant", "content": response_content}]
+                        obj_eval = await self.director_service.evaluate_objective(
+                            objective=user_objective,
+                            success_condition=success_condition,
+                            messages=full_messages,
+                            character_response=response_content,
+                            turn_count=next_turn_count,
+                            turn_budget=turn_budget,
+                            current_flags=flags,
+                        )
+
+                        # Check for objective completion
+                        if obj_eval.status == "completed":
+                            completed_event = {
+                                "type": "objective_completed",
+                                "objective": user_objective,
+                                "turn": next_turn_count,
+                            }
+                            yield json.dumps(completed_event)
+
+                            # Process on_success actions
+                            if on_success:
+                                if on_success.get("set_flag"):
+                                    flags[on_success["set_flag"]] = True
+                                if on_success.get("suggest_episode"):
+                                    completed_event["suggest_episode"] = on_success["suggest_episode"]
+
+                            # Update director_state
+                            objectives_state["status"] = "completed"
+                            objectives_state["completed_at_turn"] = next_turn_count
+                            director_state["objectives"] = objectives_state
+                            director_state["flags"] = flags
+                            await self._update_session_director_state(episode.id, director_state)
+
+                        # Check for failure condition
+                        elif self.director_service.check_failure_condition(
+                            failure_condition, next_turn_count, turn_budget
+                        ):
+                            failed_event = {
+                                "type": "objective_failed",
+                                "objective": user_objective,
+                                "turn": next_turn_count,
+                            }
+                            yield json.dumps(failed_event)
+
+                            # Process on_failure actions
+                            if on_failure:
+                                if on_failure.get("set_flag"):
+                                    flags[on_failure["set_flag"]] = True
+                                if on_failure.get("suggest_episode"):
+                                    failed_event["suggest_episode"] = on_failure["suggest_episode"]
+
+                            # Update director_state
+                            objectives_state["status"] = "failed"
+                            director_state["objectives"] = objectives_state
+                            director_state["flags"] = flags
+                            await self._update_session_director_state(episode.id, director_state)
+
+                    # Check for choice point triggers
+                    if choice_points:
+                        completed_objectives = []
+                        if objectives_state.get("status") == "completed":
+                            completed_objectives.append("primary")  # Main objective ID
+
+                        triggered_choices = director_state.get("triggered_choices", [])
+
+                        # Convert choice_points to list of dicts if they're ChoicePoint objects
+                        choice_points_dicts = []
+                        for cp in choice_points:
+                            if hasattr(cp, 'model_dump'):
+                                choice_points_dicts.append(cp.model_dump())
+                            elif isinstance(cp, dict):
+                                choice_points_dicts.append(cp)
+
+                        triggered_cp = self.director_service.check_choice_point_trigger(
+                            choice_points=choice_points_dicts,
+                            turn_count=next_turn_count,
+                            completed_objectives=completed_objectives,
+                            triggered_choice_ids=triggered_choices,
+                        )
+
+                        if triggered_cp:
+                            choice_event = {
+                                "type": "choice_point",
+                                "id": triggered_cp.id,
+                                "prompt": triggered_cp.prompt,
+                                "choices": triggered_cp.choices,
+                            }
+                            yield json.dumps(choice_event)
+
+                except Exception as e:
+                    log.warning(f"Objective evaluation failed: {e}")
+
+        # =====================================================================
         # DIRECTOR PHASE 2: Post-Evaluation (BACKGROUND - fire-and-forget)
         # =====================================================================
         # v2.7: Moved to background task for instant response finalization.
@@ -571,9 +686,10 @@ class ConversationService:
                 template_id = session_row["episode_template_id"]
                 # Fetch episode dynamics from template (situation is the primary physical grounding)
                 # ADR-002: Now includes scene motivation fields
+                # ADR-008: Now includes flag_context_rules for soft branching
                 template_query = """
                     SELECT situation, episode_frame, dramatic_question, resolution_types, series_id,
-                           scene_objective, scene_obstacle, scene_tactic
+                           scene_objective, scene_obstacle, scene_tactic, flag_context_rules
                     FROM episode_templates
                     WHERE id = :template_id
                 """
@@ -593,6 +709,50 @@ class ConversationService:
                     scene_objective = template_row["scene_objective"]
                     scene_obstacle = template_row["scene_obstacle"]
                     scene_tactic = template_row["scene_tactic"]
+
+                    # ADR-008: Flag-based context injection (soft branching)
+                    # Get flags from session's director_state and inject matching context
+                    flag_context_rules_raw = template_row["flag_context_rules"]
+                    if flag_context_rules_raw:
+                        # Get session's director_state to access flags
+                        director_state_query = "SELECT director_state FROM sessions WHERE id = :episode_id"
+                        director_state_row = await self.db.fetch_one(director_state_query, {"episode_id": str(episode_id)})
+
+                        if director_state_row and director_state_row["director_state"]:
+                            director_state = director_state_row["director_state"]
+                            if isinstance(director_state, str):
+                                try:
+                                    director_state = json.loads(director_state)
+                                except (json.JSONDecodeError, TypeError):
+                                    director_state = {}
+
+                            flags = director_state.get("flags", {})
+
+                            # Parse flag_context_rules
+                            if isinstance(flag_context_rules_raw, str):
+                                try:
+                                    flag_context_rules = json.loads(flag_context_rules_raw)
+                                except (json.JSONDecodeError, TypeError):
+                                    flag_context_rules = []
+                            else:
+                                flag_context_rules = flag_context_rules_raw or []
+
+                            # Inject context for matching flags
+                            injected_contexts = []
+                            for rule in flag_context_rules:
+                                flag_name = rule.get("if_flag", "")
+                                inject_text = rule.get("inject", "")
+                                if flag_name and flags.get(flag_name) and inject_text:
+                                    injected_contexts.append(inject_text)
+                                    log.debug(f"Flag context injected: {flag_name} -> {inject_text[:50]}...")
+
+                            # Append injected context to episode_situation
+                            if injected_contexts:
+                                injected_text = " ".join(injected_contexts)
+                                if episode_situation:
+                                    episode_situation = f"{episode_situation}\n\n{injected_text}"
+                                else:
+                                    episode_situation = injected_text
 
                     # If part of a series, get series context from previous episodes
                     # Skip for guests - they don't have prior episode history
@@ -1433,6 +1593,20 @@ class ConversationService:
             return None
 
         return Session(**dict(row))
+
+    async def _update_session_director_state(
+        self,
+        session_id: UUID,
+        director_state: Dict[str, Any],
+    ):
+        """Update the director_state for a session (ADR-008).
+
+        Used to persist objective status, flags, and choice tracking.
+        """
+        await self.db.execute(
+            "UPDATE sessions SET director_state = :director_state WHERE id = :session_id",
+            {"director_state": json.dumps(director_state), "session_id": str(session_id)}
+        )
 
     async def _get_or_create_free_chat_template(
         self,

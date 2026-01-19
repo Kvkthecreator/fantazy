@@ -638,6 +638,151 @@ async def reveal_prop(
 
 
 # =============================================================================
+# ADR-008: User Objectives - Choice Points
+# =============================================================================
+
+import json as json_lib
+
+
+class ChoiceRequest(BaseModel):
+    """Request to record a user's choice at a choice point."""
+    choice_point_id: str
+    selected_option_id: str
+
+
+class ChoiceResponse(BaseModel):
+    """Response after recording a choice."""
+    status: str
+    choice_point_id: str
+    selected_option_id: str
+    flag_set: Optional[str] = None
+
+
+@router.post("/{session_id}/choice", response_model=ChoiceResponse)
+async def record_choice(
+    session_id: UUID,
+    data: ChoiceRequest,
+    user_id: UUID = Depends(get_current_user_id),
+    db=Depends(get_db),
+):
+    """Record user's choice at a choice point (ADR-008).
+
+    This endpoint:
+    - Validates the choice point exists in the episode template
+    - Records the choice in director_state.choices_made
+    - Sets any flags associated with the selected choice
+    - Marks the choice point as triggered to prevent re-triggering
+
+    Returns the flag that was set (if any) so frontend can update state.
+    """
+    # Get session with template info
+    session_query = """
+        SELECT s.id, s.user_id, s.episode_template_id, s.director_state,
+               et.choice_points
+        FROM sessions s
+        LEFT JOIN episode_templates et ON et.id = s.episode_template_id
+        WHERE s.id = :session_id AND s.user_id = :user_id
+    """
+    session = await db.fetch_one(session_query, {
+        "session_id": str(session_id),
+        "user_id": str(user_id),
+    })
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found",
+        )
+
+    # Parse choice_points from template
+    choice_points_raw = session["choice_points"]
+    if isinstance(choice_points_raw, str):
+        choice_points = json_lib.loads(choice_points_raw)
+    elif choice_points_raw is None:
+        choice_points = []
+    else:
+        choice_points = choice_points_raw
+
+    # Find the matching choice point
+    choice_point = None
+    for cp in choice_points:
+        if cp.get("id") == data.choice_point_id:
+            choice_point = cp
+            break
+
+    if not choice_point:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Choice point '{data.choice_point_id}' not found in episode",
+        )
+
+    # Find the selected choice
+    selected_choice = None
+    for choice in choice_point.get("choices", []):
+        if choice.get("id") == data.selected_option_id:
+            selected_choice = choice
+            break
+
+    if not selected_choice:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid option '{data.selected_option_id}' for choice point",
+        )
+
+    # Update director_state
+    director_state_raw = session["director_state"]
+    if isinstance(director_state_raw, str):
+        director_state = json_lib.loads(director_state_raw)
+    elif director_state_raw is None:
+        director_state = {}
+    else:
+        director_state = dict(director_state_raw)
+
+    # Initialize tracking structures if needed
+    if "choices_made" not in director_state:
+        director_state["choices_made"] = []
+    if "triggered_choices" not in director_state:
+        director_state["triggered_choices"] = []
+    if "flags" not in director_state:
+        director_state["flags"] = {}
+
+    # Record the choice
+    director_state["choices_made"].append({
+        "choice_point_id": data.choice_point_id,
+        "selected": data.selected_option_id,
+        "timestamp": datetime.utcnow().isoformat(),
+    })
+
+    # Mark as triggered (prevent re-triggering)
+    if data.choice_point_id not in director_state["triggered_choices"]:
+        director_state["triggered_choices"].append(data.choice_point_id)
+
+    # Set flag if specified
+    flag_set = None
+    if selected_choice.get("sets_flag"):
+        flag_set = selected_choice["sets_flag"]
+        director_state["flags"][flag_set] = True
+
+    # Save updated director_state
+    update_query = """
+        UPDATE sessions
+        SET director_state = :director_state
+        WHERE id = :session_id
+    """
+    await db.execute(update_query, {
+        "session_id": str(session_id),
+        "director_state": json_lib.dumps(director_state),
+    })
+
+    return ChoiceResponse(
+        status="recorded",
+        choice_point_id=data.choice_point_id,
+        selected_option_id=data.selected_option_id,
+        flag_set=flag_set,
+    )
+
+
+# =============================================================================
 # Guest Sessions (Anonymous Episode 0 trials)
 # =============================================================================
 

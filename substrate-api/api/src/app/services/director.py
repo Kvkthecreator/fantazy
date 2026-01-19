@@ -490,6 +490,26 @@ class DirectorActions:
 
 
 @dataclass
+class ObjectiveEvaluation:
+    """Result of evaluating a user objective (ADR-008).
+
+    Tracks whether the user has achieved their objective for the episode.
+    """
+    status: str  # "pending", "in_progress", "completed", "failed"
+    completed_at_turn: Optional[int] = None
+    flags_to_set: Dict[str, Any] = field(default_factory=dict)
+    suggested_episode: Optional[str] = None
+
+
+@dataclass
+class TriggeredChoicePoint:
+    """A choice point that has been triggered (ADR-008)."""
+    id: str
+    prompt: str
+    choices: List[Dict[str, str]]  # [{id, label}]
+
+
+@dataclass
 class DirectorOutput:
     """Output from Director processing.
 
@@ -500,6 +520,7 @@ class DirectorOutput:
     to decouple suggestion flow from "completion" semantics. See EPISODE_STATUS_MODEL.md.
 
     ADR-005 v2: Director owns prop revelation detection.
+    ADR-008: Director owns objective evaluation and choice point detection.
     """
     # Core state
     turn_count: int
@@ -519,6 +540,10 @@ class DirectorOutput:
 
     # ADR-005 v2: Props revealed this turn (Director-detected)
     revealed_props: List[Dict[str, Any]] = field(default_factory=list)
+
+    # ADR-008: User objectives
+    objective_evaluation: Optional[ObjectiveEvaluation] = None
+    triggered_choice_point: Optional[TriggeredChoicePoint] = None
 
     # Legacy compatibility
     structured_response: Optional[Dict[str, Any]] = None
@@ -1154,6 +1179,197 @@ STATUS: going/closing/done"""
                     log.info(f"Director prop revelation: {row['name']} at turn {current_turn} (trigger={reveal_trigger})")
 
         return revealed
+
+    # =========================================================================
+    # ADR-008: USER OBJECTIVES EVALUATION
+    # =========================================================================
+
+    async def evaluate_objective(
+        self,
+        objective: str,
+        success_condition: str,
+        messages: List[Dict[str, str]],
+        character_response: str,
+        turn_count: int,
+        turn_budget: Optional[int],
+        current_flags: Dict[str, Any],
+    ) -> ObjectiveEvaluation:
+        """Evaluate if user achieved their objective (ADR-008).
+
+        Success condition types:
+        - semantic:<criteria> - LLM evaluation (e.g., "semantic:character_admits_feelings")
+        - keyword:<words> - Keyword detection (e.g., "keyword:love,care,feelings")
+        - turn:<N> - Turn-based (e.g., "turn:7" = survive 7 turns)
+        - flag:<name> - Flag-based (e.g., "flag:trust_established")
+
+        Returns ObjectiveEvaluation with status and any flags to set.
+        """
+        if not objective or not success_condition:
+            return ObjectiveEvaluation(status="pending")
+
+        # Parse condition type
+        if success_condition.startswith("semantic:"):
+            criteria = success_condition.replace("semantic:", "")
+            return await self._semantic_objective_check(objective, criteria, messages, character_response, turn_count)
+
+        elif success_condition.startswith("keyword:"):
+            keywords = success_condition.replace("keyword:", "").split(",")
+            return self._keyword_objective_check(keywords, character_response, turn_count)
+
+        elif success_condition.startswith("turn:"):
+            threshold = int(success_condition.replace("turn:", ""))
+            if turn_count >= threshold:
+                return ObjectiveEvaluation(status="completed", completed_at_turn=turn_count)
+            return ObjectiveEvaluation(status="in_progress")
+
+        elif success_condition.startswith("flag:"):
+            flag_name = success_condition.replace("flag:", "")
+            if current_flags.get(flag_name):
+                return ObjectiveEvaluation(status="completed", completed_at_turn=turn_count)
+            return ObjectiveEvaluation(status="in_progress")
+
+        return ObjectiveEvaluation(status="in_progress")
+
+    async def _semantic_objective_check(
+        self,
+        objective: str,
+        criteria: str,
+        messages: List[Dict[str, str]],
+        character_response: str,
+        turn_count: int,
+    ) -> ObjectiveEvaluation:
+        """Use LLM to evaluate if semantic criteria is met."""
+        # Format recent messages for context
+        recent = messages[-6:] if len(messages) > 6 else messages
+        formatted = "\n".join(
+            f"{m['role'].upper()}: {m['content']}"
+            for m in recent
+        )
+
+        prompt = f"""Evaluate whether the user's objective has been achieved based on this conversation.
+
+USER'S OBJECTIVE: {objective}
+SUCCESS CRITERIA: {criteria}
+
+RECENT CONVERSATION:
+{formatted}
+
+LATEST CHARACTER RESPONSE:
+{character_response}
+
+Has the user achieved their objective? The criteria "{criteria}" should be clearly demonstrated in the conversation.
+
+Respond with ONE word only: YES or NO"""
+
+        try:
+            response = await self.llm.generate(
+                [{"role": "user", "content": prompt}],
+                max_tokens=10,
+                temperature=0.0,
+            )
+
+            result = response.content.strip().upper()
+            if "YES" in result:
+                log.info(f"Objective completed: {objective[:50]}... (criteria: {criteria})")
+                return ObjectiveEvaluation(status="completed", completed_at_turn=turn_count)
+            else:
+                return ObjectiveEvaluation(status="in_progress")
+
+        except Exception as e:
+            log.error(f"Semantic objective check failed: {e}")
+            return ObjectiveEvaluation(status="in_progress")
+
+    def _keyword_objective_check(
+        self,
+        keywords: List[str],
+        character_response: str,
+        turn_count: int,
+    ) -> ObjectiveEvaluation:
+        """Check if any keywords appear in the character's response."""
+        response_lower = character_response.lower()
+        for keyword in keywords:
+            if keyword.strip().lower() in response_lower:
+                log.info(f"Objective completed via keyword: {keyword}")
+                return ObjectiveEvaluation(status="completed", completed_at_turn=turn_count)
+        return ObjectiveEvaluation(status="in_progress")
+
+    def check_failure_condition(
+        self,
+        failure_condition: str,
+        turn_count: int,
+        turn_budget: Optional[int],
+    ) -> bool:
+        """Check if failure condition is met."""
+        if not failure_condition:
+            return False
+
+        if failure_condition == "turn_budget_exceeded":
+            # Fail if we've exceeded turn budget without completing objective
+            if turn_budget and turn_budget > 0 and turn_count > turn_budget:
+                return True
+        elif failure_condition.startswith("turn:"):
+            threshold = int(failure_condition.replace("turn:", ""))
+            if turn_count > threshold:
+                return True
+
+        return False
+
+    def check_choice_point_trigger(
+        self,
+        choice_points: List[Dict[str, Any]],
+        turn_count: int,
+        completed_objectives: List[str],
+        triggered_choice_ids: List[str],
+    ) -> Optional[TriggeredChoicePoint]:
+        """Check if any choice point should trigger.
+
+        ADR-008: Choice points trigger based on:
+        - turn:<N> - At specific turn number
+        - after_objective:<id> - After an objective is completed
+
+        Returns TriggeredChoicePoint if a choice should be shown.
+        """
+        if not choice_points:
+            return None
+
+        for cp in choice_points:
+            cp_id = cp.get("id", "")
+
+            # Skip already triggered choices
+            if cp_id in triggered_choice_ids:
+                continue
+
+            trigger = cp.get("trigger", "")
+
+            # Turn-based trigger
+            if trigger.startswith("turn:"):
+                target_turn = int(trigger.replace("turn:", ""))
+                if turn_count == target_turn:
+                    choices = [
+                        {"id": c.get("id", ""), "label": c.get("label", "")}
+                        for c in cp.get("choices", [])
+                    ]
+                    return TriggeredChoicePoint(
+                        id=cp_id,
+                        prompt=cp.get("prompt", ""),
+                        choices=choices,
+                    )
+
+            # Objective-based trigger
+            elif trigger.startswith("after_objective:"):
+                obj_id = trigger.replace("after_objective:", "")
+                if obj_id in completed_objectives:
+                    choices = [
+                        {"id": c.get("id", ""), "label": c.get("label", "")}
+                        for c in cp.get("choices", [])
+                    ]
+                    return TriggeredChoicePoint(
+                        id=cp_id,
+                        prompt=cp.get("prompt", ""),
+                        choices=choices,
+                    )
+
+        return None
 
     async def _get_user_preferences(self, user_id: UUID) -> Dict[str, Any]:
         """Fetch user preferences from database."""

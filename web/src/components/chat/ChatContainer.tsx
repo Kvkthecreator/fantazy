@@ -17,6 +17,8 @@ import { EpisodeOpeningCard } from "./EpisodeOpeningCard";
 import { RateLimitModal } from "./RateLimitModal";
 import { InlineCompletionCard } from "./InlineCompletionCard";
 import { InlineSuggestionCard } from "./InlineSuggestionCard";
+import { ObjectiveCard } from "./ObjectiveCard";
+import { ChoiceCard } from "./ChoiceCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { QuotaExceededModal } from "@/components/usage";
 import { InsufficientSparksModal } from "@/components/sparks";
@@ -213,6 +215,10 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     instructionCards,
     revealedProps,
     clearVisualPending,
+    // ADR-008: User objectives
+    currentObjective,
+    activeChoicePoint,
+    selectChoice,
     // Actions
     sendMessage,
     clearSceneSuggestion,
@@ -224,6 +230,9 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
     // Guest session support - pass IDs so useChat skips session creation
     guestSessionId: guestSessionId,
     guestEpisodeId: sessionId,  // session_id from useGuestSession is the episode ID
+    // ADR-008: Pass initial objective from episode template
+    initialObjective: episodeTemplate?.user_objective ?? undefined,
+    initialHint: episodeTemplate?.user_hint ?? undefined,
     onError: (error) => {
       console.error("Chat error:", error);
     },
@@ -522,6 +531,15 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
             />
           ) : (
             <>
+              {/* ADR-008: User objective card - show at start of conversation */}
+              {currentObjective && (
+                <ObjectiveCard
+                  objective={currentObjective.objective}
+                  hint={currentObjective.hint}
+                  status={currentObjective.status}
+                />
+              )}
+
               {/* Chat items (messages + scenes + props) */}
               {chatItems.map((item) =>
                 item.type === "message" ? (
@@ -577,6 +595,16 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
                 />
               ))}
 
+              {/* ADR-008: Choice point card - show when a decision moment is triggered */}
+              {activeChoicePoint && (
+                <ChoiceCard
+                  prompt={activeChoicePoint.prompt}
+                  choices={activeChoicePoint.choices}
+                  onChoiceSelect={async (choiceId) => {
+                    await selectChoice(activeChoicePoint.id, choiceId);
+                  }}
+                />
+              )}
 
               {/* Completion card */}
               {evaluation && (

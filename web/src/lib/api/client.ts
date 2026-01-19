@@ -252,6 +252,18 @@ export const api = {
           body: JSON.stringify({ guest_session_id: guestSessionId }),
         }
       ),
+    // ADR-008: Record user choice at a choice point
+    recordChoice: (sessionId: string, choicePointId: string, selectedOptionId: string) =>
+      request<{ status: string; choice_point_id: string; selected_option_id: string; flag_set: string | null }>(
+        `/sessions/${sessionId}/choice`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            choice_point_id: choicePointId,
+            selected_option_id: selectedOptionId,
+          }),
+        }
+      ),
   },
 
   // Episode Template endpoints (pre-defined scenarios)
