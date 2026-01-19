@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import AsyncIterator, Dict, List, Optional
+from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import UUID
 
 from app.models.character import Character

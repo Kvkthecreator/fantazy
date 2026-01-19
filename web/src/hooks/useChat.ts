@@ -543,7 +543,7 @@ export function useChat({
     if (!episode) return;
 
     try {
-      await api.sessions.recordChoice(episode.id, choicePointId, choiceId);
+      await api.episodes.recordChoice(episode.id, choicePointId, choiceId);
       setActiveChoicePoint(null);  // Clear choice point after selection
     } catch (error) {
       onErrorRef.current?.(error as Error);
