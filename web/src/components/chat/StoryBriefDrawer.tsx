@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, FileSearch, ScrollText, ChevronDown, Briefcase } from "lucide-react";
+import { X, FileSearch, ScrollText, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PropCard } from "./PropCard";
 import { cn } from "@/lib/utils";
@@ -23,17 +23,18 @@ interface StoryBriefDrawerProps {
   storyBrief?: StoryBrief;
 }
 
+type TabType = "context" | "items";
+
 /**
- * StoryBriefDrawer - Contextual drawer for story brief and collected items
+ * StoryBriefDrawer - Tabbed drawer for story context and collected items
  *
- * Primary purpose: Give players the context they need to engage with the story
- * - Story Brief: Scene setup, backstory, what you know
- * - Items: Props collected during the episode (evidence, keepsakes, etc.)
+ * Two distinct data types, two tabs:
+ * - Context: Static story brief (scene setup, backstory) - reference material
+ * - Items: Dynamic prop collection that grows during play - progression/rewards
  *
  * Design philosophy:
- * - "Brief" as in intelligence briefing - fits mystery, thriller, romance alike
+ * - Clear separation between "what you know" and "what you've found"
  * - Bottom sheet on mobile, side panel on desktop
- * - Story context first, items second
  * - Dark, immersive aesthetic
  */
 export function StoryBriefDrawer({
@@ -45,8 +46,7 @@ export function StoryBriefDrawer({
   storyBrief,
 }: StoryBriefDrawerProps) {
   const [mounted, setMounted] = useState(false);
-  const [briefExpanded, setBriefExpanded] = useState(true);
-  const [itemsExpanded, setItemsExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>("context");
 
   useEffect(() => {
     setMounted(true);
@@ -76,14 +76,6 @@ export function StoryBriefDrawer({
   const hasStoryBrief = storyBrief && (storyBrief.situation || storyBrief.backstory);
   const keyEvidenceCount = props.filter(p => p.is_key_evidence || p.badge_label).length;
 
-  // Build dynamic subtitle
-  const subtitleParts: string[] = [];
-  if (hasStoryBrief) subtitleParts.push("Context");
-  if (props.length > 0) {
-    subtitleParts.push(`${props.length} item${props.length !== 1 ? "s" : ""}`);
-  }
-  const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" • ") : "Story context";
-
   const content = (
     <div className="fixed inset-0 z-50">
       {/* Backdrop */}
@@ -95,7 +87,7 @@ export function StoryBriefDrawer({
       {/* Sheet - bottom on mobile, right side on desktop */}
       <div
         className={cn(
-          "absolute animate-in duration-300",
+          "absolute animate-in duration-300 flex flex-col",
           // Mobile: bottom sheet
           "bottom-0 left-0 right-0 max-h-[85vh] rounded-t-2xl",
           // Desktop: side panel
@@ -110,26 +102,9 @@ export function StoryBriefDrawer({
           <div className="w-10 h-1 rounded-full bg-white/30" />
         </div>
 
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
-              <ScrollText className="w-5 h-5 text-blue-400" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-lg text-white">
-                Brief
-              </h2>
-              <p className="text-xs text-white/50">
-                {subtitle}
-                {keyEvidenceCount > 0 && (
-                  <span className="text-amber-400 ml-1">
-                    • {keyEvidenceCount} key
-                  </span>
-                )}
-              </p>
-            </div>
-          </div>
+        {/* Header with close button */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
+          <h2 className="font-semibold text-lg text-white">Brief</h2>
           <Button
             variant="ghost"
             size="icon"
@@ -140,37 +115,65 @@ export function StoryBriefDrawer({
           </Button>
         </div>
 
-        {/* Scrollable content */}
-        <div className="overflow-y-auto max-h-[calc(85vh-80px)] sm:max-h-[calc(100vh-80px)] px-3 pb-[env(safe-area-inset-bottom)]">
-          {/* Story Brief Section */}
-          {hasStoryBrief && (
-            <div className="py-3 border-b border-white/10">
-              <button
-                onClick={() => setBriefExpanded(!briefExpanded)}
-                className="w-full flex items-center justify-between text-left group"
-              >
-                <div className="flex items-center gap-2">
-                  <ScrollText className="w-4 h-4 text-blue-400" />
-                  <span className="text-sm font-medium text-white/90">Story Brief</span>
-                </div>
-                <ChevronDown
-                  className={cn(
-                    "w-4 h-4 text-white/50 transition-transform",
-                    briefExpanded && "rotate-180"
-                  )}
-                />
-              </button>
+        {/* Tabs */}
+        <div className="flex border-b border-white/10">
+          <button
+            onClick={() => setActiveTab("context")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative",
+              activeTab === "context"
+                ? "text-blue-400"
+                : "text-white/50 hover:text-white/70"
+            )}
+          >
+            <ScrollText className="w-4 h-4" />
+            <span>Context</span>
+            {activeTab === "context" && (
+              <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-blue-400 rounded-full" />
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("items")}
+            className={cn(
+              "flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative",
+              activeTab === "items"
+                ? "text-amber-400"
+                : "text-white/50 hover:text-white/70"
+            )}
+          >
+            <Briefcase className="w-4 h-4" />
+            <span>Items</span>
+            {props.length > 0 && (
+              <span className={cn(
+                "ml-1 px-1.5 py-0.5 text-[10px] rounded-full",
+                activeTab === "items"
+                  ? "bg-amber-400/20 text-amber-400"
+                  : "bg-white/10 text-white/50"
+              )}>
+                {props.length}
+              </span>
+            )}
+            {activeTab === "items" && (
+              <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-amber-400 rounded-full" />
+            )}
+          </button>
+        </div>
 
-              {briefExpanded && (
-                <div className="mt-3 space-y-3">
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)]">
+          {activeTab === "context" ? (
+            /* Context Tab */
+            <div className="py-4">
+              {hasStoryBrief ? (
+                <div className="space-y-4">
                   {storyBrief.episodeTitle && (
-                    <p className="text-xs text-blue-400 uppercase tracking-wide">
+                    <p className="text-xs text-blue-400 uppercase tracking-wide font-medium">
                       {storyBrief.episodeTitle}
                     </p>
                   )}
                   {storyBrief.situation && (
                     <div>
-                      <p className="text-xs text-white/40 mb-1">The Scene</p>
+                      <p className="text-xs text-white/40 mb-1.5 uppercase tracking-wide">The Scene</p>
                       <p className="text-sm text-white/80 leading-relaxed">
                         {storyBrief.situation}
                       </p>
@@ -178,56 +181,45 @@ export function StoryBriefDrawer({
                   )}
                   {storyBrief.backstory && (
                     <div>
-                      <p className="text-xs text-white/40 mb-1">What You Know</p>
+                      <p className="text-xs text-white/40 mb-1.5 uppercase tracking-wide">What You Know</p>
                       <p className="text-sm text-white/70 leading-relaxed whitespace-pre-line">
                         {storyBrief.backstory}
                       </p>
                     </div>
                   )}
                 </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+                    <ScrollText className="w-7 h-7 text-white/30" />
+                  </div>
+                  <p className="text-white/50 text-sm">No story context</p>
+                  <p className="text-white/30 text-xs mt-1 max-w-[200px]">
+                    Context will appear when you start an episode
+                  </p>
+                </div>
               )}
             </div>
-          )}
-
-          {/* Items Section */}
-          {props.length === 0 ? (
-            // Empty state - only show if there's no story brief either
-            !hasStoryBrief && (
-              <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-                  <FileSearch className="w-8 h-8 text-white/30" />
-                </div>
-                <p className="text-white/50 text-sm">No context yet</p>
-                <p className="text-white/30 text-xs mt-1 max-w-[200px]">
-                  Story details will appear as you progress
-                </p>
-              </div>
-            )
           ) : (
-            <div className="py-3">
-              <button
-                onClick={() => setItemsExpanded(!itemsExpanded)}
-                className="w-full flex items-center justify-between text-left group mb-2"
-              >
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-amber-400" />
-                  <span className="text-sm font-medium text-white/90">
-                    Items Collected
-                  </span>
-                  <span className="text-xs text-white/40">
-                    {props.length}
-                  </span>
+            /* Items Tab */
+            <div className="py-4">
+              {props.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+                    <FileSearch className="w-7 h-7 text-white/30" />
+                  </div>
+                  <p className="text-white/50 text-sm">No items collected</p>
+                  <p className="text-white/30 text-xs mt-1 max-w-[200px]">
+                    Keep talking with {characterName || "them"} to discover items
+                  </p>
                 </div>
-                <ChevronDown
-                  className={cn(
-                    "w-4 h-4 text-white/50 transition-transform",
-                    itemsExpanded && "rotate-180"
+              ) : (
+                <div className="space-y-3">
+                  {keyEvidenceCount > 0 && (
+                    <p className="text-xs text-amber-400">
+                      {keyEvidenceCount} key item{keyEvidenceCount !== 1 ? "s" : ""}
+                    </p>
                   )}
-                />
-              </button>
-
-              {itemsExpanded && (
-                <div className="space-y-2">
                   {props.map((prop) => (
                     <PropCard
                       key={prop.id}
@@ -237,15 +229,6 @@ export function StoryBriefDrawer({
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Hint when story brief exists but no items */}
-          {hasStoryBrief && props.length === 0 && (
-            <div className="py-6 text-center">
-              <p className="text-white/30 text-xs">
-                Items will appear here as you discover them
-              </p>
             </div>
           )}
         </div>

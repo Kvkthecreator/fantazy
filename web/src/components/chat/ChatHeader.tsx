@@ -171,17 +171,26 @@ export function ChatHeader({
               className={cn(
                 "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium transition-all",
                 hasNewProp && "animate-pulse",
-                revealedProps.some(p => p.is_key_evidence || p.badge_label)
-                  ? hasBackground
-                    ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
-                    : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
-                  : hasBackground
-                    ? "bg-blue-500/20 text-blue-300 hover:bg-blue-500/30"
-                    : "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"
+                hasBackground
+                  ? "bg-white/10 text-white/80 hover:bg-white/20"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
               )}
             >
               <ScrollTextIcon className="h-3 w-3" />
               <span>Brief</span>
+              {/* Item count badge */}
+              {revealedProps.length > 0 && (
+                <span className={cn(
+                  "ml-0.5 px-1.5 py-0.5 text-[10px] rounded-full",
+                  revealedProps.some(p => p.is_key_evidence || p.badge_label)
+                    ? "bg-amber-500/30 text-amber-300"
+                    : hasBackground
+                      ? "bg-white/20 text-white/70"
+                      : "bg-foreground/10 text-foreground/70"
+                )}>
+                  {revealedProps.length}
+                </span>
+              )}
             </button>
           )}
 
