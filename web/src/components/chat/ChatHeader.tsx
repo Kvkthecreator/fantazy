@@ -26,9 +26,9 @@ interface ChatHeaderProps {
   } | null;
   seriesTitle?: string | null;  // ADR-004: Series title for multi-character support
   hasBackground?: boolean;
-  // ADR-006: Items drawer integration
+  // ADR-006: Story Brief drawer integration
   revealedProps?: RevealedProp[];
-  onItemsClick?: () => void;
+  onBriefClick?: () => void;
   hasNewProp?: boolean;
 }
 
@@ -41,7 +41,7 @@ export function ChatHeader({
   seriesTitle,
   hasBackground = false,
   revealedProps = [],
-  onItemsClick,
+  onBriefClick,
   hasNewProp = false,
 }: ChatHeaderProps) {
   // episodeTemplate reserved for future use (episode title display, etc.)
@@ -164,10 +164,10 @@ export function ChatHeader({
             </button>
           )}
 
-          {/* ADR-006: Items button - shows for any episode (series or standalone) */}
-          {onItemsClick && (
+          {/* ADR-006: Brief button - story context + items drawer */}
+          {onBriefClick && (
             <button
-              onClick={onItemsClick}
+              onClick={onBriefClick}
               className={cn(
                 "flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium transition-all",
                 hasNewProp && "animate-pulse",
@@ -176,12 +176,12 @@ export function ChatHeader({
                     ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
                     : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
                   : hasBackground
-                    ? "bg-white/10 text-white/80 hover:bg-white/20"
-                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    ? "bg-blue-500/20 text-blue-300 hover:bg-blue-500/30"
+                    : "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20"
               )}
             >
-              <BriefcaseIcon className="h-3 w-3" />
-              <span>{revealedProps.length}</span>
+              <ScrollTextIcon className="h-3 w-3" />
+              <span>Brief</span>
             </button>
           )}
 
@@ -461,7 +461,7 @@ function PlayIcon({ className }: { className?: string }) {
   );
 }
 
-function BriefcaseIcon({ className }: { className?: string }) {
+function ScrollTextIcon({ className }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -473,8 +473,10 @@ function BriefcaseIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       className={className}
     >
-      <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      <path d="M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4" />
+      <path d="M19 17V5a2 2 0 0 0-2-2H4" />
+      <path d="M15 8h-5" />
+      <path d="M15 12h-5" />
     </svg>
   );
 }

@@ -11,7 +11,7 @@ import { MessageBubble, StreamingBubble } from "./MessageBubble";
 import { MessageInput, SceneGenerationMode } from "./MessageInput";
 import { SceneCard, SceneCardSkeleton } from "./SceneCard";
 import { InstructionCard } from "./InstructionCard";
-import { ItemsDrawer } from "./ItemsDrawer";
+import { StoryBriefDrawer } from "./StoryBriefDrawer";
 import { PropCard } from "./PropCard";
 import { EpisodeOpeningCard } from "./EpisodeOpeningCard";
 import { RateLimitModal } from "./RateLimitModal";
@@ -56,7 +56,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
   const [showRateLimitModal, setShowRateLimitModal] = useState(false);
   const [rateLimitError, setRateLimitError] = useState<RateLimitError | null>(null);
   const [showCharacterInfo, setShowCharacterInfo] = useState(false);
-  const [showItemsDrawer, setShowItemsDrawer] = useState(false);
+  const [showBriefDrawer, setShowBriefDrawer] = useState(false);
   const [hasNewProp, setHasNewProp] = useState(false);
   const previousPropCountRef = useRef(0);
   const guestSessionCreatingRef = useRef(false);
@@ -504,7 +504,7 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
           seriesTitle={seriesTitle}
           hasBackground={hasBackground}
           revealedProps={revealedProps}
-          onItemsClick={() => setShowItemsDrawer(true)}
+          onBriefClick={() => setShowBriefDrawer(true)}
           hasNewProp={hasNewProp}
         />
       </div>
@@ -774,11 +774,11 @@ export function ChatContainer({ characterId, episodeTemplateId }: ChatContainerP
         hasBackground={hasBackground}
       />
 
-      {/* ADR-006: Items drawer for collected props and story brief */}
-      <ItemsDrawer
+      {/* ADR-006: Story Brief drawer for context and collected props */}
+      <StoryBriefDrawer
         props={revealedProps}
-        isOpen={showItemsDrawer}
-        onClose={() => setShowItemsDrawer(false)}
+        isOpen={showBriefDrawer}
+        onClose={() => setShowBriefDrawer(false)}
         hasBackground={hasBackground}
         characterName={character.name}
         storyBrief={{

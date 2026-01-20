@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, FileSearch, Briefcase, BookOpen, ChevronDown } from "lucide-react";
+import { X, FileSearch, ScrollText, ChevronDown, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PropCard } from "./PropCard";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ interface StoryBrief {
   backstory?: string;
 }
 
-interface ItemsDrawerProps {
+interface StoryBriefDrawerProps {
   props: RevealedProp[];
   isOpen: boolean;
   onClose: () => void;
@@ -24,32 +24,29 @@ interface ItemsDrawerProps {
 }
 
 /**
- * ItemsDrawer - Collapsible drawer for story brief and collected props
+ * StoryBriefDrawer - Contextual drawer for story brief and collected items
  *
- * ADR-006: Props as Progression System
- * Instead of showing props inline at bottom of chat, we collect them
- * into an items drawer - like an inventory in a game.
- *
- * Story Brief section added for supplemental context - helps users
- * understand the scene, their role, and key background info without
- * needing to visit the series page first.
+ * Primary purpose: Give players the context they need to engage with the story
+ * - Story Brief: Scene setup, backstory, what you know
+ * - Items: Props collected during the episode (evidence, keepsakes, etc.)
  *
  * Design philosophy:
+ * - "Brief" as in intelligence briefing - fits mystery, thriller, romance alike
  * - Bottom sheet on mobile, side panel on desktop
- * - Genre-agnostic naming (works for mystery evidence, survival gear, romance keepsakes)
- * - Scrollable gallery of collected props
- * - Game-like "collection" feeling
+ * - Story context first, items second
+ * - Dark, immersive aesthetic
  */
-export function ItemsDrawer({
+export function StoryBriefDrawer({
   props,
   isOpen,
   onClose,
   hasBackground = false,
   characterName,
   storyBrief,
-}: ItemsDrawerProps) {
+}: StoryBriefDrawerProps) {
   const [mounted, setMounted] = useState(false);
   const [briefExpanded, setBriefExpanded] = useState(true);
+  const [itemsExpanded, setItemsExpanded] = useState(true);
 
   useEffect(() => {
     setMounted(true);
@@ -76,7 +73,16 @@ export function ItemsDrawer({
 
   if (!mounted || !isOpen) return null;
 
+  const hasStoryBrief = storyBrief && (storyBrief.situation || storyBrief.backstory);
   const keyEvidenceCount = props.filter(p => p.is_key_evidence || p.badge_label).length;
+
+  // Build dynamic subtitle
+  const subtitleParts: string[] = [];
+  if (hasStoryBrief) subtitleParts.push("Context");
+  if (props.length > 0) {
+    subtitleParts.push(`${props.length} item${props.length !== 1 ? "s" : ""}`);
+  }
+  const subtitle = subtitleParts.length > 0 ? subtitleParts.join(" • ") : "Story context";
 
   const content = (
     <div className="fixed inset-0 z-50">
@@ -95,7 +101,7 @@ export function ItemsDrawer({
           // Desktop: side panel
           "sm:top-0 sm:right-0 sm:bottom-0 sm:left-auto sm:w-[420px] sm:max-h-full sm:rounded-t-none sm:rounded-l-2xl",
           "slide-in-from-bottom sm:slide-in-from-right",
-          // Noir/evidence aesthetic
+          // Dark immersive aesthetic
           "bg-gradient-to-br from-slate-900 via-gray-900 to-slate-950 border-l border-white/10"
         )}
       >
@@ -107,15 +113,15 @@ export function ItemsDrawer({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-amber-400" />
+            <div className="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center">
+              <ScrollText className="w-5 h-5 text-blue-400" />
             </div>
             <div>
               <h2 className="font-semibold text-lg text-white">
-                Items
+                Brief
               </h2>
               <p className="text-xs text-white/50">
-                {props.length} collected
+                {subtitle}
                 {keyEvidenceCount > 0 && (
                   <span className="text-amber-400 ml-1">
                     • {keyEvidenceCount} key
@@ -137,14 +143,14 @@ export function ItemsDrawer({
         {/* Scrollable content */}
         <div className="overflow-y-auto max-h-[calc(85vh-80px)] sm:max-h-[calc(100vh-80px)] px-3 pb-[env(safe-area-inset-bottom)]">
           {/* Story Brief Section */}
-          {storyBrief && (storyBrief.situation || storyBrief.backstory) && (
+          {hasStoryBrief && (
             <div className="py-3 border-b border-white/10">
               <button
                 onClick={() => setBriefExpanded(!briefExpanded)}
                 className="w-full flex items-center justify-between text-left group"
               >
                 <div className="flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-blue-400" />
+                  <ScrollText className="w-4 h-4 text-blue-400" />
                   <span className="text-sm font-medium text-white/90">Story Brief</span>
                 </div>
                 <ChevronDown
@@ -183,27 +189,63 @@ export function ItemsDrawer({
             </div>
           )}
 
-          {/* Props/Items Section */}
+          {/* Items Section */}
           {props.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
-                <FileSearch className="w-8 h-8 text-white/30" />
+            // Empty state - only show if there's no story brief either
+            !hasStoryBrief && (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+                  <FileSearch className="w-8 h-8 text-white/30" />
+                </div>
+                <p className="text-white/50 text-sm">No context yet</p>
+                <p className="text-white/30 text-xs mt-1 max-w-[200px]">
+                  Story details will appear as you progress
+                </p>
               </div>
-              <p className="text-white/50 text-sm">No items collected yet</p>
-              <p className="text-white/30 text-xs mt-1 max-w-[200px]">
-                Keep talking with {characterName || "them"} to discover items
-              </p>
-            </div>
+            )
           ) : (
-            <div className="space-y-2 py-3">
-              <p className="text-xs text-white/40 px-1 mb-2">Items Collected</p>
-              {props.map((prop) => (
-                <PropCard
-                  key={prop.id}
-                  prop={prop}
-                  hasBackground={true}
+            <div className="py-3">
+              <button
+                onClick={() => setItemsExpanded(!itemsExpanded)}
+                className="w-full flex items-center justify-between text-left group mb-2"
+              >
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm font-medium text-white/90">
+                    Items Collected
+                  </span>
+                  <span className="text-xs text-white/40">
+                    {props.length}
+                  </span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "w-4 h-4 text-white/50 transition-transform",
+                    itemsExpanded && "rotate-180"
+                  )}
                 />
-              ))}
+              </button>
+
+              {itemsExpanded && (
+                <div className="space-y-2">
+                  {props.map((prop) => (
+                    <PropCard
+                      key={prop.id}
+                      prop={prop}
+                      hasBackground={true}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Hint when story brief exists but no items */}
+          {hasStoryBrief && props.length === 0 && (
+            <div className="py-6 text-center">
+              <p className="text-white/30 text-xs">
+                Items will appear here as you discover them
+              </p>
             </div>
           )}
         </div>
@@ -213,5 +255,3 @@ export function ItemsDrawer({
 
   return createPortal(content, document.body);
 }
-
-// Note: Trigger button moved to ChatHeader for better UX (ADR-006)
